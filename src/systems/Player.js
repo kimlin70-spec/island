@@ -2,7 +2,7 @@ import { CONFIG } from '../config.js';
 import { tileToWorld } from '../iso.js';
 import { findPath } from './Pathfinder.js';
 
-// 주인공: 눌러서 이동, 걷는 동작, 좌우 뒤집기, 깊이 정렬
+// 주인공: 눌러서 이동, 걷는 동작, 좌우 뒤집기, 깊이 정렬, 옆 칸의 대상에게 행동(캐기 등)
 export class Player {
   constructor(scene, mapSystem, col, row) {
     this.scene = scene;
@@ -15,6 +15,11 @@ export class Player {
     this.path = [];            // 앞으로 지나갈 칸들
     this.costAt = (c, r) => (this.map.isWalkable(c, r) ? 1 : 0);
 
+    this.action = null;        // { target, isValid(target), act(target) }
+    this.cooldown = 0;         // 다음 행동까지 남은 시간(초)
+    this.attackTimer = 0;      // attack 그림을 보여 줄 남은 시간(초)
+    this.onEnterTile = null;   // 새 칸에 들어설 때 부르는 함수 (col, row)
+
     const w = tileToWorld(col, row);
     this.sprite = scene.add.sprite(w.x, w.y, this.key, this.frame('idle'))
       .setOrigin(this.asset.originX, this.asset.originY);
@@ -24,48 +29,101 @@ export class Player {
   frame(name) { return this.asset.frames.indexOf(name); }
   get moving() { return this.path.length > 0; }
 
-  // (col, row) 칸으로 걸어간다. 막힌 칸이면 그 옆 칸으로 간다. 갈 수 없으면 false.
-  goTo(col, row) {
+  // goals(칸 목록) 중 가장 가까운 곳까지의 길로 바꾼다. 갈 수 없으면 false.
+  routeTo(goals) {
     const m = this.map;
-    if (!m.inBounds(col, row)) return false;
-    const start = this.tile;
     let best = null;
-    if (m.isWalkable(col, row)) {
-      best = findPath(m.cols, m.rows, start, { col, row }, this.costAt);
-    } else {
-      // 사물, 집, 물을 눌렀으면 둘레 8칸 중 가장 가까운 곳으로
-      for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
-        if (!dc && !dr) continue;
-        const c = col + dc, r = row + dr;
-        if (!m.isWalkable(c, r)) continue;
-        const p = findPath(m.cols, m.rows, start, { col: c, row: r }, this.costAt);
-        if (p && (!best || p.cost < best.cost)) best = p;
-      }
+    for (const g of goals) {
+      const p = findPath(m.cols, m.rows, this.tile, g, this.costAt);
+      if (p && (!best || p.cost < best.cost)) best = p;
     }
     if (!best) return false;
-
     // 걷던 중이면 떠나온 칸과 가던 칸 사이에 있다.
     // 새 길이 가던 칸을 바로 지나가면 되돌아가지 않고 그대로 이어 간다.
     const next = this.path[0];
     if (next && best.length >= 2 && best[1].col === next.col && best[1].row === next.row) best.shift();
+    if (!next && best.length === 1) best = [];   // 이미 그 칸에 서 있다
     this.path = best;
     return true;
   }
 
+  // tiles(칸 목록)의 둘레 8방향 칸 중 걸을 수 있는 곳들
+  neighborsOf(tiles) {
+    const m = this.map;
+    const out = [];
+    const seen = new Set();
+    for (const t of tiles) {
+      for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
+        if (!dc && !dr) continue;
+        const c = t.col + dc, r = t.row + dr, k = c + ',' + r;
+        if (seen.has(k) || !m.isWalkable(c, r)) continue;
+        seen.add(k);
+        out.push({ col: c, row: r });
+      }
+    }
+    return out;
+  }
+
+  // (col, row) 칸으로 걸어간다. 막힌 칸이면 그 옆 칸으로 간다. 하던 행동은 멈춘다.
+  goTo(col, row) {
+    this.action = null;
+    const m = this.map;
+    if (!m.inBounds(col, row)) return false;
+    if (m.isWalkable(col, row)) return this.routeTo([{ col, row }]);
+    return this.routeTo(this.neighborsOf([{ col, row }]));
+  }
+
+  // tiles 옆 칸까지 걸어간다. 하던 행동은 멈춘다.
+  goNextTo(tiles) {
+    this.action = null;
+    return this.routeTo(this.neighborsOf(tiles));
+  }
+
+  // 대상 옆 칸까지 걸어가서 actionInterval 마다 act 를 부른다.
+  // target.tiles: 대상이 차지한 칸들. isValid 가 false 가 되면 멈춘다.
+  startAction(target, isValid, act) {
+    if (!this.routeTo(this.neighborsOf(target.tiles))) { this.action = null; return false; }
+    this.action = { target, isValid, act };
+    return true;
+  }
+
+  isNextTo(tiles) {
+    return tiles.some((t) => Math.max(Math.abs(t.col - this.tile.col), Math.abs(t.row - this.tile.row)) === 1);
+  }
+
+  faceTile(col, row) {
+    const screenDx = (col - this.col) - (row - this.row);
+    if (screenDx < -0.001) this.sprite.setFlipX(true);
+    else if (screenDx > 0.001) this.sprite.setFlipX(false);
+  }
+
+  // 길과 행동을 버리고 (col, row)에 바로 선다
+  teleport(col, row) {
+    this.path = [];
+    this.action = null;
+    this.col = col; this.row = row;
+    this.tile = { col, row };
+    this.syncSprite();
+    if (this.onEnterTile) this.onEnterTile(col, row);
+  }
+
   update(dt) {
+    this.cooldown = Math.max(0, this.cooldown - dt);
+    this.attackTimer = Math.max(0, this.attackTimer - dt);
+
     let left = CONFIG.player.speed * dt;   // 이번 프레임에 갈 수 있는 거리(칸)
     while (left > 0 && this.path.length) {
       const t = this.path[0];
       const dc = t.col - this.col, dr = t.row - this.row;
       const dist = Math.hypot(dc, dr);
-      const screenDx = dc - dr;            // 화면에서 왼쪽(-) / 오른쪽(+)
-      if (screenDx < -0.001) this.sprite.setFlipX(true);
-      else if (screenDx > 0.001) this.sprite.setFlipX(false);
+      this.faceTile(t.col, t.row);
       if (dist <= left) {
+        const entered = t.col !== this.tile.col || t.row !== this.tile.row;
         this.col = t.col; this.row = t.row;
         this.tile = { col: t.col, row: t.row };
         this.path.shift();
         left -= dist;
+        if (entered && this.onEnterTile) this.onEnterTile(t.col, t.row);
       } else {
         this.col += dc / dist * left;
         this.row += dr / dist * left;
@@ -73,11 +131,26 @@ export class Player {
       }
     }
 
+    // 도착했으면 옆 칸의 대상에게 행동한다
+    if (this.action && !this.moving) {
+      const a = this.action;
+      if (!a.isValid(a.target) || !this.isNextTo(a.target.tiles)) {
+        this.action = null;
+      } else if (this.cooldown <= 0) {
+        const t = a.target.tiles[0];
+        this.faceTile(t.col, t.row);
+        this.cooldown = CONFIG.player.actionInterval;
+        this.attackTimer = CONFIG.anim.attackTime;
+        a.act(a.target);
+        if (!a.isValid(a.target)) this.action = null;
+      }
+    }
+
     if (this.moving) {
       this.sprite.anims.play(this.key + '_walk', true);
-    } else if (this.sprite.anims.isPlaying) {
-      this.sprite.anims.stop();
-      this.sprite.setFrame(this.frame('idle'));
+    } else {
+      if (this.sprite.anims.isPlaying) this.sprite.anims.stop();
+      this.sprite.setFrame(this.frame(this.attackTimer > 0 ? 'attack' : 'idle'));
     }
     this.syncSprite();
   }

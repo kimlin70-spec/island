@@ -16,6 +16,9 @@ export class MapSystem {
     this.objects = [];                       // { type, col, row, sprite, tall }
     this.solid = new Uint8Array(this.cols * this.rows);   // 사물, 집이 있는 칸
     this.waterTiles = [];
+    this.objectGrid = new Array(this.cols * this.rows).fill(null);   // 칸 -> 그 칸의 사물
+    this.edgeGrid = new Array(this.cols * this.rows).fill(null);     // 칸 -> 그 칸의 낭떠러지 띠들
+    this.flagGrid = new Array(this.cols * this.rows).fill(null);     // 칸 -> 깃발 자리
   }
 
   inBounds(col, row) { return col >= 0 && row >= 0 && col < this.cols && row < this.rows; }
@@ -23,6 +26,8 @@ export class MapSystem {
   terrainName(col, row) { return this.map.terrainLegend[String(this.terrainId(col, row))]; }
   isLand(col, row) { return this.terrainId(col, row) !== 0; }
   isSolid(col, row) { return this.solid[row * this.cols + col] === 1; }
+  zoneId(col, row) { return this.inBounds(col, row) ? this.map.zone[row][col] : 0; }
+  objectAt(col, row) { return this.inBounds(col, row) ? this.objectGrid[row * this.cols + col] : null; }
   // 주인공이 걸을 수 있는 칸인가
   isWalkable(col, row) { return this.isLand(col, row) && !this.isSolid(col, row); }
 
@@ -51,6 +56,7 @@ export class MapSystem {
     const order = [];
     for (let r = 0; r < this.rows; r++) for (let c = 0; c < this.cols; c++) order.push([c, r]);
     order.sort((a, b) => (a[0] + a[1]) - (b[0] + b[1]) || a[0] - b[0]);
+    this.order = order;
 
     // 바닥(물, 띠, 땅)은 한 묶음으로 둔다. 움직이는 캐릭터와 따로 정렬되어 가볍다.
     this.groundLayer = scene.add.layer().setDepth(D.water);
@@ -79,14 +85,21 @@ export class MapSystem {
     for (const z of this.map.zones) {
       const img = this.place('obj_flag_spot', z.flagSpot.col, z.flagSpot.row);
       this.floorLayer.add(img);
-      this.flagSpots.push({ zone: z, img });
+      const spot = { zone: z, col: z.flagSpot.col, row: z.flagSpot.row, img };
+      this.flagSpots.push(spot);
+      this.flagGrid[spot.row * this.cols + spot.col] = spot;
     }
 
     // 사물
     for (const o of this.map.objects) {
       const sprite = this.place(OBJECT_KEY[o.type], o.col, o.row);
       sprite.setDepth(D.objectBase + sprite.y);
-      this.objects.push({ type: o.type, col: o.col, row: o.row, sprite, tall: TALL_TYPES.includes(o.type) });
+      const obj = {
+        type: o.type, col: o.col, row: o.row, sprite, tall: TALL_TYPES.includes(o.type),
+        tiles: [{ col: o.col, row: o.row }],
+      };
+      this.objects.push(obj);
+      this.objectGrid[o.row * this.cols + o.col] = obj;
       this.solid[o.row * this.cols + o.col] = 1;
     }
 
@@ -94,9 +107,13 @@ export class MapSystem {
     const h = this.map.house;
     const hs = this.place('obj_house', h.col + (h.w - 1) / 2, h.row + (h.h - 1) / 2);
     hs.setDepth(D.objectBase + hs.y);
-    this.house = { type: 'house', col: h.col, row: h.row, sprite: hs, tall: true };
+    this.house = { type: 'house', col: h.col, row: h.row, sprite: hs, tall: true, tiles: [] };
     this.objects.push(this.house);
-    for (let r = h.row; r < h.row + h.h; r++) for (let c = h.col; c < h.col + h.w; c++) this.solid[r * this.cols + c] = 1;
+    for (let r = h.row; r < h.row + h.h; r++) for (let c = h.col; c < h.col + h.w; c++) {
+      this.house.tiles.push({ col: c, row: r });
+      this.objectGrid[r * this.cols + c] = this.house;
+      this.solid[r * this.cols + c] = 1;
+    }
 
     // 잔물결: 두 그림을 번갈아, 칸의 절반은 엇박자로
     this.waterPhase = false;
@@ -116,6 +133,39 @@ export class MapSystem {
     const img = this.place(key, col, row).setDepth(CONFIG.depth.edge);
     this.groundLayer.add(img);
     this.edges.push({ col, row, img });
+    const i = row * this.cols + col;
+    (this.edgeGrid[i] = this.edgeGrid[i] || []).push(img);
+  }
+
+  // 안개에 덮인 칸의 띠, 사물, 깃발 자리는 숨긴다 (집은 처음부터 보인다)
+  hideAllForFog() {
+    for (const e of this.edges) e.img.setVisible(false);
+    for (const o of this.objects) if (o !== this.house) o.sprite.setVisible(false);
+    for (const f of this.flagSpots) f.img.setVisible(false);
+  }
+
+  // 안개가 걷힌 칸의 것들을 보이게 한다
+  showTile(col, row) {
+    const i = row * this.cols + col;
+    if (this.edgeGrid[i]) for (const img of this.edgeGrid[i]) img.setVisible(true);
+    if (this.objectGrid[i]) this.objectGrid[i].sprite.setVisible(true);
+    if (this.flagGrid[i]) this.flagGrid[i].img.setVisible(true);
+  }
+
+  // 월드 좌표 (x, y)에 그림의 투명하지 않은 부분이 놓인 사물. 겹치면 앞에 있는 것. (5.1)
+  pickObject(x, y) {
+    let best = null;
+    for (const o of this.objects) {
+      const s = o.sprite;
+      if (!s.visible) continue;
+      if (best && s.depth <= best.sprite.depth) continue;
+      const lx = Math.floor(x - (s.x - s.displayWidth * s.originX));
+      const ly = Math.floor(y - (s.y - s.displayHeight * s.originY));
+      if (lx < 0 || ly < 0 || lx >= s.width || ly >= s.height) continue;
+      const alpha = this.scene.textures.getPixelAlpha(lx, ly, s.texture.key);
+      if (alpha !== null && alpha > CONFIG.input.pickAlpha) best = o;
+    }
+    return best;
   }
 
   // 주인공이 키 큰 사물 뒤에 가려지면 그 사물을 반투명하게 (3.3)

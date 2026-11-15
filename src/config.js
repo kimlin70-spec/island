@@ -34,13 +34,35 @@ export const CONFIG = {
 
   // ---- 아래는 화면과 조작에 쓰는 숫자 ----
   colors: { cloud: '#e3eaf3', text: '#3b2a20' },
-  input: { dragThreshold: 12 },            // 누른 뒤 이만큼(화면 px) 넘게 움직이면 "끌기"
+  input: {
+    dragThreshold: 12,                     // 누른 뒤 이만큼(화면 px) 넘게 움직이면 "끌기"
+    pickAlpha: 40,                         // 사물 그림에서 이보다 진한 곳(0~255)을 눌러야 선택된다
+  },
   camera: { followLerp: 0.15 },            // 카메라가 주인공을 따라붙는 빠르기(0~1)
   anim: {
     walkFps: 6,                            // 걷기 그림을 초당 몇 장
     waterInterval: 0.8,                    // 잔물결 바뀌는 간격(초)
     cursorTime: 0.6,                       // 누른 칸 표시가 보이는 시간(초)
+    attackTime: 0.2,                       // 때리거나 캘 때 attack 그림을 보여 주는 시간(초)
   },
+  fog: { fadeTime: 0.2 },                  // 안개가 흐려지며 사라지는 시간(초)
+  fx: {
+    popupTime: 0.9,                        // "+1"이 떠 있는 시간(초)
+    popupRise: 70,                         // "+1"이 떠오르는 높이(px)
+    popupHeight: 110,                      // 사물 발 위치에서 "+1"이 시작하는 높이(px)
+    popupIconScale: 0.5, popupFontSize: 40,
+  },
+  collapse: { fadeTime: 0.5, holdTime: 0.5 },   // 쓰러졌을 때 화면이 어두워지는/머무는 시간(초)
+  ui: {
+    font: '"Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans CJK KR", sans-serif',
+    panelColor: 0xfff8e6, borderColor: 0x3b2a20, borderWidth: 6, radius: 28,
+    fontSize: 48,                          // 기본 글자 크기(최소 44)
+    countFontSize: 56,                     // 가방 숫자
+    noticeFontSize: 60,                    // 알림 글자
+    noticeTime: 2.5,                       // 알림이 떠 있는 시간(초)
+    noticeFade: 0.25,
+  },
+  debug: { giveAmount: 20, fastSpeed: 3 }, // 시험용 도구: 재료 +20, 빠른 속도 배수
   occlude: { alpha: 0.5, fadeTime: 0.15 }, // 주인공을 가린 사물의 투명도, 바뀌는 시간(초)
   depth: { water: 0, edge: 1, land: 2, floor: 3, fog: 4, objectBase: 10, charBias: 0.5, fx: 50000 },
 };
