@@ -1,0 +1,142 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<style>html,body{margin:0;height:100%;background:#e3eaf3;overflow:hidden;touch-action:none}</style>
+</head>
+<body>
+<script src="../lib/phaser.min.js"></script>
+<script>
+// DEMO_SPEC.md 3장(그림과 좌표 규칙)만으로 지도를 그려 보는 확인용 페이지. 게임이 아니다.
+// 여는 법: 프로젝트 폴더에서 서버를 켜고  http://localhost:8000/tools/reference_map.html?mode=day
+//          mode = day(낮 화면 예시) | night(밤 화면 예시) | full(섬 전체)
+// 좌표 변환, 그리는 순서, 기준점(origin) 쓰는 법의 참고용이다. 게임 코드는 DEMO_SPEC.md 2장의 구성대로 새로 짠다.
+const HW = 64, HH = 32;
+function tileToWorld(col, row) { return { x: (col - row) * HW, y: (col + row) * HH }; }
+function worldToTile(x, y) {
+  return { col: Math.floor((x / HW + y / HH) / 2 + 0.5), row: Math.floor((y / HH - x / HW) / 2 + 0.5) };
+}
+function tileKey(kind, col, row, manifest) {
+  let h = (((col * 73856093) ^ (row * 19349663)) >>> 0) % 10;
+  for (const [key, weight] of manifest.meta.terrainTiles[kind]) {
+    if (h < weight) return key;
+    h -= weight;
+  }
+}
+const Q = new URLSearchParams(location.search);
+const NIGHT = Q.get('mode') === 'night';
+const FULL = Q.get('mode') === 'full';
+
+class Boot extends Phaser.Scene {
+  constructor() { super('boot'); }
+  preload() {
+    this.load.json('manifest', '../assets/manifest.json');
+    this.load.json('map', '../data/map_demo.json');
+  }
+  create() {
+    const man = this.cache.json.get('manifest');
+    for (const [k, v] of Object.entries(man.assets)) {
+      if (v.frameWidth) this.load.spritesheet(k, '../assets/' + v.file, { frameWidth: v.frameWidth, frameHeight: v.frameHeight });
+      else this.load.image(k, '../assets/' + v.file);
+    }
+    this.load.once('complete', () => { this.scene.start('game'); this.scene.launch('ui'); });
+    this.load.start();
+  }
+}
+
+class Game extends Phaser.Scene {
+  constructor() { super('game'); }
+  create() {
+    const man = this.cache.json.get('manifest'), map = this.cache.json.get('map');
+    const A = man.assets, N = map.cols, T = map.terrain;
+    const put = (key, col, row, depth, frame) => {
+      const w = tileToWorld(col, row);
+      const s = frame === undefined ? this.add.image(w.x, w.y, key) : this.add.sprite(w.x, w.y, key, A[key].frames.indexOf(frame));
+      return s.setOrigin(A[key].originX, A[key].originY).setDepth(depth === 'y' ? 10 + w.y : depth);
+    };
+    const terr = (c, r) => (c >= 0 && c < N && r >= 0 && r < N) ? T[r][c] : 0;
+    const order = [];
+    for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) order.push([c, r]);
+    order.sort((a, b) => (a[0] + a[1]) - (b[0] + b[1]) || a[0] - b[0]);
+
+    // 밝혀진 칸
+    const rev = new Set();
+    const reveal = (pc, pr, rad) => { for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) if (Math.hypot(c - pc, r - pr) <= rad) rev.add(c + ',' + r); };
+    if (FULL) { for (const [c, r] of order) rev.add(c + ',' + r); }
+    else if (NIGHT) { for (const [c, r] of order) if (map.zone[r][c] === 1) reveal(c, r, 1.5); }
+    else { [[26, 27], [25, 28], [23, 28], [22, 29], [28, 26], [30, 25], [26, 24]].forEach(p => reveal(p[0], p[1], 3.6)); }
+    const seen = (c, r) => rev.has(c + ',' + r);
+
+    for (const [c, r] of order) if (T[r][c] === 0) put(tileKey('water', c, r, man), c, r, 0);
+    for (const [c, r] of order) if (T[r][c] !== 0 && seen(c, r)) {
+      if (terr(c, r + 1) === 0) put('edge_sw', c, r, 1);
+      if (terr(c + 1, r) === 0) put('edge_se', c, r, 1);
+    }
+    for (const [c, r] of order) if (T[r][c] !== 0) put(tileKey(map.terrainLegend[String(T[r][c])], c, r, man), c, r, 2);
+    for (const z of map.zones) if (seen(z.flagSpot.col, z.flagSpot.row)) put('obj_flag_spot', z.flagSpot.col, z.flagSpot.row, 3);
+    for (const [c, r] of order) if (!seen(c, r)) put('tile_fog', c, r, 4);
+
+    const objKey = { tree: 'obj_tree', pine: 'obj_pine', palm: 'obj_palm', rock: 'obj_rock', bush: 'obj_bush_berry' };
+    for (const o of map.objects) if (seen(o.col, o.row)) put(objKey[o.type], o.col, o.row, 'y');
+    put('obj_house', map.house.col + 0.5, map.house.row + 0.5, 'y');
+
+    const h = map.house;
+    if (NIGHT) {
+      const occ = new Set(map.objects.map(o => o.col + ',' + o.row));
+      for (let c = h.col - 3; c <= h.col + 4; c++) for (let r = h.row - 3; r <= h.row + 4; r++) {
+        const edge = c === h.col - 3 || c === h.col + 4 || r === h.row - 3 || r === h.row + 4;
+        if (edge && !occ.has(c + ',' + r) && T[r][c] !== 0 && !(r === h.row + 4 && (c === h.col + 1 || c === h.col + 2))) put('tower_fence', c, r, 'y');
+      }
+      put('tower_stone', h.col + 3, h.row + 3, 'y'); put('tower_stone', h.col - 2, h.row + 3, 'y');
+      put('tower_campfire_1', h.col + 1, h.row + 5, 'y'); put('tower_doghouse', h.col - 1, h.row + 3, 'y');
+      put('obj_flag', map.zones[0].flagSpot.col, map.zones[0].flagSpot.row, 'y');
+      put('char_player', h.col + 2, h.row + 5, 'y', 'attack');
+      put('char_dog', h.col + 3, h.row + 5, 'y', 'walk1');
+      put('char_zombie', h.col + 4, h.row + 6, 'y', 'walk1').setFlipX(true);
+      put('char_zombie', h.col + 6, h.row + 5, 'y', 'walk2').setFlipX(true);
+      put('char_zombie', h.col - 5, h.row + 1, 'y', 'walk1');
+      put('char_zombie', h.col - 4, h.row + 5, 'y', 'walk1');
+      put('char_zombie_boss', h.col - 7, h.row + 2, 'y', 'walk1');
+      const w = tileToWorld(h.col + 0.5, h.row + 1.5);
+      this.cameras.main.setZoom(1.0).centerOn(w.x, w.y);
+    } else if (FULL) {
+      for (const a of map.animals) put(a.type === 'dog' ? 'char_dog' : 'char_boar', a.col, a.row, 'y', 'idle');
+      put('char_player', map.playerStart.col, map.playerStart.row, 'y', 'idle');
+      const w = tileToWorld(19.5, 19.5);
+      this.cameras.main.setZoom(0.62).centerOn(w.x, w.y);
+    } else {
+      put('char_player', 23, 28, 'y', 'walk1').setFlipX(true);
+      put('overlay_cursor', 21, 29, 3); put('overlay_ok', 24, 29, 3); put('overlay_no', 25, 30, 3);
+      const w = tileToWorld(24.5, 27.5);
+      this.cameras.main.setZoom(1.6).centerOn(w.x, w.y);
+    }
+    // 누른 곳이 어느 칸인지 화면 왼쪽 아래에 보여 준다(좌표 역변환 확인)
+    this.input.on('pointerdown', (ptr) => {
+      const t = worldToTile(ptr.worldX, ptr.worldY);
+      window.__tap = t;
+      this.scene.get('ui').events.emit('tap', t);
+    });
+    this.time.delayedCall(300, () => { window.__ready = true; });
+  }
+}
+
+class UI extends Phaser.Scene {
+  constructor() { super('ui'); }
+  create() {
+    if (NIGHT) this.add.rectangle(1024, 768, 2048, 1536, 0x8ca6f2).setBlendMode(Phaser.BlendModes.MULTIPLY);
+    ['icon_heart', 'icon_hunger', 'icon_wood', 'icon_stone', 'icon_berry', 'icon_meat', 'icon_bone', 'icon_build'].forEach((k, i) => this.add.image(80 + i * 110, 80, k));
+    const tapText = this.add.text(60, 1440, '땅을 누르면 칸 번호가 나와요', { fontFamily: 'sans-serif', fontSize: '44px', fontStyle: 'bold', color: '#3b2a20' });
+    this.events.on('tap', (t) => tapText.setText('누른 칸: col ' + t.col + ', row ' + t.row));
+    this.add.text(60, 150, '2일째 ' + (NIGHT ? '밤' : '낮'), { fontFamily: '"Apple SD Gothic Neo","Malgun Gothic","Noto Sans CJK KR",sans-serif', fontSize: '56px', fontStyle: 'bold', color: '#3b2a20' });
+  }
+}
+
+window.__game = new Phaser.Game({
+  type: Phaser.AUTO, width: 2048, height: 1536, backgroundColor: '#e3eaf3',
+  scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
+  scene: [Boot, Game, UI],
+});
+</script>
+</body>
+</html>
