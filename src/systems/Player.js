@@ -81,11 +81,16 @@ export class Player {
 
   // 대상 옆 칸까지 걸어가서 actionInterval 마다 act 를 부른다.
   // target.tiles: 대상이 차지한 칸들. isValid 가 false 가 되면 멈춘다.
-  startAction(target, isValid, act) {
-    if (!this.routeTo(this.neighborsOf(target.tiles))) { this.action = null; return false; }
-    this.action = { target, isValid, act };
+  // chase: 움직이는 대상(좀비 등)을 쫓아간다.
+  startAction(target, isValid, act, chase = false) {
+    if (!this.isNextToNow(target.tiles) && !this.routeTo(this.neighborsOf(target.tiles))) { this.action = null; return false; }
+    const t = target.tiles[0];
+    this.action = { target, isValid, act, chase, seenCol: t.col, seenRow: t.row };
     return true;
   }
+
+  // 서 있는 채로 이미 옆 칸인가
+  isNextToNow(tiles) { return !this.moving && this.isNextTo(tiles); }
 
   // 시설이 새로 생겨 가던 길이 막혔으면 그 앞에서 멈춘다
   onMapChanged() {
@@ -99,7 +104,7 @@ export class Player {
   }
 
   isNextTo(tiles) {
-    return tiles.some((t) => Math.max(Math.abs(t.col - this.tile.col), Math.abs(t.row - this.tile.row)) === 1);
+    return tiles.some((t) => Math.max(Math.abs(t.col - this.tile.col), Math.abs(t.row - this.tile.row)) <= 1);
   }
 
   faceTile(col, row) {
@@ -118,9 +123,19 @@ export class Player {
     if (this.onEnterTile) this.onEnterTile(col, row);
   }
 
+  // 맞았을 때 하얗게 번쩍인다
+  flashHit() {
+    this.flash = CONFIG.fx.flashTime;
+    this.sprite.setTintFill(0xffffff);
+  }
+
   update(dt) {
     this.cooldown = Math.max(0, this.cooldown - dt);
     this.attackTimer = Math.max(0, this.attackTimer - dt);
+    if (this.flash > 0) {
+      this.flash -= dt;
+      if (this.flash <= 0) this.sprite.clearTint();
+    }
 
     let left = CONFIG.player.speed * dt;   // 이번 프레임에 갈 수 있는 거리(칸)
     while (left > 0 && this.path.length) {
@@ -139,6 +154,17 @@ export class Player {
         this.col += dc / dist * left;
         this.row += dr / dist * left;
         left = 0;
+      }
+    }
+
+    // 쫓는 대상이 다른 칸으로 갔으면 길을 다시 잡는다
+    if (this.action && this.action.chase) {
+      const a = this.action, t = a.target.tiles[0];
+      if (!a.isValid(a.target)) {
+        this.action = null;
+      } else if ((t.col !== a.seenCol || t.row !== a.seenRow) && !this.isNextToNow(a.target.tiles)) {
+        a.seenCol = t.col; a.seenRow = t.row;
+        if (!this.routeTo(this.neighborsOf(a.target.tiles))) this.action = null;
       }
     }
 

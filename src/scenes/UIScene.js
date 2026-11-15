@@ -10,7 +10,8 @@ const L = {
   bag: { h: 140, slotW: 196, iconScale: 0.9 },
   notice: { y: 250, padX: 44, padY: 22 },
   gear: { size: 104, gapY: 20 },
-  debug: { w: 980, h: 620, btnW: 420, btnH: 150, gap: 30 },
+  debug: { w: 1010, h: 900, btnW: 450, btnH: 150, gap: 30 },
+  clock: { w: 640, h: 112, iconScale: 0.85, barW: 470, barH: 24 },
   hammer: { r: 104, iconScale: 1.15 },
   card: { w: 470, h: 176, gap: 14, iconScale: 1.1, costIconScale: 0.5, costGap: 118 },
 };
@@ -34,7 +35,9 @@ export class UIScene extends Phaser.Scene {
 
     this.input.on('pointerdown', (p, over) => { if (over.length) this.capturedDownTime = p.downTime; });
 
+    this.buildTint();      // 가장 먼저 만든다(월드 위, 다른 UI 아래)
     this.buildVitals();
+    this.buildClock();
     this.buildZone();
     this.buildGear();
     this.buildBag();
@@ -129,6 +132,53 @@ export class UIScene extends Phaser.Scene {
     this.hungerIcons.forEach((img, i) => img.setTexture(i < v.hunger ? 'icon_hunger' : 'icon_hunger_empty'));
   }
 
+  // ---- 화면색: 화면 전체에 색을 곱한다 (5.6) ----
+  buildTint() {
+    this.tintColor = Phaser.Display.Color.HexStringToColor(CONFIG.tint.day);
+    this.tintRect = this.add.rectangle(0, 0, this.W, this.H, this.tintColor.color).setOrigin(0)
+      .setBlendMode(Phaser.BlendModes.MULTIPLY);
+  }
+
+  // name: 'day' | 'evening' | 'night'. 서서히 바뀐다.
+  setTint(name) {
+    const from = Phaser.Display.Color.ValueToColor(this.tintRect.fillColor);
+    const to = Phaser.Display.Color.HexStringToColor(CONFIG.tint[name]);
+    if (this.tintTween) this.tintTween.stop();
+    this.tintTween = this.tweens.addCounter({
+      from: 0, to: 100, duration: CONFIG.tint.changeTime * 1000,
+      onUpdate: (tw) => {
+        const c = Phaser.Display.Color.Interpolate.ColorWithColor(from, to, 100, tw.getValue());
+        this.tintRect.setFillStyle(Phaser.Display.Color.GetColor(c.r, c.g, c.b));
+      },
+    });
+  }
+
+  // ---- 가운데 위: 시계 ----
+  buildClock() {
+    const c = L.clock, U = CONFIG.ui;
+    const x = (2048 - c.w) / 2, y = L.margin;
+    this.panel(x, y, c.w, c.h);
+    this.clockIcon = this.icon(x + 66, y + c.h / 2, 'icon_sun', c.iconScale);
+    this.clockText = this.label(x + 132, y + 6, '', 44);
+    const bx = x + 132, by = y + 66;
+    const g = this.add.graphics();
+    g.fillStyle(0x7a6f66, 1).fillRoundedRect(this.px(bx), this.px(by), this.px(c.barW), this.px(c.barH), this.px(c.barH / 2));
+    this.clockBar = this.add.graphics();
+    this.clockBarPos = { x: bx, y: by };
+  }
+
+  update() {
+    const clock = this.world.clock;
+    if (!clock || !this.clockBar) return;
+    const c = L.clock, U = CONFIG.ui;
+    this.clockIcon.setTexture(clock.isNight ? 'icon_moon' : 'icon_sun');
+    if (this.clockText.text !== clock.label) this.clockText.setText(clock.label);
+    const w = Math.max(c.barH, c.barW * clock.progress);
+    this.clockBar.clear();
+    this.clockBar.fillStyle(U.accentColor, 1)
+      .fillRoundedRect(this.px(this.clockBarPos.x), this.px(this.clockBarPos.y), this.px(w), this.px(c.barH), this.px(c.barH / 2));
+  }
+
   // ---- 오른쪽 위: 노리는 구역 ----
   buildZone() {
     const z = L.zone;
@@ -165,7 +215,10 @@ export class UIScene extends Phaser.Scene {
   }
 
   refreshBag() {
-    for (const item of ITEMS) this.bagTexts[item].setText(String(this.world.inventory.count(item)));
+    for (const item of ITEMS) {
+      const n = this.world.inventory.count(item);
+      this.bagTexts[item].setText(String(n)).setScale(n >= 100 ? 0.72 : 1);   // 세 자리는 작게
+    }
   }
 
   // ---- 오른쪽 아래: 망치 버튼과 짓기 메뉴 (5.7) ----
@@ -313,10 +366,13 @@ export class UIScene extends Phaser.Scene {
     const row = (j) => y + 150 + d.btnH / 2 + j * (d.btnH + d.gap);
     this.button(col(0), row(0), d.btnW, d.btnH, `재료 +${CONFIG.debug.giveAmount}`, () => this.world.debugGive(), box);
     this.button(col(1), row(0), d.btnW, d.btnH, '안개 모두 걷기', () => this.world.debugRevealAll(), box);
-    const speedBtn = this.button(col(0), row(1), d.btnW, d.btnH, '속도 ×1', () => {
+    this.button(col(0), row(1), d.btnW, d.btnH, '밤으로 넘기기', () => { this.world.debugNight(); box.setVisible(false); }, box);
+    this.button(col(1), row(1), d.btnW, d.btnH, '아침으로 넘기기', () => { this.world.debugMorning(); box.setVisible(false); }, box);
+    this.button(col(0), row(2), d.btnW, d.btnH, '좀비 1마리 부르기', () => this.world.debugZombie(), box);
+    const speedBtn = this.button(col(1), row(2), d.btnW, d.btnH, '속도 ×1', () => {
       speedBtn.text.setText('속도 ×' + this.world.debugToggleSpeed());
     }, box);
-    this.button(col(1), row(1), d.btnW, d.btnH, '닫기', () => box.setVisible(false), box);
+    this.button(1024, row(3), d.btnW, d.btnH, '닫기', () => box.setVisible(false), box);
   }
 
   // ---- 화면 어두워지기 (쓰러졌을 때) ----

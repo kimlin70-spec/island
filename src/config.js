@@ -24,9 +24,14 @@ export const CONFIG = {
     doghouse:   { cost: { wood: 4, bone: 1 }, hp: 8, guardRadius: 5 },
   },
   house: { hp: 40 },
-  zombie: { hp: 3, speed: 0.8, hitDamage: 1, hitInterval: 2.0, playerHitInterval: 2.5, breakCost: 8, dropChance: 0.5 },
+  zombie: {
+    hp: 3, speed: 0.8, hitDamage: 1, hitInterval: 2.0, playerHitInterval: 2.5, breakCost: 8, dropChance: 0.5,
+    playerDamage: 1,       // 좀비가 주인공에게 주는 피해(하트)
+    repathInterval: 0.5,   // 시설이 바뀌었을 때 길을 다시 계산하는 최소 간격(초)
+    jitter: 14,            // 여럿이 겹쳐도 보이게 그림을 어긋나게 하는 정도(px)
+  },
   boss:   { hp: 20, speed: 0.5, hitDamage: 2, hitInterval: 2.0, appearAt: 0.3 },
-  wave:   { base: 4, perNight: 2, max: 16, spawnWindow: 0.6 },
+  wave:   { base: 4, perNight: 2, max: 16, spawnWindow: 0.6, firstDelay: 0.25 },   // firstDelay: 첫 좀비가 나오는 때(간격의 몇 배)
   boar:   { hp: 4, speed: 1.2, hitDamage: 1, hitInterval: 2.0, chaseRange: 5 },
   dog:    { bonesToTame: 3, speed: 4.5, attackDamage: 1, attackInterval: 0.8, guardRadius: 5, followDistance: 2 },
   zone:   { revealNeeded: 0.9 },
@@ -37,8 +42,10 @@ export const CONFIG = {
   input: {
     dragThreshold: 12,                     // 누른 뒤 이만큼(화면 px) 넘게 움직이면 "끌기"
     pickAlpha: 40,                         // 사물 그림에서 이보다 진한 곳(0~255)을 눌러야 선택된다
+    charPad: 24,                           // 캐릭터를 누를 때 그림 둘레에 두는 여유(px)
   },
-  camera: { followLerp: 0.15 },            // 카메라가 주인공을 따라붙는 빠르기(0~1)
+  camera: { followLerp: 0.15, changeTime: 1.5 },   // 따라붙는 빠르기(0~1), 밤낮이 바뀔 때 확대가 바뀌는 시간(초)
+  tint: { day: '#ffffff', evening: '#ffd9b0', night: '#8ca6f2', changeTime: 1.5 },   // 화면색(곱하기)
   anim: {
     walkFps: 6,                            // 걷기 그림을 초당 몇 장
     waterInterval: 0.8,                    // 잔물결 바뀌는 간격(초)
@@ -51,6 +58,11 @@ export const CONFIG = {
     popupRise: 70,                         // "+1"이 떠오르는 높이(px)
     popupHeight: 110,                      // 사물 발 위치에서 "+1"이 시작하는 높이(px)
     popupIconScale: 0.5, popupFontSize: 40,
+    flashTime: 0.1,                        // 맞았을 때 하얗게 번쩍이는 시간(초)
+    poofTime: 0.35, starTime: 0.6, starRise: 90,
+    barWidth: 72, barHeight: 12,           // 체력 막대 크기(px)
+    houseBarDrop: 30,                      // 집 체력 막대를 그림 꼭대기에서 얼마나 내려 그릴지(px)
+    barBack: 0x3b2a20, barFill: 0x6fd36f, barLow: 0xf2a53a,
   },
   collapse: { fadeTime: 0.5, holdTime: 0.5 },   // 쓰러졌을 때 화면이 어두워지는/머무는 시간(초)
   ui: {

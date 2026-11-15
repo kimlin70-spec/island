@@ -19,6 +19,7 @@ export class BuildSystem {
     this.mode = null;          // null | 'fence' | 'stoneTower' | 'remove'
     this.markOk = false;       // 손가락을 댄 칸에 지을(치울) 수 있는가
     this.markTile = null;
+    this.shots = [];           // 날아가는 돌
 
     // 손가락을 댄 칸의 표시. 안개 위에서도 보이도록 안개 바로 위에 둔다.
     const a = mapSystem.assets.overlay_ok;
@@ -116,7 +117,68 @@ export class BuildSystem {
   // 재료를 돌려주지 않고 없앤다(부서졌을 때도 쓴다)
   destroy(s) {
     this.map.removeStructure(s);
+    if (s.bar) s.bar.destroy();
     s.sprite.destroy();
+    s.hp = 0;
     this.scene.events.emit('structures-changed');
+  }
+
+  // 시설이 맞았다. 체력이 0이면 부서진다.
+  damage(s, n) {
+    if (s.hp <= 0) return;
+    s.hp -= n;
+    if (s.hp <= 0) {
+      this.scene.effects.poof(s.sprite.x, s.sprite.y - s.sprite.height * 0.3);
+      this.destroy(s);
+      return;
+    }
+    if (!s.bar) s.bar = this.scene.effects.makeBar(s.sprite.x, s.sprite.y - s.sprite.height * s.sprite.originY - 10);
+    s.bar.set(s.hp / s.maxHp);
+  }
+
+  // 아침: 살아남은 시설의 체력이 가득 찬다
+  repairAll() {
+    for (const s of this.map.structures) {
+      s.hp = s.maxHp;
+      if (s.bar) s.bar.set(1);
+    }
+  }
+
+  // 돌 던지는 탑: 범위 안의 가장 가까운 좀비에게 돌을 던진다
+  update(dt) {
+    const zombies = this.scene.zombies;
+    for (const s of this.map.structures) {
+      if (s.type !== 'stoneTower') continue;
+      s.cool = Math.max(0, (s.cool || 0) - dt);
+      if (s.cool > 0) continue;
+      const z = zombies.nearest(s.col, s.row, s.cfg.range);
+      if (!z) continue;
+      s.cool = s.cfg.interval;
+      const top = s.sprite.y - s.sprite.height * s.sprite.originY + 20;
+      const img = this.scene.add.image(s.sprite.x, top, 'proj_stone').setDepth(CONFIG.depth.fx);
+      this.shots.push({ img, target: z, damage: s.cfg.damage, speed: s.cfg.projectileSpeed });
+    }
+
+    // 날아가는 돌
+    const tileW = this.map.manifest.meta.tileWidth;
+    for (let i = this.shots.length - 1; i >= 0; i--) {
+      const shot = this.shots[i];
+      const z = shot.target;
+      if (!z.alive) { shot.img.destroy(); this.shots.splice(i, 1); continue; }
+      const tx = z.sprite.x, ty = z.sprite.y - z.sprite.height * 0.5;
+      const dx = tx - shot.img.x, dy = ty - shot.img.y;
+      const dist = Math.hypot(dx, dy);
+      const step = shot.speed * tileW * 0.5 * dt;    // 칸 → px (한 칸을 대략 64px 로 본다)
+      if (dist <= step) {
+        shot.img.destroy();
+        this.shots.splice(i, 1);
+        zombies.damage(z, shot.damage);
+      } else {
+        shot.img.x += dx / dist * step;
+        shot.img.y += dy / dist * step;
+        const t = worldToTile(shot.img.x, shot.img.y);
+        shot.img.setVisible(this.fog.isRevealed(t.col, t.row));
+      }
+    }
   }
 }
