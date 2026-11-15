@@ -7,6 +7,7 @@ import { Inventory, ITEMS } from '../systems/Inventory.js';
 import { Vitals } from '../systems/Vitals.js';
 import { Effects } from '../systems/Effects.js';
 import { Player } from '../systems/Player.js';
+import { BuildSystem } from '../systems/BuildSystem.js';
 
 // 월드: 지도, 안개, 주인공, 카메라
 export class GameScene extends Phaser.Scene {
@@ -32,6 +33,8 @@ export class GameScene extends Phaser.Scene {
     this.player.onEnterTile = (c, r) => this.fog.reveal(c, r, CONFIG.player.revealRadius);
     this.fog.reveal(map.playerStart.col, map.playerStart.row, CONFIG.player.startRevealRadius);
 
+    this.build = new BuildSystem(this, this.mapSystem, this.fog, this.inventory, this.player);
+
     // 누른 칸 표시
     const ca = manifest.assets.overlay_cursor;
     this.cursor = this.add.image(0, 0, 'overlay_cursor').setOrigin(ca.originX, ca.originY).setVisible(false);
@@ -47,9 +50,23 @@ export class GameScene extends Phaser.Scene {
     this.ui = this.scene.get('ui');
     this.scene.launch('ui');
 
+    // 짓기 상태: 손가락을 댄 칸에 지을 수 있는지 표시한다
+    const touchBuild = (p) => {
+      if (!this.build.mode || !p.isDown || this.ui.capturedDownTime === p.downTime) return;
+      const w = cam.getWorldPoint(p.x, p.y);
+      this.build.touch(w.x, w.y);
+    };
+    this.input.on('pointerdown', touchBuild);
+    this.input.on('pointermove', touchBuild);
+
     // 누르기 / 끌기 구분: 누른 뒤 일정 거리 넘게 움직이면 끌기
     this.input.on('pointerup', (p) => {
       if (this.ui.capturedDownTime === p.downTime) return;   // UI를 누른 터치는 월드로 보내지 않는다
+      if (this.build.mode) {                                  // 짓기 상태: 손을 뗀 칸에 짓는다
+        const w = cam.getWorldPoint(p.upX, p.upY);
+        this.build.release(w.x, w.y);
+        return;
+      }
       const scale = this.scale.displayScale.x;   // 게임 px ÷ 화면 px
       const moved = Phaser.Math.Distance.Between(p.downX, p.downY, p.upX, p.upY) / scale;
       if (moved > CONFIG.input.dragThreshold) return;
@@ -79,6 +96,11 @@ export class GameScene extends Phaser.Scene {
 
     if (!m.inBounds(t.col, t.row)) return;
     if (this.player.goTo(t.col, t.row)) this.showCursor(t.col, t.row);
+  }
+
+  // 지금 캐릭터들이 차지한 칸(그 칸에는 지을 수 없다)
+  characterTiles() {
+    return this.player.occupiedTiles();
   }
 
   // 한 번 캐기 (5.4)

@@ -61,8 +61,10 @@ export const CONFIG = {
     noticeFontSize: 60,                    // 알림 글자
     noticeTime: 2.5,                       // 알림이 떠 있는 시간(초)
     noticeFade: 0.25,
+    accentColor: 0xffd24a,                 // 망치 버튼, 고른 카드의 노란색
+    dimAlpha: 0.45,                        // 재료가 모자란 카드의 흐림 정도
   },
   debug: { giveAmount: 20, fastSpeed: 3 }, // 시험용 도구: 재료 +20, 빠른 속도 배수
   occlude: { alpha: 0.5, fadeTime: 0.15 }, // 주인공을 가린 사물의 투명도, 바뀌는 시간(초)
-  depth: { water: 0, edge: 1, land: 2, floor: 3, fog: 4, objectBase: 10, charBias: 0.5, fx: 50000 },
+  depth: { water: 0, edge: 1, land: 2, floor: 3, fog: 4, buildMark: 4.5, objectBase: 10, charBias: 0.5, fx: 50000 },
 };

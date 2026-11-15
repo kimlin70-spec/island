@@ -19,6 +19,8 @@ export class MapSystem {
     this.objectGrid = new Array(this.cols * this.rows).fill(null);   // 칸 -> 그 칸의 사물
     this.edgeGrid = new Array(this.cols * this.rows).fill(null);     // 칸 -> 그 칸의 낭떠러지 띠들
     this.flagGrid = new Array(this.cols * this.rows).fill(null);     // 칸 -> 깃발 자리
+    this.structures = [];                                            // 내가 지은 시설
+    this.structGrid = new Array(this.cols * this.rows).fill(null);   // 칸 -> 시설
   }
 
   inBounds(col, row) { return col >= 0 && row >= 0 && col < this.cols && row < this.rows; }
@@ -28,8 +30,24 @@ export class MapSystem {
   isSolid(col, row) { return this.solid[row * this.cols + col] === 1; }
   zoneId(col, row) { return this.inBounds(col, row) ? this.map.zone[row][col] : 0; }
   objectAt(col, row) { return this.inBounds(col, row) ? this.objectGrid[row * this.cols + col] : null; }
-  // 주인공이 걸을 수 있는 칸인가
-  isWalkable(col, row) { return this.isLand(col, row) && !this.isSolid(col, row); }
+  structureAt(col, row) { return this.inBounds(col, row) ? this.structGrid[row * this.cols + col] : null; }
+  // 주인공(과 친구 강아지)이 걸을 수 있는 칸인가. 자기 울타리는 통과할 수 있다.
+  isWalkable(col, row) {
+    if (!this.isLand(col, row) || this.isSolid(col, row)) return false;
+    const s = this.structGrid[row * this.cols + col];
+    return !s || s.type === 'fence';
+  }
+
+  addStructure(s) {
+    this.structures.push(s);
+    this.structGrid[s.row * this.cols + s.col] = s;
+  }
+
+  removeStructure(s) {
+    const i = this.structures.indexOf(s);
+    if (i >= 0) this.structures.splice(i, 1);
+    if (this.structGrid[s.row * this.cols + s.col] === s) this.structGrid[s.row * this.cols + s.col] = null;
+  }
 
   // 같은 땅이라도 칸마다 그림이 조금씩 다르게 고른다 (3.4)
   tileKey(kind, col, row) {
@@ -155,7 +173,7 @@ export class MapSystem {
   // 월드 좌표 (x, y)에 그림의 투명하지 않은 부분이 놓인 사물. 겹치면 앞에 있는 것. (5.1)
   pickObject(x, y) {
     let best = null;
-    for (const o of this.objects) {
+    for (const o of [...this.objects, ...this.structures]) {
       const s = o.sprite;
       if (!s.visible) continue;
       if (best && s.depth <= best.sprite.depth) continue;
@@ -177,7 +195,7 @@ export class MapSystem {
     const px1 = pLeft + pw * 0.3, px2 = pLeft + pw * 0.7;
     const py1 = pTop + ph * 0.1, py2 = pTop + ph;
     const step = dt / CONFIG.occlude.fadeTime * (1 - CONFIG.occlude.alpha);
-    for (const o of this.objects) {
+    for (const o of [...this.objects, ...this.structures]) {
       if (!o.tall) continue;
       const s = o.sprite;
       let hidden = false;

@@ -1,5 +1,6 @@
 import { CONFIG } from '../config.js';
 import { ITEMS } from '../systems/Inventory.js';
+import { BUILDINGS, REMOVE } from '../systems/BuildSystem.js';
 
 // 화면 배치 (2048×1536 기준 px. 실제로는 화면 폭 / 2048 배율을 곱한다)
 const L = {
@@ -10,7 +11,10 @@ const L = {
   notice: { y: 250, padX: 44, padY: 22 },
   gear: { size: 104, gapY: 20 },
   debug: { w: 980, h: 620, btnW: 420, btnH: 150, gap: 30 },
+  hammer: { r: 104, iconScale: 1.15 },
+  card: { w: 470, h: 176, gap: 14, iconScale: 1.1, costIconScale: 0.5, costGap: 118 },
 };
+const BUILD_MENU = ['fence', 'stoneTower'];   // 짓기 메뉴에 나오는 시설 (모닥불, 강아지 집은 Phase 7)
 const EDIBLE = ['berry', 'meat'];
 
 // 화면 UI. 카메라 확대의 영향을 받지 않게 따로 둔 씬이다.
@@ -34,6 +38,7 @@ export class UIScene extends Phaser.Scene {
     this.buildZone();
     this.buildGear();
     this.buildBag();
+    this.buildHammer();
     this.buildNotice();
     this.buildDebug();
     this.buildFade();
@@ -42,14 +47,19 @@ export class UIScene extends Phaser.Scene {
     ev.on('vitals-changed', this.refreshVitals, this);
     ev.on('inventory-changed', this.refreshBag, this);
     ev.on('fog-changed', this.refreshZone, this);
+    ev.on('inventory-changed', this.refreshBuildMenu, this);
+    ev.on('build-changed', this.refreshBuildMenu, this);
     this.events.once('shutdown', () => {
       ev.off('vitals-changed', this.refreshVitals, this);
       ev.off('inventory-changed', this.refreshBag, this);
       ev.off('fog-changed', this.refreshZone, this);
+      ev.off('inventory-changed', this.refreshBuildMenu, this);
+      ev.off('build-changed', this.refreshBuildMenu, this);
     });
     this.refreshVitals();
     this.refreshBag();
     this.refreshZone();
+    this.refreshBuildMenu();
 
     // 처음 시작할 때 알림 세 개
     this.notice('땅을 누르면 걸어가요');
@@ -156,6 +166,80 @@ export class UIScene extends Phaser.Scene {
 
   refreshBag() {
     for (const item of ITEMS) this.bagTexts[item].setText(String(this.world.inventory.count(item)));
+  }
+
+  // ---- 오른쪽 아래: 망치 버튼과 짓기 메뉴 (5.7) ----
+  buildHammer() {
+    const U = CONFIG.ui, h = L.hammer, c = L.card;
+    const cx = 2048 - L.margin - h.r, cy = 1536 - L.margin - h.r;
+    const g = this.add.graphics({ x: this.px(cx), y: this.px(cy) });
+    g.fillStyle(U.accentColor, 1).fillCircle(0, 0, this.px(h.r));
+    g.lineStyle(this.px(U.borderWidth), U.borderColor, 1).strokeCircle(0, 0, this.px(h.r));
+    this.icon(cx, cy - 18, 'icon_build', h.iconScale);
+    this.label(cx, cy + 58, '짓기').setOrigin(0.5).setStroke('#ffffff', this.px(10));
+    const zone = this.add.zone(this.px(cx), this.px(cy), this.px(h.r * 2), this.px(h.r * 2)).setInteractive();
+    zone.on('pointerup', () => this.toggleBuildMenu());
+
+    // 메뉴: 망치 버튼 위로 카드가 쌓인다
+    this.buildMenu = this.add.container(0, 0).setVisible(false);
+    this.cards = [];
+    const keys = [...BUILD_MENU, REMOVE];
+    const x = 2048 - L.margin - c.w;
+    let y = cy - h.r - 20 - keys.length * (c.h + c.gap) + c.gap;
+    for (const key of keys) {
+      this.cards.push(this.makeCard(key, x, y));
+      y += c.h + c.gap;
+    }
+  }
+
+  makeCard(key, x, y) {
+    const c = L.card;
+    const def = BUILDINGS[key];
+    const cost = def ? CONFIG.build[key].cost : null;
+    const bg = this.add.graphics();
+    const parts = [bg];
+    parts.push(this.icon(x + 84, y + c.h / 2, def ? def.icon : 'icon_remove', c.iconScale));
+    if (def) {
+      parts.push(this.label(x + 160, y + 20, def.name));
+      // 필요한 재료
+      Object.entries(cost).forEach(([item, n], i) => {
+        const ix = x + 186 + i * c.costGap;
+        parts.push(this.icon(ix, y + 122, 'icon_' + item, c.costIconScale));
+        parts.push(this.label(ix + 30, y + 122, String(n)).setOrigin(0, 0.5));
+      });
+    } else {
+      parts.push(this.label(x + 160, y + c.h / 2, '치우기').setOrigin(0, 0.5));
+    }
+    const zone = this.add.zone(this.px(x), this.px(y), this.px(c.w), this.px(c.h)).setOrigin(0).setInteractive();
+    parts.push(zone);
+    const box = this.add.container(0, 0, parts);
+    this.buildMenu.add(box);
+    const card = { key, cost, x, y, bg, box, ok: true };
+    zone.on('pointerup', () => { if (card.ok) this.world.build.setMode(key); });
+    return card;
+  }
+
+  toggleBuildMenu() {
+    const open = !this.buildMenu.visible;
+    this.buildMenu.setVisible(open);
+    if (!open) this.world.build.setMode(null);   // 망치를 다시 누르면 짓기 상태가 끝난다
+  }
+
+  // 재료가 모자란 카드는 흐리게, 고른 카드는 노랗게
+  refreshBuildMenu() {
+    if (!this.cards) return;
+    const U = CONFIG.ui, c = L.card;
+    const build = this.world.build;
+    for (const card of this.cards) {
+      card.ok = !card.cost || this.world.inventory.has(card.cost);
+      card.box.setAlpha(card.ok ? 1 : U.dimAlpha);
+      const picked = build.mode === card.key;
+      card.bg.clear();
+      card.bg.fillStyle(picked ? U.accentColor : U.panelColor, 1)
+        .fillRoundedRect(this.px(card.x), this.px(card.y), this.px(c.w), this.px(c.h), this.px(U.radius));
+      card.bg.lineStyle(this.px(U.borderWidth), U.borderColor, 1)
+        .strokeRoundedRect(this.px(card.x), this.px(card.y), this.px(c.w), this.px(c.h), this.px(U.radius));
+    }
   }
 
   // ---- 가운데 위쪽: 알림 ----

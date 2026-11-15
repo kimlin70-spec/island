@@ -87,6 +87,17 @@ export class Player {
     return true;
   }
 
+  // 시설이 새로 생겨 가던 길이 막혔으면 그 앞에서 멈춘다
+  onMapChanged() {
+    const i = this.path.findIndex((t) => !this.map.isWalkable(t.col, t.row));
+    if (i >= 0) this.path.length = i;
+  }
+
+  // 지금 차지하고 있는 칸들(서 있는 칸과 막 들어서는 칸)
+  occupiedTiles() {
+    return this.path.length ? [this.tile, this.path[0]] : [this.tile];
+  }
+
   isNextTo(tiles) {
     return tiles.some((t) => Math.max(Math.abs(t.col - this.tile.col), Math.abs(t.row - this.tile.row)) === 1);
   }
