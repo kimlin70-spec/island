@@ -94,15 +94,32 @@ export class Player {
     return true;
   }
 
-  // 지금 차지하고 있는 칸들(서 있는 칸과 막 들어서는 칸). 여기에는 시설을 지을 수 없다.
+  // 지금 몸이 걸쳐 있는 칸들. 여기에는 시설을 지을 수 없다.
+  // 서 있으면 그 칸. 걷는 중이면 지금 자리에서 막 들어서는 칸까지(비스듬히 가는 중이면 양옆 칸까지 네 칸).
   occupiedTiles() {
-    return this.path.length ? [this.tile, this.path[0]] : [this.tile];
+    const to = this.path[0] || this;
+    const out = [];
+    for (let c = Math.floor(Math.min(this.col, to.col)); c <= Math.ceil(Math.max(this.col, to.col)); c++) {
+      for (let r = Math.floor(Math.min(this.row, to.row)); r <= Math.ceil(Math.max(this.row, to.row)); r++) out.push({ col: c, row: r });
+    }
+    return out;
   }
 
-  // 시설이 새로 생겨 가던 길이 막혔으면 그 앞에서 멈춘다
+  // a 에서 이웃 칸 b 로 한 걸음 갈 수 있는가. 비스듬히 갈 때는 양옆 칸도 비어 있어야 한다(길찾기와 같은 규칙).
+  canStep(a, b) {
+    const m = this.map;
+    if (!m.isWalkable(b.col, b.row)) return false;
+    return a.col === b.col || a.row === b.row || (m.isWalkable(b.col, a.row) && m.isWalkable(a.col, b.row));
+  }
+
+  // 시설이 새로 생겨 가던 길이 막혔으면 그 앞에서 멈춘다.
+  // 칸이 막힌 것뿐 아니라, 양옆 칸이 막혀 비스듬히 지나갈 수 없게 된 걸음도 막힌 것이다.
   onMapChanged() {
-    const i = this.path.findIndex((t) => !this.map.isWalkable(t.col, t.row));
-    if (i >= 0) this.path.length = i;
+    let from = this.tile;
+    for (let i = 0; i < this.path.length; i++) {
+      if (!this.canStep(from, this.path[i])) { this.path.length = i; return; }
+      from = this.path[i];
+    }
   }
 
   // 하던 행동을 멈춘다. 들어 올린 도구는 내려치지 않는다.

@@ -87,8 +87,9 @@ export class GameScene extends Phaser.Scene {
     }
     if (o && o.node) this.pressNode(o);               // 나무, 돌, 그루터기, 돌 부스러기
     else if (o && o.type === 'tent') this.pressTent(o);
-    else if (!o || o.type === 'fence') this.walkTo(t.col, t.row);   // 땅. 울타리를 누른 것도 땅을 누른 것과 같다.
-    // 덤불, 모닥불은 눌러도 아무 일이 없다.
+    else if (o && o.type === 'fence') this.walkTo(o.col, o.row);   // 울타리를 누른 것은 그 울타리 칸(땅)을 누른 것과 같다.
+    else if (!o) this.walkTo(t.col, t.row);           // 땅
+    // 덤불, 모닥불은 눌러도 아무 일이 없다. 울타리 칸도 지금은 지나갈 수 없는 칸이라 아무 일이 없다.
   }
 
   // 마우스를 움직일 때(터치는 누르고 있는 동안)의 위치는 짓기 표시에만 쓴다
@@ -117,7 +118,7 @@ export class GameScene extends Phaser.Scene {
     if (this.player.goTo(col, row)) this.showCursor(col, row);
   }
 
-  // 캐릭터가 서 있는 칸들. 여기에는 시설을 지을 수 없다. 텐트 안에 있는 동안에는 들어갔던 칸이다.
+  // 캐릭터가 몸을 걸치고 있는 칸들(Player.occupiedTiles). 여기에는 시설을 지을 수 없다. 텐트 안에 있는 동안에는 들어갔던 칸이다.
   characterTiles() { return this.player.occupiedTiles(); }
 
   // 나무, 돌, 그루터기, 돌 부스러기를 눌렀다: 붙은 칸까지 걸어가서 도구로 친다 (5.2)
