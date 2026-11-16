@@ -120,7 +120,8 @@ export class MapSystem {
     for (const h of hits) {
       const s = h.o.sprite;
       const alpha = this.scene.textures.getPixelAlpha(h.lx, h.ly, s.texture.key, s.frame.name);
-      if (alpha !== null && alpha > CONFIG.input.pickAlpha) return h.o;
+      const min = h.o.type === 'fence' ? CONFIG.input.pickAlphaFence : CONFIG.input.pickAlpha;
+      if (alpha !== null && alpha > min) return h.o;
     }
     return null;
   }

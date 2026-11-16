@@ -71,9 +71,9 @@ export class Player {
     return out;
   }
 
-  // 서 있는 칸이 tiles 중 하나와 붙어 있는가(같은 칸 포함)
-  isNextTo(tiles) {
-    return tiles.some((t) => Math.max(Math.abs(t.col - this.tile.col), Math.abs(t.row - this.tile.row)) <= 1);
+  // at 칸(주지 않으면 서 있는 칸)이 tiles 중 하나와 붙어 있는가(같은 칸 포함)
+  isNextTo(tiles, at = this.tile) {
+    return tiles.some((t) => Math.max(Math.abs(t.col - at.col), Math.abs(t.row - at.row)) <= 1);
   }
 
   // 대상에 붙은 칸 중 가장 가까운 곳까지 걸어가서 행동한다. (5.1, 5.2)
@@ -83,8 +83,10 @@ export class Player {
   //   stepOff:    대상 칸 위에 서 있으면 옆 칸으로 비켜서서 한다(밟고 지나갈 수 있는 그루터기 등).
   // 갈 수 없으면 아무 일도 하지 않고 false.
   act(action) {
-    if (this.action && this.action.target === action.target) return true;   // 이미 그 대상에게 하는 중
     const tiles = action.target.tiles;
+    // 이미 그 대상에게 하는 중이면 그대로 둔다. 다만 걷는 길이 시설에 끊겨 대상 옆까지 가지 못하면 길을 다시 찾는다.
+    const end = this.path[this.path.length - 1] || this.tile;
+    if (this.action && this.action.target === action.target && this.isNextTo(tiles, end)) return true;
     const onTop = !this.moving && tiles.some((t) => t.col === this.tile.col && t.row === this.tile.row);
     const here = !this.moving && this.isNextTo(tiles) && !(action.stepOff && onTop);
     // 비켜설 칸이 없으면 그 자리에서 한다
@@ -95,12 +97,14 @@ export class Player {
   }
 
   // 지금 몸이 걸쳐 있는 칸들. 여기에는 시설을 지을 수 없다.
-  // 서 있으면 그 칸. 걷는 중이면 지금 자리에서 막 들어서는 칸까지(비스듬히 가는 중이면 양옆 칸까지 네 칸).
+  // 서 있으면 그 칸. 걷는 중이면 막 떠난 칸, 지금 자리, 막 들어서는 칸을 모두 덮는 칸들(비스듬히 가는 중이면 양옆 칸까지 네 칸).
+  // 막 떠난 칸도 따로 넣는다. 소수 계산의 오차로, 들어서는 칸에 딱 닿았지만 아직 도착하지 않은 프레임이 있다.
   occupiedTiles() {
-    const to = this.path[0] || this;
+    const pts = [this.tile, this, this.path[0] || this];
+    const cs = pts.map((p) => p.col), rs = pts.map((p) => p.row);
     const out = [];
-    for (let c = Math.floor(Math.min(this.col, to.col)); c <= Math.ceil(Math.max(this.col, to.col)); c++) {
-      for (let r = Math.floor(Math.min(this.row, to.row)); r <= Math.ceil(Math.max(this.row, to.row)); r++) out.push({ col: c, row: r });
+    for (let c = Math.floor(Math.min(...cs)); c <= Math.ceil(Math.max(...cs)); c++) {
+      for (let r = Math.floor(Math.min(...rs)); r <= Math.ceil(Math.max(...rs)); r++) out.push({ col: c, row: r });
     }
     return out;
   }
