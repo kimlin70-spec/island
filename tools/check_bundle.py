@@ -1,0 +1,141 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+묶음 점검: 그림 목록, 맵, 지시문이 서로 맞는지 확인한다.   실행: python tools/check_bundle.py
+그림이나 맵을 다시 만든 뒤에 돌려 본다. 마지막 줄에 "문제 없음"이 나오면 된다.
+"""
+import json
+import os
+import re
+from collections import deque
+
+from PIL import Image
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+problems = []
+
+
+def bad(msg):
+    problems.append(msg)
+    print('  ✕', msg)
+
+
+def main():
+    man = json.load(open(os.path.join(ROOT, 'assets', 'manifest.json'), encoding='utf-8'))
+    A, G = man['assets'], man['meta']['ground']
+    M = json.load(open(os.path.join(ROOT, 'data', 'map.json'), encoding='utf-8'))
+    spec = open(os.path.join(ROOT, 'DEMO_SPEC.md'), encoding='utf-8').read()
+
+    print('1) 그림 파일')
+    for k, v in A.items():
+        path = os.path.join(ROOT, 'assets', v['file'])
+        if not os.path.exists(path):
+            bad(f'{k}: 파일 없음 {v["file"]}')
+            continue
+        w, h = Image.open(path).size
+        if (w, h) != (v['w'], v['h']):
+            bad(f'{k}: 크기가 manifest와 다름 {(w, h)} != {(v["w"], v["h"])}')
+        if 'frameWidth' in v and v['frameWidth'] * len(v['frames']) != v['w']:
+            bad(f'{k}: 프레임 수와 시트 폭이 맞지 않음')
+        if not (0 <= v['originX'] <= 1 and 0 <= v['originY'] <= 1):
+            bad(f'{k}: 기준점이 그림 밖')
+    for ch in G['chunks']:
+        path = os.path.join(ROOT, 'assets', ch['file'])
+        if not os.path.exists(path) or Image.open(path).size != (G['chunkSize'], G['chunkSize']):
+            bad(f'{ch["key"]}: 바닥 조각이 없거나 크기가 다름')
+    nx = len({c['x'] for c in G['chunks']})
+    ny = len({c['y'] for c in G['chunks']})
+    if (G['width'], G['height']) != (nx * G['chunkStep'], ny * G['chunkStep']) or G['chunkStep'] + 2 * G['chunkMargin'] != G['chunkSize']:
+        bad('바닥 그림의 크기 정보가 조각 수와 맞지 않음')
+    fences = [A[f'build_fence_{i}'] for i in range(16)]
+    if len({(f['w'], f['h'], f['originX'], f['originY']) for f in fences}) != 1:
+        bad('울타리 16장의 크기나 기준점이 서로 다름')
+    print(f'   그림 {len(A)}장, 바닥 조각 {len(G["chunks"])}장')
+
+    print('2) 맵')
+    N, T = M['cols'], M['terrain']
+    occ = {}
+    for o in M['objects']:
+        p = (o['col'], o['row'])
+        if o['sprite'] not in A:
+            bad(f'맵의 사물 그림이 manifest에 없음: {o["sprite"]}')
+        if T[p[1]][p[0]] == 0:
+            bad(f'물 위에 사물이 있음: {p}')
+        if p in occ:
+            bad(f'한 칸에 사물이 둘: {p}')
+        occ[p] = o
+    free = lambda c, r: 0 <= c < N and 0 <= r < N and T[r][c] != 0 and (c, r) not in occ
+    st = (M['playerStart']['col'], M['playerStart']['row'])
+    if not free(*st):
+        bad('시작 칸이 막혀 있음')
+    seen, q = {st}, deque([st])
+    while q:                                             # 8방향, 모서리를 끊고 지나가지 않음
+        c, r = q.popleft()
+        for dc in (-1, 0, 1):
+            for dr in (-1, 0, 1):
+                n = (c + dc, r + dr)
+                if n in seen or not free(*n) or (dc and dr and not (free(c + dc, r) and free(c, r + dr))):
+                    continue
+                seen.add(n)
+                q.append(n)
+    total = sum(1 for r in range(N) for c in range(N) if free(c, r))
+    if len(seen) != total:
+        bad(f'시작 지점에서 갈 수 없는 땅이 있음: {total - len(seen)}칸')
+    for s in M['zombieSpawns']:
+        if (s['col'], s['row']) not in seen:
+            bad(f'좀비가 나오는 자리에 갈 수 없음: {s}')
+    land = M['pirates']['landing']
+    if (land['col'], land['row']) not in seen or not any((land['col'] + d[0], land['row'] + d[1]) in seen for d in ((1, 0), (-1, 0), (0, 1), (0, -1))):
+        bad('해적 상륙 칸이나 그 옆 칸에 갈 수 없음')
+    for k in ('ship', 'boat'):
+        p = M['pirates'][k]
+        if T[int(round(p['row']))][int(round(p['col']))] != 0:
+            bad(f'해적 {k}가 물 위에 있지 않음')
+    # 모든 땅 칸의 마름모가 바닥 그림 안에 있는지, 시작 화면이 바닥 그림 안에 들어가는지
+    for r in range(N):
+        for c in range(N):
+            if T[r][c]:
+                x, y = (c - r) * 40, (c + r) * 20
+                if not (G['x'] + 40 <= x <= G['x'] + G['width'] - 40 and G['y'] + 130 <= y <= G['y'] + G['height'] - 20):
+                    bad(f'땅 칸이 바닥 그림 가장자리에 너무 가깝거나 밖에 있음: {(c, r)}')
+    print(f'   땅 {sum(1 for row in T for v in row if v)}칸, 사물 {len(M["objects"])}개, 걸을 수 있는 칸 {total}칸 모두 이어짐')
+
+    print('3) 지시문(DEMO_SPEC.md)에 나오는 이름')
+    keys = set(A) | {c['key'] for c in G['chunks']}
+    names = set()
+    for token in re.findall(r'`([^`\n]+)`', spec):
+        for part in re.split(r'[,\s/·→]+', token):
+            m = re.fullmatch(r'((?:obj|build|char|icon|overlay|fx|light|glow|ground)_[a-z0-9_]*?)(\d+)~([a-z]?)(\d+)', part)
+            if m:                                           # obj_tree_a1~a3, build_fence_0~15 같은 범위 표기
+                names.update(f'{m.group(1)}{i}' for i in range(int(m.group(2)), int(m.group(4)) + 1))
+            elif re.fullmatch(r'(obj|build|char|icon|overlay|fx|light|glow|ground)_[a-z0-9_]+', part):
+                names.add(part)
+    for n in sorted(names):
+        if n not in keys:
+            bad(f'지시문에 있는 그림이 manifest에 없음: {n}')
+    unused = sorted(k for k in A if k not in names)
+    if unused:
+        bad(f'지시문에 한 번도 나오지 않는 그림: {unused}')
+    frames = {f for v in A.values() for f in v.get('frames', [])}
+    for f in re.findall(r'`((?:idle|walk|dagger|axe|pick|attack|burn)\d?)`', spec):
+        if f not in frames:
+            bad(f'지시문에 있는 프레임 이름이 그림에 없음: {f}')
+    # 지시문의 manifest 예시 숫자
+    for k in ('obj_tree_a1', 'char_player'):
+        v = A[k]
+        for field in ('w', 'h', 'originX', 'originY', 'frameWidth', 'frameHeight'):
+            if field in v and not re.search(rf'"{k}":\s*\{{[^}}]*"{field}": {re.escape(str(v[field]))}[,\s}}]', spec, re.S):
+                bad(f'지시문의 manifest 예시가 실제 값과 다름: {k}.{field} = {v[field]}')
+    for field in ('x', 'y', 'width', 'height', 'chunkSize', 'chunkStep', 'chunkMargin'):
+        if not re.search(rf'"{field}": {G[field]}\b', spec):
+            bad(f'지시문의 바닥 그림 예시가 실제 값과 다름: {field} = {G[field]}')
+    if f'"col": {st[0]}, "row": {st[1]}' not in spec:
+        bad('지시문의 시작 칸이 맵과 다름')
+    print(f'   그림 이름 {len(names)}개 확인')
+
+    print('문제 없음' if not problems else f'문제 {len(problems)}건')
+    return 1 if problems else 0
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

@@ -1,0 +1,101 @@
+{
+ "x": -2559,
+ "y": -275,
+ "width": 5110,
+ "height": 3066,
+ "chunkSize": 1024,
+ "chunkStep": 1022,
+ "chunkMargin": 1,
+ "chunks": [
+  {
+   "key": "ground_0_0",
+   "file": "ground/ground_0_0.jpg",
+   "x": -2560,
+   "y": -276
+  },
+  {
+   "key": "ground_0_1",
+   "file": "ground/ground_0_1.jpg",
+   "x": -1538,
+   "y": -276
+  },
+  {
+   "key": "ground_0_2",
+   "file": "ground/ground_0_2.jpg",
+   "x": -516,
+   "y": -276
+  },
+  {
+   "key": "ground_0_3",
+   "file": "ground/ground_0_3.jpg",
+   "x": 506,
+   "y": -276
+  },
+  {
+   "key": "ground_0_4",
+   "file": "ground/ground_0_4.jpg",
+   "x": 1528,
+   "y": -276
+  },
+  {
+   "key": "ground_1_0",
+   "file": "ground/ground_1_0.jpg",
+   "x": -2560,
+   "y": 746
+  },
+  {
+   "key": "ground_1_1",
+   "file": "ground/ground_1_1.jpg",
+   "x": -1538,
+   "y": 746
+  },
+  {
+   "key": "ground_1_2",
+   "file": "ground/ground_1_2.jpg",
+   "x": -516,
+   "y": 746
+  },
+  {
+   "key": "ground_1_3",
+   "file": "ground/ground_1_3.jpg",
+   "x": 506,
+   "y": 746
+  },
+  {
+   "key": "ground_1_4",
+   "file": "ground/ground_1_4.jpg",
+   "x": 1528,
+   "y": 746
+  },
+  {
+   "key": "ground_2_0",
+   "file": "ground/ground_2_0.jpg",
+   "x": -2560,
+   "y": 1768
+  },
+  {
+   "key": "ground_2_1",
+   "file": "ground/ground_2_1.jpg",
+   "x": -1538,
+   "y": 1768
+  },
+  {
+   "key": "ground_2_2",
+   "file": "ground/ground_2_2.jpg",
+   "x": -516,
+   "y": 1768
+  },
+  {
+   "key": "ground_2_3",
+   "file": "ground/ground_2_3.jpg",
+   "x": 506,
+   "y": 1768
+  },
+  {
+   "key": "ground_2_4",
+   "file": "ground/ground_2_4.jpg",
+   "x": 1528,
+   "y": 1768
+  }
+ ]
+}
