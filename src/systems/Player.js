@@ -85,8 +85,10 @@ export class Player {
   act(action) {
     const tiles = action.target.tiles;
     // 이미 그 대상에게 하는 중이면 그대로 둔다. 다만 걷는 길이 시설에 끊겨 대상 옆까지 가지 못하면 길을 다시 찾는다.
+    // 하던 행동이 막 끝났으면(나무가 방금 그루터기가 되었으면) 새 행동으로 받는다.
     const end = this.path[this.path.length - 1] || this.tile;
-    if (this.action && this.action.target === action.target && this.isNextTo(tiles, end)) return true;
+    const a = this.action;
+    if (a && a.target === action.target && a.isValid() && this.isNextTo(tiles, end)) return true;
     const onTop = !this.moving && tiles.some((t) => t.col === this.tile.col && t.row === this.tile.row);
     const here = !this.moving && this.isNextTo(tiles) && !(action.stepOff && onTop);
     // 비켜설 칸이 없으면 그 자리에서 한다
