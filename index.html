@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>섬 생존 프로토타입</title>
+<link rel="icon" href="data:,">
+<style>
+  html, body {
+    margin: 0; padding: 0;
+    position: fixed; inset: 0;
+    width: 100%; height: 100%;
+    overflow: hidden;
+    background: #26303a;
+    touch-action: none;
+    overscroll-behavior: none;
+    -webkit-user-select: none; user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #game { position: absolute; inset: 0; }
+  canvas { touch-action: none; -webkit-user-select: none; user-select: none; }
+  /* 파일을 바로 열었을 때만 보이는 안내 */
+  #howto {
+    display: none;
+    position: absolute; inset: 0; z-index: 10;
+    align-items: center; justify-content: center; text-align: center;
+    padding: 24px; box-sizing: border-box;
+    color: #fbf6ea; background: #26303a;
+    font-family: "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif;
+    font-weight: bold; font-size: 22px; line-height: 1.8;
+    -webkit-user-select: text; user-select: text;
+  }
+</style>
+</head>
+<body>
+<div id="game"></div>
+<div id="howto">
+  <div>
+    이 파일을 바로 열면 게임이 실행되지 않습니다.<br>
+    이 폴더에서 명령 창을 열고 <code>python -m http.server 8000</code> 을 실행한 뒤,<br>
+    브라우저 주소창에 <code>http://localhost:8000</code> 을 입력해 주세요.
+  </div>
+</div>
+<script src="lib/phaser.min.js"></script>
+<script type="module" src="src/main.js"></script>
+<script>
+  // index.html을 더블클릭해서 열면(file://) 브라우저가 게임 코드를 읽지 못한다.
+  // 잠깐 기다려도 게임이 시작되지 않았으면 실행 방법을 보여 준다.
+  if (location.protocol === 'file:') {
+    setTimeout(function () {
+      if (!window.__game) document.getElementById('howto').style.display = 'flex';
+    }, 1500);
+  }
+</script>
+</body>
+</html>
