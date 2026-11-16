@@ -12,6 +12,8 @@ export class MapSystem {
     this.rows = map.rows;
     this.objects = [];                                               // { kind, key, col, row, tiles, sprite, blocks, tall, pickable }
     this.objectGrid = new Array(this.cols * this.rows).fill(null);   // 칸 -> 그 칸의 사물
+    this.structures = [];                                            // 내가 지은 시설 { type, tiles, sprite, hp, ... }
+    this.structGrid = new Array(this.cols * this.rows).fill(null);   // 칸 -> 그 칸의 시설
   }
 
   inBounds(col, row) { return col >= 0 && row >= 0 && col < this.cols && row < this.rows; }
@@ -19,11 +21,39 @@ export class MapSystem {
   isLand(col, row) { return this.inBounds(col, row) && this.map.terrain[row][col] !== 0; }
   objectAt(col, row) { return this.inBounds(col, row) ? this.objectGrid[row * this.cols + col] : null; }
 
-  // 주인공이 걸을 수 있는 칸인가: 땅이고, 나무·돌·덤불이 없다
-  isWalkable(col, row) {
+  structureAt(col, row) { return this.inBounds(col, row) ? this.structGrid[row * this.cols + col] : null; }
+
+  // 땅이고, 나무·돌·덤불이 없는 칸인가(시설은 따지지 않는다)
+  isOpen(col, row) {
     if (!this.isLand(col, row)) return false;
     const o = this.objectGrid[row * this.cols + col];
     return !(o && o.blocks);
+  }
+
+  // 주인공이 걸을 수 있는 칸인가. 텐트와 모닥불은 막히고, 자기 울타리는 넘어 다닐 수 있다. (5.1)
+  isWalkable(col, row) {
+    if (!this.isOpen(col, row)) return false;
+    const s = this.structGrid[row * this.cols + col];
+    return !s || s.type === 'fence';
+  }
+
+  addStructure(s) {
+    this.structures.push(s);
+    for (const t of s.tiles) this.structGrid[t.row * this.cols + t.col] = s;
+  }
+
+  removeStructure(s) {
+    this.structures.splice(this.structures.indexOf(s), 1);
+    for (const t of s.tiles) this.structGrid[t.row * this.cols + t.col] = null;
+  }
+
+  // 그 칸의 장식(그루터기, 돌 부스러기)을 없앤다. 시설을 지으면 사라진다. (3.5)
+  removeDecorAt(col, row) {
+    const i = row * this.cols + col, o = this.objectGrid[i];
+    if (!o || o.blocks) return;
+    o.sprite.destroy();
+    this.objects.splice(this.objects.indexOf(o), 1);
+    this.objectGrid[i] = null;
   }
 
   // 그림의 기준점(발)을 칸 중심에 맞춰 놓는다
@@ -72,11 +102,12 @@ export class MapSystem {
     o.sprite.setTexture(key).setOrigin(a.originX, a.originY).setAlpha(1);
   }
 
-  // 월드 좌표 (x, y)를 눌렀을 때 고르는 사물: 그림의 투명하지 않은 부분이 그 점에 놓인 것.
+  // 월드 좌표 (x, y)를 눌렀을 때 고르는 사물이나 시설: 그림의 투명하지 않은 부분이 그 점에 놓인 것.
   // 누른 점이 그림 사각형 안에 있는 것들을 depth가 큰(앞에 있는) 것부터 본다. (3.5)
-  pickObject(x, y) {
+  // list 를 주면 그 안에서만 고른다(치우기는 시설만).
+  pickObject(x, y, list = [...this.objects, ...this.structures]) {
     const hits = [];
-    for (const o of this.objects) {
+    for (const o of list) {
       if (!o.pickable) continue;
       const s = o.sprite;
       const lx = Math.floor(x - (s.x - s.displayWidth * s.originX));
@@ -98,7 +129,7 @@ export class MapSystem {
     const O = CONFIG.occlude;
     const half = O.bodyWidth / 2;
     const step = dt / O.fadeTime * (1 - O.alpha);
-    for (const o of this.objects) {
+    for (const o of [...this.objects, ...this.structures]) {
       if (!o.tall) continue;
       const s = o.sprite;
       const left = s.x - s.displayWidth * s.originX;

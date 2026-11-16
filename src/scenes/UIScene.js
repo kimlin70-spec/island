@@ -33,7 +33,14 @@ export class UIScene extends Phaser.Scene {
     listen('inventory-changed', () => { this.refreshBag(); this.refreshCards(); });
     listen('tools-changed', () => { this.refreshEquipment(); this.refreshCards(); });
     listen('todo-changed', () => this.refreshTodo());
+    listen('build-changed', () => { this.refreshCards(); this.refreshHint(); });
+    listen('structures-changed', () => this.refreshCards());
     listen('notice', (text) => this.notice(text));
+
+    // 포인터가 패널이나 버튼 위로 가면 월드에 알린다(짓기 표시를 숨기고, 거기서 손을 떼도 짓지 않게).
+    const overUi = (pointer, over) => { if (over.length) this.world.pointerLeft(); };
+    this.input.on('pointermove', overUi);
+    this.input.on('pointerup', overUi);
 
     for (const text of INTRO) this.notice(text, true);
   }
@@ -168,10 +175,12 @@ export class UIScene extends Phaser.Scene {
     this.craftBtn.clear().fillStyle(U.yellow, 1).fillCircle(cx, cy, r).lineStyle(b, INK, 1).strokeCircle(cx, cy, r - b / 2);
   }
 
+  // 만들기 버튼: 누르면 창이 열리고, 다시 누르면 닫히면서 짓기 상태도 끝난다
   toggleCraft() {
     this.craftOpen = !this.craftOpen;
     this.craftWin.setVisible(this.craftOpen);
     this.drawCraftButton();
+    if (!this.craftOpen) this.world.build.setMode(null);
   }
 
   // 카드 한 장: 아이콘, 이름, 재료(아이콘과 숫자) 또는 글자("보유", "절반 돌려받음")
@@ -196,17 +205,19 @@ export class UIScene extends Phaser.Scene {
     return { card, box, bg, status, costParts };
   }
 
-  // 재료가 모자란 카드와 이미 가진 것의 카드는 흐리게 보인다
+  // 재료가 모자란 카드와 이미 가진 것의 카드는 흐리게 보인다. 고른 카드는 노란 굵은 테두리.
   refreshCards() {
     const K = U.craft;
     for (const c of this.cards) {
       const state = this.world.cardState(c.card);
+      const selected = this.world.build.mode === c.card.id;
       if (c.costParts.length) {
         for (const part of c.costParts) part.setVisible(state !== 'owned');
         c.status.setText(state === 'owned' ? '보유' : '');
       }
       c.box.setAlpha(state === 'ok' ? 1 : U.dimAlpha);
-      this.roundRect(c.bg.clear(), 0, 0, K.cardW, K.cardH, K.cardRadius, U.cardColor, 1, INK, K.cardBorder);
+      this.roundRect(c.bg.clear(), 0, 0, K.cardW, K.cardH, K.cardRadius, U.cardColor, 1,
+        selected ? U.yellow : INK, selected ? K.selectedBorder : K.cardBorder);
     }
   }
 
@@ -242,7 +253,17 @@ export class UIScene extends Phaser.Scene {
     this.noticeText = this.label(this.W / 2, U.notice.y, '', U.notice.font, { originX: 0.5 });
     this.noticeBox = this.add.container(0, 0, [this.noticeBg, this.noticeText]).setDepth(20).setVisible(false);
     this.noticeQueue = [];
-    this.noticeLeft = 0;
+    this.noticeLeft = 0;     // 떠 있는 알림이 사라질 때까지 남은 시간(초)
+    this.hint = null;        // 짓기 상태의 안내. 알림이 없는 동안 계속 떠 있다.
+  }
+
+  // 알림 자리에 글을 띄운다
+  showNotice(text) {
+    const N = U.notice, P = U.panel;
+    this.noticeText.setText(text);
+    const w = this.noticeText.width + N.padX * 2;
+    this.roundRect(this.noticeBg.clear(), this.W / 2 - w / 2, N.y - N.height / 2, w, N.height, N.height / 2, P.color, P.alpha, P.border, P.borderWidth);
+    this.noticeBox.setVisible(true).setAlpha(1);
   }
 
   // 알림은 2.5초 떴다가 사라진다. 새 알림은 떠 있던 것을 바로 바꾼다.
@@ -252,22 +273,34 @@ export class UIScene extends Phaser.Scene {
       this.noticeQueue.push(text);
       return;
     }
-    const N = U.notice, P = U.panel;
-    this.noticeText.setText(text);
-    const w = this.noticeText.width + N.padX * 2;
-    this.roundRect(this.noticeBg.clear(), this.W / 2 - w / 2, N.y - N.height / 2, w, N.height, N.height / 2, P.color, P.alpha, P.border, P.borderWidth);
-    this.noticeBox.setVisible(true).setAlpha(1);
-    this.noticeLeft = N.time;
+    this.showNotice(text);
+    this.noticeLeft = U.notice.time;
+  }
+
+  // 짓기 상태의 안내는 계속 떠 있다: "울타리: 지을 칸을 누르세요"
+  refreshHint() {
+    const mode = this.world.build.mode;
+    const card = CARDS.find((c) => c.id === mode);
+    this.hint = !card ? null : card.type === 'remove' ? '치우기: 없앨 시설을 누르세요' : `${cardName(card)}: 지을 칸을 누르세요`;
+    if (this.hint) {                                  // 안내는 바로 띄운다(기다리던 알림은 버린다)
+      this.noticeQueue.length = 0;
+      this.noticeLeft = 0;
+      this.showNotice(this.hint);
+    } else if (this.noticeLeft <= 0) {                // 떠 있는 알림("재료가 부족합니다" 등)은 그대로 둔다
+      this.noticeBox.setVisible(false);
+    }
   }
 
   update(time, delta) {
     if (this.noticeLeft <= 0) return;
     this.noticeLeft -= delta / 1000;
     if (this.noticeLeft > 0) {
-      this.noticeBox.setAlpha(Math.min(1, this.noticeLeft / U.notice.fade));   // 끝에 살짝 흐려지며 사라진다
+      // 끝에 살짝 흐려지며 사라진다(뒤이어 다른 글이 뜰 때는 그대로 둔다)
+      if (!this.noticeQueue.length && !this.hint) this.noticeBox.setAlpha(Math.min(1, this.noticeLeft / U.notice.fade));
       return;
     }
-    this.noticeBox.setVisible(false);
     if (this.noticeQueue.length) this.notice(this.noticeQueue.shift());
+    else if (this.hint) this.showNotice(this.hint);
+    else this.noticeBox.setVisible(false);
   }
 }

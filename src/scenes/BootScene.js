@@ -45,19 +45,20 @@ export class BootScene extends Phaser.Scene {
     this.load.start();
   }
 
-  // 걷는 동작: walk1, walk2 를 번갈아 (주인공, 좀비, 해적)
+  // 걷는 동작(주인공, 좀비, 해적): walk1, walk2 를 번갈아.  모닥불: burn1~burn3 을 반복.
   makeAnimations(manifest) {
-    for (const [key, a] of Object.entries(manifest.assets)) {
-      if (!a.frames || !a.frames.includes('walk1') || this.anims.exists(key + '_walk')) continue;
+    const make = (key, a, name, frames, frameRate) => {
+      if (!a.frames || !a.frames.includes(frames[0]) || this.anims.exists(key + '_' + name)) return;
       this.anims.create({
-        key: key + '_walk',
-        frames: [
-          { key, frame: a.frames.indexOf('walk1') },
-          { key, frame: a.frames.indexOf('walk2') },
-        ],
-        frameRate: CONFIG.anim.walkFps,
+        key: key + '_' + name,
+        frames: frames.map((f) => ({ key, frame: a.frames.indexOf(f) })),
+        frameRate,
         repeat: -1,
       });
+    };
+    for (const [key, a] of Object.entries(manifest.assets)) {
+      make(key, a, 'walk', ['walk1', 'walk2'], CONFIG.anim.walkFps);
+      make(key, a, 'burn', ['burn1', 'burn2', 'burn3'], CONFIG.anim.burnFps);
     }
   }
 }

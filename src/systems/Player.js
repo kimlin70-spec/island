@@ -88,6 +88,17 @@ export class Player {
     return true;
   }
 
+  // 지금 차지하고 있는 칸들(서 있는 칸과 막 들어서는 칸). 여기에는 시설을 지을 수 없다.
+  occupiedTiles() {
+    return this.path.length ? [this.tile, this.path[0]] : [this.tile];
+  }
+
+  // 시설이 새로 생겨 가던 길이 막혔으면 그 앞에서 멈춘다
+  onMapChanged() {
+    const i = this.path.findIndex((t) => !this.map.isWalkable(t.col, t.row));
+    if (i >= 0) this.path.length = i;
+  }
+
   // 하던 행동을 멈춘다. 들어 올린 도구는 내려치지 않는다.
   stopAction() {
     this.action = null;

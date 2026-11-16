@@ -19,3 +19,8 @@ export function worldToTile(x, y) {
     row: Math.floor((y / HH - x / HW) / 2 + 0.5),
   };
 }
+
+// 월드 좌표 -> 소수 칸 좌표(칸 중심이 정수). 2×2칸인 텐트의 자리를 잡을 때 쓴다.
+export function worldToTileFloat(x, y) {
+  return { col: (x / HW + y / HH) / 2, row: (y / HH - x / HW) / 2 };
+}

@@ -26,7 +26,8 @@ export const CONFIG = {
     reach: 7, refundRate: 0.5,
     fence:    { name: '울타리', cost: { wood: 1 }, hp: 6 },
     campfire: { name: '모닥불', cost: { wood: 3, stone: 3 }, hp: 10, slowRange: 3, slow: 0.5,
-                light: { radius: 300, color: 0xffedc7, alpha: 1 } },
+                light: { radius: 300, color: 0xffedc7, alpha: 1 },
+                glow: { size: 220, day: 0.2, night: 0.45 } },   // 불꽃 둘레의 빛무리(3.7): 크기(px)와 낮·밤의 진하기
     tent:     { name: '텐트', cost: { wood: 8, stone: 2 }, hp: 24, max: 1,
                 healInterval: 8, sleepTimeScale: 4, wakeRange: 6,
                 light: { radius: 110, color: 0xffedc7, alpha: 0.8 } },
@@ -48,6 +49,7 @@ export const CONFIG = {
   },
   anim: {
     walkFps: 6,              // 걷는 그림을 초당 몇 장 바꾸는가
+    burnFps: 6,              // 모닥불 그림을 초당 몇 장 바꾸는가
     toolRaise: 0.2,          // 도구를 들어 올린 그림을 보여 주는 시간(초)
     toolStrike: 0.15,        // 내려친 그림을 보여 주는 시간(초). 이 그림으로 바뀌는 순간에 피해를 준다
   },
