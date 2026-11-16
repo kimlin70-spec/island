@@ -8,7 +8,7 @@ const Rect = Phaser.Geom.Rectangle;
 // 처음 시작할 때 차례로 보여 주는 알림 (7장)
 const INTRO = ['땅을 누르면 이동합니다', '나무를 누르면 다가가서 벱니다', '만들기에서 도구와 캠프를 만들 수 있습니다'];
 
-// 화면 UI. 월드(GameScene) 위에 겹쳐 그려지고, 카메라와 상관없이 제자리에 있다.
+// 화면 UI와 밤의 빛 지도. 월드(GameScene) 위에 겹쳐 그려지고, 카메라와 상관없이 제자리에 있다.
 // 패널과 버튼은 setInteractive 를 해 두어서, 그 위를 누른 것은 월드로 전달되지 않는다.
 export class UIScene extends Phaser.Scene {
   constructor() { super('ui'); }
@@ -18,11 +18,15 @@ export class UIScene extends Phaser.Scene {
     this.W = this.scale.width;
     this.H = this.scale.height;
 
+    this.makeLightmap();       // 가장 먼저: 월드 위, 다른 UI 아래 (3.7)
+    this.makeHearts();
+    this.makeClock();
     this.makeTodo();
     this.makeBag();
     this.makeEquipment();
     this.makeCraft();
     this.makeDebug();
+    this.makeRest();
     this.makeNotice();
 
     // 월드에서 바뀐 것을 받아 화면을 고친다
@@ -35,7 +39,17 @@ export class UIScene extends Phaser.Scene {
     listen('todo-changed', () => this.refreshTodo());
     listen('build-changed', () => { this.refreshCards(); this.refreshHint(); });
     listen('structures-changed', () => this.refreshCards());
+    listen('hearts-changed', () => this.refreshHearts());
+    listen('rest-changed', () => this.restBox.setVisible(this.world.rest.resting));
+    listen('speed-changed', () => this.refreshDebug());
     listen('notice', (text) => this.notice(text));
+
+    // 빛 지도와 시계는 화면을 그리기 직전에 고친다. Phaser는 위에 있는 씬(UI)을 월드보다 먼저 update 하고,
+    // 카메라 위치는 그리기 직전에 정해지므로, 여기서 그려야 이번 프레임의 주인공·카메라 위치와 맞는다.
+    this.events.on('prerender', () => {
+      this.drawLightmap();
+      this.refreshClock();
+    });
 
     // 포인터가 패널이나 버튼 위로 가면 월드에 알린다(짓기 표시를 숨기고, 거기서 손을 떼도 짓지 않게).
     const overUi = (pointer, over) => { if (over.length) this.world.pointerLeft(); };
@@ -76,6 +90,75 @@ export class UIScene extends Phaser.Scene {
     const P = U.panel;
     this.roundRect(g.clear(), x, y, w, h, radius, P.color, P.alpha, P.border, P.borderWidth);
     return this.hitRect(g, x, y, w, h);
+  }
+
+  // ── 밤의 빛 지도 (3.7) ──
+
+  // 화면 크기의 그림판. 화면에 곱해진다(MULTIPLY): 화면색 부분은 어두워지고 빛 부분은 원래 색이 살아난다.
+  makeLightmap() {
+    this.lightmap = this.add.renderTexture(0, 0, this.W, this.H).setOrigin(0, 0)
+      .setBlendMode(Phaser.BlendModes.MULTIPLY).setVisible(false);
+    this.stamp = this.make.image({ key: 'light_soft', add: false });
+  }
+
+  // 매 프레임: 지금 시간의 화면색으로 채우고, 빛마다 light_soft 를 빛 색으로 물들여 그린다. 낮에는 숨긴다.
+  drawLightmap() {
+    const amb = this.world.clock.ambient();
+    if (amb.color === CONFIG.colors.day && amb.strength <= 0) {
+      this.lightmap.setVisible(false);
+      return;
+    }
+    const cam = this.world.cameras.main, rt = this.lightmap;
+    rt.setVisible(true).fill(amb.color);
+    if (amb.strength <= 0) return;
+    for (const L of this.world.lightSources()) {
+      const size = L.radius * 2 * cam.zoom;
+      this.stamp.setTint(L.color).setAlpha(L.alpha * amb.strength).setDisplaySize(size, size);
+      // 월드 -> 화면. cam.worldView 는 반올림된 값이라 쓰지 않는다.
+      rt.draw(this.stamp, (L.x - cam.midPoint.x) * cam.zoom + cam.width / 2, (L.y - cam.midPoint.y) * cam.zoom + cam.height / 2);
+    }
+  }
+
+  // ── 왼쪽 위: 하트 ──
+
+  makeHearts() {
+    const HT = U.hearts, n = this.world.hearts.max;
+    this.panel(this.add.graphics(), U.margin, U.margin, HT.padX * 2 + (n - 1) * HT.step + HT.icon, HT.h);
+    this.heartIcons = [];
+    for (let i = 0; i < n; i++) {
+      this.heartIcons.push(this.add.image(U.margin + HT.padX + HT.icon / 2 + i * HT.step, U.margin + HT.h / 2, 'icon_heart'));
+    }
+    this.refreshHearts();
+  }
+
+  refreshHearts() {
+    const v = this.world.hearts.value, size = U.hearts.icon;
+    this.heartIcons.forEach((img, i) => img.setTexture(i < v ? 'icon_heart' : 'icon_heart_empty').setDisplaySize(size, size));
+  }
+
+  // ── 가운데 위: 시계 (5.5) ──
+
+  makeClock() {
+    const C = U.clock, cx = this.W / 2, y = U.margin;
+    this.panel(this.add.graphics(), cx - C.w / 2, y, C.w, C.h);
+    this.clockIcon = this.add.image(cx + C.iconX, y + C.h / 2, 'icon_sun').setDisplaySize(C.icon, C.icon);
+    this.clockText = this.label(cx + C.textX, y + C.textY, '', C.font);
+    this.clockBar = this.add.graphics();
+    this.clockShown = {};    // 지금 그려 둔 것. 바뀔 때만 다시 그린다.
+    this.refreshClock();
+  }
+
+  refreshClock() {
+    const C = U.clock, clock = this.world.clock, s = this.clockShown;
+    const label = clock.label, night = clock.isNight, w = Math.round(C.barW * clock.progress);
+    if (s.label === label && s.night === night && s.w === w) return;
+    Object.assign(s, { label, night, w });
+    this.clockText.setText(label);
+    this.clockIcon.setTexture(night ? 'icon_moon' : 'icon_sun').setDisplaySize(C.icon, C.icon);
+    const x = this.W / 2 + C.barX, y = U.margin + C.barY, r = C.barH / 2;
+    const g = this.clockBar.clear();
+    g.fillStyle(C.track, 1).fillRoundedRect(x, y, C.barW, C.barH, r);
+    if (w > 0) g.fillStyle(night ? C.nightFill : C.dayFill, 1).fillRoundedRect(x, y, Math.max(w, C.barH), C.barH, r);
   }
 
   // ── 오른쪽 위: 할 일 (5.11) ──
@@ -230,20 +313,48 @@ export class UIScene extends Phaser.Scene {
     btn.on('pointerdown', () => this.debugWin.setVisible(!this.debugWin.visible));
     this.label(bx + D.buttonW / 2, by + D.buttonH / 2, '시험', D.font, { originX: 0.5 });
 
+    // [글(또는 글을 돌려주는 함수), 누르면 할 일]
     const items = [
       [`나무, 돌 +${D.giveAmount}`, () => this.world.debugGive()],
+      ['밤으로 넘기기', () => this.world.debugNight()],
+      ['아침으로 넘기기', () => this.world.debugMorning()],
+      [() => `속도 ×${this.world.debugSpeed}`, () => this.world.debugToggleSpeed()],
       ['닫기', () => this.debugWin.setVisible(false)],
     ];
     const h = D.pad * 2 + items.length * D.itemH + (items.length - 1) * D.itemGap;
     this.debugWin = this.add.container(this.W - U.margin - D.w, by + D.buttonH + D.gap).setDepth(10).setVisible(false);
     this.debugWin.add(this.panel(this.add.graphics(), 0, 0, D.w, h));
+    this.debugLabels = [];
     items.forEach(([text, onPress], i) => {
       const y = D.pad + i * (D.itemH + D.itemGap), w = D.w - D.pad * 2;
       const g = this.hitRect(this.add.graphics(), D.pad, y, w, D.itemH);
       this.roundRect(g, D.pad, y, w, D.itemH, D.radius, U.cardColor, 1, INK, U.panel.borderWidth);
       g.on('pointerdown', onPress);
-      this.debugWin.add([g, this.label(D.w / 2, y + D.itemH / 2, text, D.itemFont, { originX: 0.5 })]);
+      const label = this.label(D.w / 2, y + D.itemH / 2, '', D.itemFont, { originX: 0.5 });
+      this.debugLabels.push({ label, text });
+      this.debugWin.add([g, label]);
     });
+    this.refreshDebug();
+  }
+
+  refreshDebug() {
+    for (const d of this.debugLabels) d.label.setText(typeof d.text === 'function' ? d.text() : d.text);
+  }
+
+  // ── 아래 가운데: 텐트에서 쉬는 동안의 버튼 (5.6). 누르면 텐트에서 나온다. ──
+
+  makeRest() {
+    const R = U.rest;
+    const bg = this.add.graphics();
+    const icon = this.add.image(0, 0, 'icon_sleep').setDisplaySize(R.icon, R.icon);
+    const text = this.label(0, 0, '쉬는 중 · 누르면 나옵니다', R.font);
+    const w = R.padX * 2 + R.icon + R.gap + text.width;
+    const x = this.W / 2 - w / 2, y = this.H - U.margin - R.h;
+    this.panel(bg, x, y, w, R.h);
+    bg.on('pointerdown', () => this.world.rest.exit());
+    icon.setPosition(x + R.padX + R.icon / 2, y + R.h / 2);
+    text.setPosition(x + R.padX + R.icon + R.gap, y + R.h / 2);
+    this.restBox = this.add.container(0, 0, [bg, icon, text]).setVisible(false);
   }
 
   // ── 가운데 위쪽: 알림 ──
@@ -292,6 +403,11 @@ export class UIScene extends Phaser.Scene {
   }
 
   update(time, delta) {
+    this.updateNotice(delta);
+  }
+
+  // 알림은 실제 시간으로 2.5초 떠 있다(게임이 빨라져도 같다)
+  updateNotice(delta) {
     if (this.noticeLeft <= 0) return;
     this.noticeLeft -= delta / 1000;
     if (this.noticeLeft > 0) {

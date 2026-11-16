@@ -141,8 +141,9 @@ export class BuildSystem {
     this.destroy(s);
   }
 
-  // 시설을 없앤다(재료 없이). 먼지가 뜬다.
+  // 시설을 없앤다(재료 없이). 먼지가 뜬다. 들어가 있던 텐트면 주인공은 들어갔던 칸으로 나온다.
   destroy(s) {
+    if (this.scene.rest.tent === s) this.scene.rest.exit();
     this.scene.effects.poof(s.sprite.x, s.sprite.y);
     this.scene.effects.removeBar(s);
     this.map.removeStructure(s);
@@ -150,6 +151,13 @@ export class BuildSystem {
     if (s.glow) s.glow.destroy();
     if (s.type === 'fence') this.refreshFences(s.col, s.row);
     this.scene.events.emit('structures-changed');
+  }
+
+  // 모닥불 빛무리의 진하기: 낮 glow.day ~ 밤 glow.night (3.7). strength: 지금의 빛 세기(0~1)
+  updateGlow(strength) {
+    for (const s of this.map.structures) {
+      if (s.glow) s.glow.setAlpha(s.cfg.glow.day + (s.cfg.glow.night - s.cfg.glow.day) * strength);
+    }
   }
 
   // 울타리 연결 (3.6): 이웃 칸에 울타리가 있는 방향으로 가로대가 이어진다. build_fence_0 ~ build_fence_15

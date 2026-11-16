@@ -18,7 +18,7 @@ export class Player {
     this.path = [];            // 앞으로 지나갈 칸들
     this.costAt = (c, r) => (this.map.isWalkable(c, r) ? 1 : 0);
 
-    this.action = null;        // 하려는 행동 { target, tool(), isValid(), strike(tool) }
+    this.action = null;        // 하려는 행동(act 참고)
     this.swing = null;         // 도구를 휘두르는 중 { t, struck, tool }
     this.cooldown = 0;         // 다음에 도구를 쓸 수 있을 때까지 남은 시간(초)
 
@@ -76,13 +76,19 @@ export class Player {
     return tiles.some((t) => Math.max(Math.abs(t.col - this.tile.col), Math.abs(t.row - this.tile.row)) <= 1);
   }
 
-  // 대상에 붙은 칸 중 가장 가까운 곳까지 걸어가서 actionInterval 마다 도구를 쓴다. (5.1, 5.2)
-  //   target: { tiles, sprite }   tool(): 지금 쓸 도구   isValid(): 계속해도 되는가   strike(tool): 내려치는 순간에 부른다
+  // 대상에 붙은 칸 중 가장 가까운 곳까지 걸어가서 행동한다. (5.1, 5.2)
+  //   target: { tiles, sprite }   isValid(): 계속해도 되는가
+  //   도구 쓰기:   tool(): 지금 쓸 도구, strike(tool): 내려치는 순간에 부른다. actionInterval 마다 되풀이한다.
+  //   한 번 하기:  arrive(): 도착하면 한 번 부른다(텐트에 들어가기).
+  //   stepOff:    대상 칸 위에 서 있으면 옆 칸으로 비켜서서 한다(밟고 지나갈 수 있는 그루터기 등).
   // 갈 수 없으면 아무 일도 하지 않고 false.
   act(action) {
     if (this.action && this.action.target === action.target) return true;   // 이미 그 대상에게 하는 중
-    const here = !this.moving && this.isNextTo(action.target.tiles);
-    if (!here && !this.routeTo(this.neighborsOf(action.target.tiles))) return false;
+    const tiles = action.target.tiles;
+    const onTop = !this.moving && tiles.some((t) => t.col === this.tile.col && t.row === this.tile.row);
+    const here = !this.moving && this.isNextTo(tiles) && !(action.stepOff && onTop);
+    // 비켜설 칸이 없으면 그 자리에서 한다
+    if (!here && !this.routeTo(this.neighborsOf(tiles)) && !onTop) return false;
     this.stopAction();
     this.action = action;
     return true;
@@ -111,6 +117,12 @@ export class Player {
     else if (dx > 0.001) this.sprite.setFlipX(false);
   }
 
+  // 대상 쪽을 본다(흔들리는 중이면 제자리 기준)
+  faceTarget(target) {
+    const ts = target.sprite;
+    this.face((ts.shakeBase === undefined ? ts.x : ts.shakeBase) - this.sprite.x);
+  }
+
   update(dt) {
     const A = CONFIG.anim;
     this.cooldown = Math.max(0, this.cooldown - dt);
@@ -134,16 +146,24 @@ export class Player {
     }
     this.syncSprite();
 
-    // 대상 옆에 도착했으면 도구를 든다
+    // 대상 옆에 도착했으면 행동한다
     const a = this.action;
     if (a && !this.moving) {
       if (!a.isValid() || !this.isNextTo(a.target.tiles)) {
         this.action = null;
-      } else if (!this.swing && this.cooldown <= 0) {
-        const ts = a.target.sprite;
-        this.face((ts.shakeBase === undefined ? ts.x : ts.shakeBase) - this.sprite.x);   // 흔들리는 중이면 제자리 기준
-        this.swing = { t: 0, struck: false, tool: a.tool() };
-        this.cooldown = CONFIG.player.actionInterval;
+      } else if (a.arrive) {                          // 한 번 하기
+        this.action = null;
+        this.faceTarget(a.target);
+        a.arrive();
+      } else if (!this.swing && this.cooldown <= 0) { // 도구 들기
+        const tool = a.tool();
+        if (!tool) {
+          this.action = null;
+        } else {
+          this.faceTarget(a.target);
+          this.swing = { t: 0, struck: false, tool };
+          this.cooldown = CONFIG.player.actionInterval;
+        }
       }
     }
 

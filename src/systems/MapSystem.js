@@ -30,11 +30,10 @@ export class MapSystem {
     return !(o && o.blocks);
   }
 
-  // 주인공이 걸을 수 있는 칸인가. 텐트와 모닥불은 막히고, 자기 울타리는 넘어 다닐 수 있다. (5.1)
+  // 주인공이 걸을 수 있는 칸인가. 시설(울타리, 모닥불, 텐트)이 있는 칸은 지나갈 수 없다.
+  // 문서 5.1은 "주인공은 자기 울타리를 넘어 다닐 수 있다"이지만, 사용자 요청으로 울타리도 막는다.
   isWalkable(col, row) {
-    if (!this.isOpen(col, row)) return false;
-    const s = this.structGrid[row * this.cols + col];
-    return !s || s.type === 'fence';
+    return this.isOpen(col, row) && !this.structGrid[row * this.cols + col];
   }
 
   addStructure(s) {
@@ -47,10 +46,12 @@ export class MapSystem {
     for (const t of s.tiles) this.structGrid[t.row * this.cols + t.col] = null;
   }
 
-  // 그 칸의 장식(그루터기, 돌 부스러기)을 없앤다. 시설을 지으면 사라진다. (3.5)
+  // 그 칸의 장식(그루터기, 돌 부스러기)을 없앤다. 시설을 지으면 사라지고, 곡괭이로 파내도 사라진다. (3.5)
   removeDecorAt(col, row) {
     const i = row * this.cols + col, o = this.objectGrid[i];
     if (!o || o.blocks) return;
+    o.node = null;                                   // 파내던 중이었으면 멈춘다
+    this.scene.effects.removeBar(o);
     o.sprite.destroy();
     this.objects.splice(this.objects.indexOf(o), 1);
     this.objectGrid[i] = null;
@@ -91,14 +92,15 @@ export class MapSystem {
     }
   }
 
-  // 다 쓴 사물을 장식(그루터기, 돌 부스러기)으로 바꾼다. 밟고 지나갈 수 있고, 눌러도 땅을 누른 것과 같다. (3.5)
-  toDecor(o, key) {
+  // 다 쓴 사물을 장식(그루터기 'stump', 돌 부스러기 'rubble')으로 바꾼다. 밟고 지나갈 수 있다. (3.5)
+  // 사용자 요청으로 곡괭이로 파낼 수 있게 했으므로, 눌러서 고를 수 있다.
+  toDecor(o, key, kind) {
     const a = this.assets[key];
-    o.kind = 'decor';
+    o.kind = kind;
     o.key = key;
     o.blocks = false;
     o.tall = false;
-    o.pickable = false;
+    o.pickable = true;
     o.sprite.setTexture(key).setOrigin(a.originX, a.originY).setAlpha(1);
   }
 

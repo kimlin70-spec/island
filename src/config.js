@@ -9,24 +9,28 @@ export const CONFIG = {
     maxHearts: 5,
     actionInterval: 0.55,    // 도구를 한 번 쓰는 간격(초)
     morningHeal: 2,
-    light: { radius: 150, color: 0xebf0ff, alpha: 0.6 },
+    light: { radius: 150, color: 0xebf0ff, alpha: 0.6, lift: 24 },   // lift: 발에서 위로(px) (3.7)
   },
   tools: {
     dagger:  { name: '단검',        power: { tree: 1, enemy: 1 } },
     axe:     { name: '나무 도끼',   cost: { wood: 3 }, power: { tree: 3 } },
-    pickaxe: { name: '나무 곡괭이', cost: { wood: 3 }, power: { rock: 3 } },
+    pickaxe: { name: '나무 곡괭이', cost: { wood: 3 }, power: { rock: 3, ground: 3 } },   // ground: 그루터기·돌 부스러기 파내기(사용자 요청)
   },
   nodes: {
     tree: { hp: 9, give: 'wood', amount: 4 },
     pine: { hp: 9, give: 'wood', amount: 4 },
     palm: { hp: 9, give: 'wood', amount: 3 },
     rock: { hp: 9, give: 'stone', amountBySprite: { obj_rock_s: 1, obj_rock_m: 2, obj_rock_l: 3 } },
+    // 사용자 요청(문서에 없음): 곡괭이로 그루터기·돌 부스러기를 파내면 사라져서 땅이 고르게 된다. 얻는 재료는 없다.
+    stump:  { hp: 3 },
+    rubble: { hp: 3 },
   },
   build: {
     reach: 7, refundRate: 0.5,
     fence:    { name: '울타리', cost: { wood: 1 }, hp: 6 },
     campfire: { name: '모닥불', cost: { wood: 3, stone: 3 }, hp: 10, slowRange: 3, slow: 0.5,
-                light: { radius: 300, color: 0xffedc7, alpha: 1 },
+                light: { radius: 300, color: 0xffedc7, alpha: 1,
+                         flicker: 0.03, flickerRates: [11, 27] },    // 반지름이 ±3%로 일렁인다. 일렁이는 빠르기(라디안/초) 두 가지를 섞는다
                 glow: { size: 220, day: 0.2, night: 0.45 } },   // 불꽃 둘레의 빛무리(3.7): 크기(px)와 낮·밤의 진하기
     tent:     { name: '텐트', cost: { wood: 8, stone: 2 }, hp: 24, max: 1,
                 healInterval: 8, sleepTimeScale: 4, wakeRange: 6,
@@ -98,10 +102,18 @@ export const CONFIG = {
              icon: 96, iconY: 56, nameY: 124, nameFont: 24,
              costY: 164, costIcon: 40, costFont: 24, costStep: 66, costTrim: 6, costTextX: 42,   // 재료 아이콘과 숫자 한 묶음의 폭이 costStep
              statusFont: 22 },                   // "보유", "절반 돌려받음" 글자
+    // 왼쪽 위: 하트(56px). 빈 칸은 icon_heart_empty
+    hearts: { h: 72, padX: 13, step: 58, icon: 56 },
+    // 가운데 위: 해/달 아이콘, "1일째 낮", 진행 막대(낮 노랑, 밤 파랑). x 는 화면 가운데 기준, y 는 패널 위쪽 기준
+    clock: { w: 460, h: 72, iconX: -190, icon: 64, textX: -150, textY: 24, font: 26,
+             barX: -150, barY: 42, barW: 356, barH: 18, track: 0xc4b8a8, dayFill: 0xf0be54, nightFill: 0x687ac4 },
+    // 아래 가운데: 텐트에서 쉬는 동안의 버튼 "쉬는 중 · 누르면 나옵니다"
+    rest: { h: 88, padX: 22, icon: 64, gap: 12, font: 28 },
     // 가운데 위쪽: 알림
     notice: { y: 147, height: 54, padX: 26, font: 28, time: 2.5, fade: 0.2 },
     // 할 일 아래: 시험용 도구
     debug: { buttonW: 88, buttonH: 40, gap: 10, font: 20, radius: 14,
-             w: 300, pad: 16, itemH: 56, itemGap: 10, itemFont: 24, giveAmount: 20 },
+             w: 300, pad: 16, itemH: 56, itemGap: 10, itemFont: 24, giveAmount: 20,
+             fastSpeed: 3 },                     // 속도 ×1 / ×3
   },
 };

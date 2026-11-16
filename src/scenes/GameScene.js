@@ -7,22 +7,30 @@ import { Effects } from '../systems/Effects.js';
 import { NodeSystem } from '../systems/NodeSystem.js';
 import { Todo } from '../systems/Todo.js';
 import { BuildSystem } from '../systems/BuildSystem.js';
+import { TimeSystem } from '../systems/TimeSystem.js';
+import { Hearts } from '../systems/Hearts.js';
+import { RestSystem } from '../systems/RestSystem.js';
 import { cardCost, cardName, objectParticle } from '../systems/Crafting.js';
 
-// 월드: 섬, 사물, 주인공, 카메라, 누르기. 화면 UI(UIScene)에는 events 로 바뀐 것을 알린다.
-//   inventory-changed, tools-changed, todo-changed, build-changed, structures-changed, notice(글)
+// 월드: 섬, 사물, 주인공, 카메라, 누르기, 시간. 화면 UI(UIScene)에는 events 로 바뀐 것을 알린다.
+//   inventory-changed, tools-changed, todo-changed, build-changed, structures-changed,
+//   hearts-changed, rest-changed, speed-changed, dusk, night, morning(날짜), notice(글)
 export class GameScene extends Phaser.Scene {
   constructor() { super('game'); }
 
   create() {
     const manifest = this.cache.json.get('manifest');
     this.mapData = this.cache.json.get('map');
-    this.speed = 1;                                   // 게임 시간이 흐르는 빠르기
+    this.debugSpeed = 1;                              // 시험용 도구의 속도(×1 / ×3)
+    this.speed = 1;                                   // 게임 시간이 흐르는 빠르기(시험용 속도 × 텐트에서 자는 동안의 빠르기)
+    this.elapsed = 0;                                 // 흐른 게임 시간(초). 모닥불 빛이 일렁이는 데 쓴다.
 
     this.inventory = new Inventory(this);
     this.tools = ['dagger'];                          // 가진 도구(만든 순서). 단검을 가지고 시작한다.
     this.todo = new Todo(this);
     this.effects = new Effects(this);
+    this.clock = new TimeSystem(this);
+    this.hearts = new Hearts(this);
 
     this.map = new MapSystem(this, this.mapData, manifest);
     this.map.build();
@@ -31,6 +39,7 @@ export class GameScene extends Phaser.Scene {
     const st = this.mapData.playerStart;
     this.player = new Player(this, this.map, st.col, st.row);
     this.build = new BuildSystem(this);
+    this.rest = new RestSystem(this);
 
     // 카메라: 주인공을 부드럽게 따라가고, 바닥 그림 밖으로 나가지 않는다
     const G = manifest.meta.ground;
@@ -50,6 +59,12 @@ export class GameScene extends Phaser.Scene {
     this.input.on('pointerup', (p) => this.onRelease(p));
     this.input.on('pointerupoutside', () => this.pointerLeft());
     this.input.on('gameout', () => this.pointerLeft());
+
+    // 낮과 밤 (5.5)
+    this.events.on('dusk', () => this.notice('곧 밤이 됩니다'));
+    this.events.on('night', () => this.notice('밤이 되었습니다'));
+    this.events.on('morning', (day) => this.onMorning(day));
+
     this.scene.launch('ui');
   }
 
@@ -64,14 +79,16 @@ export class GameScene extends Phaser.Scene {
       return;
     }
     const o = this.map.pickObject(p.worldX, p.worldY);
-    if (o) {
-      if (o.node) this.pressNode(o);                  // 나무, 돌
-      else if (o.type === 'fence') this.walkTo(o.col, o.row);   // 울타리를 누르면 땅을 누른 것과 같다
-      // 덤불, 모닥불은 눌러도 아무 일이 없다. 텐트에 들어가는 것은 Phase 4에서 넣는다.
+    const t = worldToTile(p.worldX, p.worldY);
+    if (this.rest.resting) {                          // 텐트 안: 텐트를 누르면 나온다. 다른 곳은 반응하지 않는다.
+      const tent = this.rest.tent;
+      if (o === tent || this.map.structureAt(t.col, t.row) === tent) this.rest.exit();
       return;
     }
-    const t = worldToTile(p.worldX, p.worldY);
-    this.walkTo(t.col, t.row);
+    if (o && o.node) this.pressNode(o);               // 나무, 돌, 그루터기, 돌 부스러기
+    else if (o && o.type === 'tent') this.pressTent(o);
+    else if (!o || o.type === 'fence') this.walkTo(t.col, t.row);   // 땅. 울타리를 누른 것도 땅을 누른 것과 같다.
+    // 덤불, 모닥불은 눌러도 아무 일이 없다.
   }
 
   // 마우스를 움직일 때(터치는 누르고 있는 동안)의 위치는 짓기 표시에만 쓴다
@@ -100,20 +117,31 @@ export class GameScene extends Phaser.Scene {
     if (this.player.goTo(col, row)) this.showCursor(col, row);
   }
 
-  // 캐릭터가 서 있는 칸들. 여기에는 시설을 지을 수 없다.
+  // 캐릭터가 서 있는 칸들. 여기에는 시설을 지을 수 없다. 텐트 안에 있는 동안에는 들어갔던 칸이다.
   characterTiles() { return this.player.occupiedTiles(); }
 
-  // 나무나 돌을 눌렀다: 붙은 칸까지 걸어가서 도구로 친다 (5.2)
+  // 나무, 돌, 그루터기, 돌 부스러기를 눌렀다: 붙은 칸까지 걸어가서 도구로 친다 (5.2)
   pressNode(o) {
-    if (!this.nodes.toolFor(o)) {                     // 돌인데 곡괭이가 없다
+    if (!this.nodes.toolFor(o)) {                     // 곡괭이가 없다
       this.notice(this.nodes.needText(o));
       return;
     }
+    const node = o.node;
     this.player.act({
       target: o,
+      stepOff: !o.blocks,                             // 그루터기 위에 서 있으면 옆으로 비켜서서 판다
       tool: () => this.nodes.toolFor(o),              // 휘두를 때마다 고른다(도중에 도끼를 만들면 바로 도끼로)
-      isValid: () => !!o.node,
+      isValid: () => o.node === node,                 // 다 캐면(그루터기가 되어도) 멈춘다
       strike: (tool) => this.nodes.hit(o, tool),
+    });
+  }
+
+  // 텐트를 눌렀다: 붙은 칸까지 걸어가서 들어간다 (5.6)
+  pressTent(tent) {
+    this.player.act({
+      target: tent,
+      isValid: () => this.map.structures.includes(tent),
+      arrive: () => this.rest.enter(tent),
     });
   }
 
@@ -166,23 +194,77 @@ export class GameScene extends Phaser.Scene {
     if (this.build.count('fence') >= CONFIG.todo.fenceCount) this.todo.check('fence');
   }
 
+  // ── 낮과 밤 ──
+
+  // 아침 (5.10): 하트가 2 찬다. 결과 창, 남은 적이 사라지는 것, 시설 수리는 적이 나오는 Phase 5에서 넣는다.
+  onMorning(day) {
+    this.notice(`${day}일째 아침입니다`);
+    this.hearts.heal(CONFIG.player.morningHeal);
+    this.todo.check('morning');
+  }
+
+  // 텐트에서 range 칸 안에 적이 있는가. 적은 Phase 5에서 나온다.
+  enemyNear() { return false; }
+
+  // 밤의 빛 (3.7): 월드 좌표의 빛 목록 { x, y, radius, color, alpha }. UIScene 이 빛 지도에 그린다.
+  lightSources() {
+    const out = [];
+    const t = this.elapsed;
+    for (const s of this.map.structures) {
+      if (s.type !== 'campfire') continue;
+      const L = s.cfg.light, flame = this.map.assets.build_campfire.flame;
+      const phase = s.col + s.row;                    // 모닥불마다 일렁임이 조금씩 다르게
+      const flicker = 1 + L.flicker * (Math.sin(t * L.flickerRates[0] + phase) + Math.sin(t * L.flickerRates[1] + 2 * phase)) / 2;
+      out.push({ x: s.sprite.x + flame[0], y: s.sprite.y + flame[1], radius: L.radius * flicker, color: L.color, alpha: L.alpha });
+    }
+    if (this.rest.resting) {                          // 주인공이 들어가 있는 텐트: 문 앞이 밝다
+      const s = this.rest.tent, L = s.cfg.light, door = this.map.assets.build_tent.door;
+      out.push({ x: s.sprite.x + door[0], y: s.sprite.y + door[1], radius: L.radius, color: L.color, alpha: L.alpha });
+    } else {                                          // 주인공 둘레의 옅은 빛
+      const L = CONFIG.player.light, sp = this.player.sprite;
+      out.push({ x: sp.x, y: sp.y - L.lift, radius: L.radius, color: L.color, alpha: L.alpha });
+    }
+    return out;
+  }
+
   // ── 시험용 도구 (8장) ──
   debugGive() {
     this.inventory.add('wood', CONFIG.ui.debug.giveAmount);
     this.inventory.add('stone', CONFIG.ui.debug.giveAmount);
   }
 
+  debugNight() { if (!this.clock.isNight) this.clock.startNight(); }
+  debugMorning() { if (this.clock.isNight) this.clock.startMorning(); }
+
+  debugToggleSpeed() {
+    this.debugSpeed = this.debugSpeed === 1 ? CONFIG.ui.debug.fastSpeed : 1;
+    this.events.emit('speed-changed');
+  }
+
   update(time, delta) {
+    // 게임 시간의 빠르기: 시험용 속도 × (텐트에서 자는 동안 sleepTimeScale. 텐트 둘레에 적이 오면 원래대로)
+    const T = CONFIG.build.tent;
+    const sleeping = this.rest.resting && !this.enemyNear(this.rest.tent, T.wakeRange);
+    const speed = this.debugSpeed * (sleeping ? T.sleepTimeScale : 1);
+    if (speed !== this.speed) {
+      this.speed = speed;
+      this.anims.globalTimeScale = speed;             // 걷는 그림, 모닥불 그림도 같은 빠르기로
+    }
     const dt = Math.min(delta / 1000, CONFIG.screen.maxFrameTime) * this.speed;
+    this.elapsed += dt;
+
+    this.clock.update(dt);
+    this.rest.update(dt);
     this.player.update(dt);
     this.effects.update(dt);
+    this.build.updateGlow(this.clock.ambient().strength);
     // 짓기 표시는 포인터를 따라간다. 주인공이 걸으면 카메라가 움직이므로 프레임마다 다시 잡는다.
     if (this.hovering && this.build.building) {
       const p = this.input.activePointer;
       p.updateWorldPoint(this.cameras.main);
       this.build.point(p.worldX, p.worldY);
     }
-    this.map.updateOcclusion([this.player.sprite], dt);
+    this.map.updateOcclusion(this.player.sprite.visible ? [this.player.sprite] : [], dt);
     if (this.cursorLeft > 0) {
       this.cursorLeft -= dt;
       if (this.cursorLeft <= 0) this.cursor.setVisible(false);
