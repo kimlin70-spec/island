@@ -10,7 +10,7 @@ export class MapSystem {
     this.ground = manifest.meta.ground;
     this.cols = map.cols;
     this.rows = map.rows;
-    this.objects = [];                                               // { kind, col, row, sprite, blocks, tall }
+    this.objects = [];                                               // { kind, key, col, row, tiles, sprite, blocks, tall, pickable }
     this.objectGrid = new Array(this.cols * this.rows).fill(null);   // 칸 -> 그 칸의 사물
   }
 
@@ -50,13 +50,46 @@ export class MapSystem {
       const sprite = this.place(o.sprite, o.col, o.row);
       sprite.setDepth(D.objectBase + sprite.y);
       const obj = {
-        kind: o.kind, col: o.col, row: o.row, sprite,
+        kind: o.kind, key: o.sprite, col: o.col, row: o.row, sprite,
+        tiles: [{ col: o.col, row: o.row }],            // 차지한 칸
         blocks: true,                                   // 그 칸을 막는다
         tall: CONFIG.occlude.kinds.includes(o.kind),    // 캐릭터를 가릴 수 있다
+        pickable: true,                                 // 눌러서 고를 수 있다
       };
       this.objects.push(obj);
       this.objectGrid[o.row * this.cols + o.col] = obj;
     }
+  }
+
+  // 다 쓴 사물을 장식(그루터기, 돌 부스러기)으로 바꾼다. 밟고 지나갈 수 있고, 눌러도 땅을 누른 것과 같다. (3.5)
+  toDecor(o, key) {
+    const a = this.assets[key];
+    o.kind = 'decor';
+    o.key = key;
+    o.blocks = false;
+    o.tall = false;
+    o.pickable = false;
+    o.sprite.setTexture(key).setOrigin(a.originX, a.originY).setAlpha(1);
+  }
+
+  // 월드 좌표 (x, y)를 눌렀을 때 고르는 사물: 그림의 투명하지 않은 부분이 그 점에 놓인 것.
+  // 누른 점이 그림 사각형 안에 있는 것들을 depth가 큰(앞에 있는) 것부터 본다. (3.5)
+  pickObject(x, y) {
+    const hits = [];
+    for (const o of this.objects) {
+      if (!o.pickable) continue;
+      const s = o.sprite;
+      const lx = Math.floor(x - (s.x - s.displayWidth * s.originX));
+      const ly = Math.floor(y - (s.y - s.displayHeight * s.originY));
+      if (lx >= 0 && ly >= 0 && lx < s.width && ly < s.height) hits.push({ o, lx, ly });
+    }
+    hits.sort((a, b) => b.o.sprite.depth - a.o.sprite.depth);
+    for (const h of hits) {
+      const s = h.o.sprite;
+      const alpha = this.scene.textures.getPixelAlpha(h.lx, h.ly, s.texture.key, s.frame.name);
+      if (alpha !== null && alpha > CONFIG.input.pickAlpha) return h.o;
+    }
+    return null;
   }
 
   // 캐릭터가 키 큰 사물 뒤에 가려지면 그 사물을 반투명하게 하고, 벗어나면 되돌린다 (3.4)

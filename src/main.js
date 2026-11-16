@@ -11,6 +11,9 @@ const game = new Phaser.Game({
   backgroundColor: CONFIG.screen.background,
   scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
   input: { activePointers: 1 },
+  // 엔진은 시작 직후와 창으로 돌아온 직후 120프레임 동안 시간을 초당 60장 기준으로 줄여서 센다.
+  // 화면이 그보다 느리게 그려지는 기기에서는 그동안 게임이 느리게 흘러서, 이 구간을 끈다.
+  fps: { panicMax: 0 },
   disableContextMenu: true,
   scene: [BootScene, GameScene, UIScene],
 });
