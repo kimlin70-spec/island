@@ -57,10 +57,10 @@ export class EnemySystem {
     return true;
   }
 
-  // 다른 좀비들이 서 있거나 가고 있는 칸
+  // 다른 좀비들이 서 있거나 가고 있는 칸(Enemy.claims)
   takenTiles(me) {
     const out = new Set();
-    for (const e of this.list) if (e !== me) { const t = e.spot(); out.add(t.col + ',' + t.row); }
+    for (const e of this.list) if (e !== me) for (const t of e.claims()) out.add(t.col + ',' + t.row);
     return out;
   }
 
@@ -71,7 +71,9 @@ export class EnemySystem {
       this.schedule.shift();
       this.spawn();
     }
-    for (const e of [...this.list]) if (e.alive) e.update(dt);
+    // 길을 오래 못 찾은 좀비부터 움직인다. 길 찾기는 한 프레임에 repathsPerFrame 마리까지라서, 늘 같은 좀비만 기다리지 않게.
+    const order = [...this.list].sort((a, b) => a.repathLeft - b.repathLeft);
+    for (const e of order) if (e.alive) e.update(dt);
   }
 
   // 적이 주인공을 때렸다: 하트가 hitDamage 만큼 준다

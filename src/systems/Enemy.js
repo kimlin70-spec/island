@@ -56,46 +56,59 @@ export class Enemy extends Walker {
   // 다음 칸이 시설이면 그 앞에서 멈춘다(부순 다음에 간다)
   mayEnter(t) { return !this.map.structureAt(t.col, t.row); }
 
-  // 목표 옆에 오면 멈춘다
-  onArrive() { if (this.nextTo(this.system.target())) this.path.length = 0; }
+  // 목표 옆의 제자리에 오면 멈춘다. 목표 칸 위나 다른 좀비의 자리면 멈추지 않고 가던 길을 간다.
+  onArrive() { if (this.inPlace(this.system.target())) this.path.length = 0; }
 
-  // 서 있는 칸이 목표 칸 중 하나와 붙어 있는가(8방향, 같은 칸 포함)
+  // 서 있는 칸이 목표 칸 중 하나와 붙어 있는가(8방향, 같은 칸 포함). 붙어 있으면 때린다.
   nextTo(target) {
     return target.tiles.some((t) => Math.max(Math.abs(t.col - this.tile.col), Math.abs(t.row - this.tile.row)) <= 1);
   }
 
+  // 여기 서서 목표를 치면 되는가: 목표에 붙은 칸이고, 목표 칸 위가 아니고(주인공과 한 칸에 겹쳐 서지 않게),
+  // 다른 좀비가 서 있거나 가고 있는 칸이 아니다(두 마리가 한 칸에 겹쳐 서서 한 마리처럼 보이지 않게).
+  inPlace(target) {
+    const t = this.tile;
+    if (!this.nextTo(target) || target.tiles.some((g) => g.col === t.col && g.row === t.row)) return false;
+    return !this.system.takenTiles(this).has(t.col + ',' + t.row);
+  }
+
   // 목표 칸들에 붙은 칸 중 설 수 있는 곳(시설이 있으면 부수고 선다).
-  // 다른 좀비가 서 있거나 가고 있는 칸은 되도록 피한다(한 칸에 겹쳐 서서 한 마리처럼 보이지 않게). 다 차 있으면 아무 데나.
+  // all: 그런 칸 전부. free: 그중 다른 좀비가 서 있거나 가고 있지 않은 칸.
   goalsAround(tiles) {
-    const out = [], seen = new Set(tiles.map((t) => t.col + ',' + t.row));
+    const all = [], seen = new Set(tiles.map((t) => t.col + ',' + t.row));
     for (const t of tiles) {
       for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
         const c = t.col + dc, r = t.row + dr, k = c + ',' + r;
         if (seen.has(k) || !this.costAt(c, r)) continue;
         seen.add(k);
-        out.push({ col: c, row: r });
+        all.push({ col: c, row: r });
       }
     }
     const taken = this.system.takenTiles(this);
-    const free = out.filter((t) => !taken.has(t.col + ',' + t.row));
-    return free.length ? free : out;
+    return { all, free: all.filter((t) => !taken.has(t.col + ',' + t.row)) };
   }
 
-  // 지금 서 있거나 가고 있는 칸(다른 좀비가 피할 칸)
-  spot() {
+  // 다른 좀비가 피할 칸: 가고 있는 칸(길의 끝)과, 칸 한가운데에 서 있으면 그 칸(시설 앞에 서서 부수는 중일 때도)
+  claims() {
     const end = this.path[this.path.length - 1];
-    return end ? { col: end.col, row: end.row } : this.tile;
+    const out = end ? [end] : [];
+    if (!end || (this.col === this.tile.col && this.row === this.tile.row)) out.push(this.tile);
+    return out;
   }
 
-  // 길을 다시 찾는다. 이미 목표 옆에 서 있으면 그대로 있는다.
+  // 길을 다시 찾는다. 이미 목표 옆의 제자리에 서 있으면 그대로 있는다.
+  // 다른 좀비가 없는 칸으로 가는 길을 먼저 찾는다. 그런 칸이 없거나 갈 수 없으면 다른 좀비가 있는 칸이라도 간다.
+  // 한 걸음 내딛는 중이면 그 칸까지는 그대로 간다(길을 자주 다시 찾아도 되돌아가며 떨지 않게).
   repath(target, key) {
     this.wantPath = false;
     this.repathLeft = this.cfg.repathInterval;
     this.goalKey = key;
     this.goalKind = target.structure ? 'tent' : 'player';
-    if (!this.moving && this.nextTo(target)) return;
-    // 한 걸음 내딛는 중이면 그 칸까지는 그대로 간다(길을 자주 다시 찾아도 되돌아가며 떨지 않게)
-    if (!this.routeOn(this.goalsAround(target.tiles))) this.wantPath = true;   // 갈 길이 없으면 조금 뒤에 다시 찾는다
+    if (!this.moving && this.inPlace(target)) return;
+    const g = this.goalsAround(target.tiles);
+    if (this.routeOn(g.free)) return;
+    if (g.free.length < g.all.length && this.routeOn(g.all)) return;
+    this.wantPath = true;                            // 갈 길이 없으면 조금 뒤에 다시 찾는다
   }
 
   // 시설이 생기거나 없어졌다: 지금 길에서 갈 수 없게 된 걸음 앞에서 멈추고, 길을 다시 찾는다
@@ -124,22 +137,24 @@ export class Enemy extends Walker {
     this.shakeLeft = Math.max(0, this.shakeLeft - dt);
 
     // 길을 다시 찾을 때: 목표의 칸이 바뀌었다(주인공이 움직였다, 텐트에 들어가거나 나왔다), 시설이 생기거나 없어졌다,
-    // 서 있는데 목표 옆이 아니다. 다만 시설을 부수는 중이면 주인공이 움직였다는 것만으로는 바꾸지 않는다(하던 것을 마저 부순다).
+    // 서 있는데 목표 옆의 제자리가 아니다. 다만 시설을 부수는 중이면 주인공이 움직였다는 것만으로는 바꾸지 않는다(하던 것을 마저 부순다).
     const target = this.system.target();
     const key = target.tiles.map((t) => t.col + ',' + t.row).join(' ');
     const kind = target.structure ? 'tent' : 'player';
     if (key !== this.goalKey && !(this.smashing && kind === this.goalKind)) this.wantPath = true;
-    if (!this.moving && !this.nextTo(target)) this.wantPath = true;
+    if (!this.moving && !this.inPlace(target)) this.wantPath = true;
     if (this.wantPath && this.repathLeft <= 0 && this.system.mayRepath()) this.repath(target, key);
 
-    this.walk(dt, this.speedNow());
+    // 때리는 동작(attack 그림)을 다 보여 준 뒤에 걷는다. 시설을 부순 마지막 한 대도 그대로 보이게.
+    const swinging = this.attackLeft > 0;
+    if (!swinging) this.walk(dt, this.speedNow());
 
     // 서 있는 동안 하는 일: 목표 옆이면 목표를, 다음 칸이 시설이면 그 시설을 친다
     const atCentre = this.col === this.tile.col && this.row === this.tile.row;
     const next = this.path[0];
     const blocker = atCentre && next && (next.col !== this.tile.col || next.row !== this.tile.row)
       ? this.map.structureAt(next.col, next.row) : null;
-    const standing = atCentre && (!this.moving || blocker);
+    const standing = atCentre && (!this.moving || blocker || swinging);
     if (standing && this.nextTo(target)) {
       if (target.structure) this.smash(target.structure, dt);
       else this.attackPlayer(dt);

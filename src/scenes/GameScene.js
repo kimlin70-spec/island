@@ -148,6 +148,7 @@ export class GameScene extends Phaser.Scene {
   // 좀비에게 맞았다: 하트가 줄고 주인공이 번쩍인다. 0이 되면 쓰러진다.
   hurtPlayer(n) {
     if (this.rest.resting) return;                    // 텐트 안에서는 공격받지 않는다
+    if (this.hearts.value <= 0) return;               // 이미 쓰러졌다(같은 프레임에 여러 마리가 때린 경우)
     this.hearts.damage(n);
     this.effects.flash(this.player.sprite);
     if (this.hearts.value <= 0) this.stopGame('down');

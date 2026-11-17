@@ -119,9 +119,9 @@ export const CONFIG = {
     rest: { h: 88, padX: 22, icon: 64, gap: 12, font: 28 },
     // 가운데 위쪽: 알림
     notice: { y: 147, height: 54, padX: 26, font: 28, time: 2.5, fade: 0.2 },
-    // 할 일 아래: 시험용 도구
+    // 할 일 아래: 시험용 도구. 창의 아래 끝(지금 y 718)이 만들기 창의 위 끝(y 736)보다 위에 오게 한다.
     debug: { buttonW: 88, buttonH: 40, gap: 10, font: 20, radius: 14,
-             w: 300, pad: 16, itemH: 56, itemGap: 10, itemFont: 24, giveAmount: 20,
+             w: 300, pad: 16, itemH: 48, itemGap: 8, itemFont: 24, giveAmount: 20,
              fastSpeed: 3 },                     // 속도 ×1 / ×3
     // 화면 가운데: "쓰러졌습니다" 창과 첫 아침의 결과 창. 떠 있는 동안 뒤의 화면은 흐려지고 눌리지 않는다.
     modal: { w: 600, pad: 40, titleY: 64, titleFont: 40, lineY: 136, lineH: 50, lineFont: 28, labelX: 70, valueX: 530,
