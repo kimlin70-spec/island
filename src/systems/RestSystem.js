@@ -37,7 +37,7 @@ export class RestSystem {
     this.healLeft -= dt;
     while (this.healLeft <= 0) {
       this.healLeft += CONFIG.build.tent.healInterval;
-      this.scene.hearts.heal(1);
+      if (this.scene.hearts.heal(1)) this.scene.heartsUp();
     }
   }
 }

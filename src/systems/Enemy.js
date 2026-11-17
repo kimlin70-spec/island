@@ -1,11 +1,12 @@
 import { CONFIG } from '../config.js';
 import { tileToWorld } from '../iso.js';
 import { Walker } from './Walker.js';
+import { Body } from './Body.js';
 
 // 적 한 마리: 좀비(5.8)와 해적(5.12). 해적은 좀비와 같은 규칙으로 움직이고 때린다. 다른 것은 숫자(cfg)와 그림뿐이다.
 // 목표(주인공. 주인공이 텐트 안에 있으면 텐트)에 붙은 칸 중 가장 가까운 곳으로 걸어가서 때린다.
 // 내 시설은 "부수면 지나갈 수 있는 칸"이다(길찾기 비용 breakCost). 다음에 갈 칸이 시설이면 그 앞에 서서 부순다.
-// 위치와 길, 걷기, 몸이 걸친 칸은 Walker 에 있다(주인공과 같다).
+// 위치와 길, 걷기, 몸이 걸친 칸은 Walker 에, 그림의 움직임(애니메이션, 앞뒤, 맞기, 멈칫)은 Body 에 있다(주인공과 같다).
 export const ENEMY_KINDS = {
   zombie:   { key: 'char_zombie',   cfg: () => CONFIG.zombie, slowByFire: true },
   pirate_1: { key: 'char_pirate_1', cfg: () => CONFIG.pirate, slowByFire: false },   // 해적은 모닥불에 느려지지 않는다 (5.7)
@@ -35,14 +36,20 @@ export class Enemy extends Walker {
     this.hitLeft = null;     // 주인공을 때리기까지 남은 시간(초). 붙어 있지 않으면 null
     this.smashing = null;    // 치고 있는 시설
     this.smashLeft = 0;      // 그 시설을 치기까지 남은 시간(초)
-    this.attackLeft = 0;     // attack 그림을 보여 주는 남은 시간(초)
-    this.shakeLeft = 0;      // 맞아서 흔들리는 남은 시간(초)
+    this.swingFor = null;    // 휘두르기 시작한 대상: 'player' 또는 시설
 
-    this.sprite = this.scene.add.sprite(0, 0, this.key, this.frame('walk1')).setOrigin(this.asset.originX, this.asset.originY);
+    this.sprite = this.scene.add.sprite(0, 0, this.key).setOrigin(this.asset.originX, this.asset.originY);
+    this.body = new Body(this.scene, this.sprite, this.key);
+    this.body.onStep = () => this.stepped();
     this.syncSprite();
   }
 
-  frame(name) { return this.asset.frames.indexOf(name); }
+  // 땅에서 올라오는 중인가 (12.3). 그동안은 움직이지도, 길을 찾지도, 때리지도, 맞지도 않는다.
+  get rising() { return this.body.final === 'rise'; }
+  rise() { this.body.setFinal('rise', this.body.ms('rise')); }
+
+  // 발 위치(월드). 맞아서 밀린 그림이 아니라 규칙의 위치.
+  foot() { return tileToWorld(this.col, this.row); }
 
   // 주인공이 이 적을 칠 때 붙어야 하는 칸(Player.act 가 읽는다). 걷는 중이면 몸의 한가운데가 있는 칸.
   get tiles() { return [this.here()]; }
@@ -153,16 +160,32 @@ export class Enemy extends Walker {
     return this.cfg.speed * (slow ? C.slow : 1);
   }
 
-  // 그림은 오른쪽을 본다. 화면 왼쪽을 볼 때만 뒤집는다. dx: 보려는 쪽의 화면 x 방향
-  face(dx) {
-    if (dx < -0.001) this.sprite.setFlipX(true);
-    else if (dx > 0.001) this.sprite.setFlipX(false);
+  face(dx, dy) { this.body.face(dx, dy); }
+
+  // 칸 t(소수 칸도 된다) 쪽을 본다. 휘두르는 동안은 바꾸지 않는다.
+  faceTile(t) {
+    if (this.body.attacking()) return;
+    const dc = t.col - this.col, dr = t.row - this.row;
+    this.body.look(dc - dr, dc + dr);
+  }
+
+  // 지금 서 있는 자리에서 칠 것: 목표 옆이면 목표(주인공은 'player', 텐트는 그 시설), 다음 칸이 시설이면 그 시설. 없으면 null.
+  // (update 의 '서 있는 동안 하는 일'과 같은 규칙. 휘두르기 시작한 대상이 이것과 다르면 그만둔다.)
+  aim(target) {
+    if (this.col !== this.tile.col || this.row !== this.tile.row) return null;
+    if (this.nextTo(target) && !this.onTarget(target)) return target.structure || 'player';
+    const next = this.path[0];
+    if (next && (next.col !== this.tile.col || next.row !== this.tile.row)) return this.map.structureAt(next.col, next.row);
+    return null;
   }
 
   update(dt) {
+    this.body.tick(dt);
+    if (this.rising) {                               // 땅에서 올라오는 중
+      this.syncSprite(true);
+      return;
+    }
     this.repathLeft -= dt;
-    this.attackLeft = Math.max(0, this.attackLeft - dt);
-    this.shakeLeft = Math.max(0, this.shakeLeft - dt);
 
     // 길을 다시 찾을 때: 목표의 칸이 바뀌었다(주인공이 움직였다, 텐트에 들어가거나 나왔다), 시설이 생기거나 없어졌다,
     // 서 있는데 목표 옆의 제자리가 아니다. 다만 시설을 부수는 중이면 주인공이 움직였다는 것만으로는 바꾸지 않는다(하던 것을 마저 부순다).
@@ -177,8 +200,10 @@ export class Enemy extends Walker {
     if ((!this.moving || (held && this.nextTo(target))) && !this.inPlace(target)) this.wantPath = true;
     if (this.wantPath && this.repathLeft <= 0 && this.system.mayRepath()) this.repath(target, key);
 
-    // 때리는 동작(attack 그림)을 다 보여 준 뒤에 걷는다. 시설을 부순 마지막 한 대도 그대로 보이게.
-    const swinging = this.attackLeft > 0;
+    // 휘두르기 시작(hit 프레임 전)인데 그 대상을 더는 칠 수 없으면(주인공이 비켜 갔다, 텐트에 들어갔다, 시설이 없어졌다)
+    // 피해 없이 그만두고 바로 걷는다. 맞힌 뒤에는 따라 내려가는 동작을 다 보여 준 뒤에 걷는다(시설을 부순 마지막 한 대도).
+    if (this.body.winding() && this.aim(target) !== this.swingFor) this.body.cancel();
+    const swinging = this.body.attacking();
     if (!swinging) this.walk(dt, this.speedNow());
 
     // 서 있는 동안 하는 일: 목표 옆이면 목표를, 다음 칸이 시설이면 그 시설을 친다
@@ -202,64 +227,88 @@ export class Enemy extends Walker {
   // 주인공 옆: 붙은 뒤 firstHitDelay 초 뒤에 처음 때리고, 그다음부터 hitInterval 초마다 하트 1
   attackPlayer(dt) {
     this.smashing = null;
-    const p = this.scene.player;
-    this.face(p.sprite.x - this.sprite.x);
+    this.faceTile(this.scene.player.here());
     if (this.hitLeft === null) this.hitLeft = this.cfg.firstHitDelay;
     this.hitLeft -= dt;
+    this.windUp('player', this.hitLeft);
     if (this.hitLeft > 0) return;
     this.hitLeft += this.cfg.hitInterval;
-    this.attackLeft = CONFIG.anim.attackTime;
     this.system.hitPlayer(this);
   }
 
   // 시설(울타리, 모닥불, 텐트) 앞: structureInterval 초마다 structureDamage
   smash(s, dt) {
     this.hitLeft = null;
-    this.face(s.sprite.x - this.sprite.x);
+    const n = s.tiles.length;
+    this.faceTile({ col: s.tiles.reduce((a, t) => a + t.col, 0) / n, row: s.tiles.reduce((a, t) => a + t.row, 0) / n });
     if (this.smashing !== s) {
       this.smashing = s;
       this.smashLeft = this.cfg.structureInterval;
     }
     this.smashLeft -= dt;
+    this.windUp(s, this.smashLeft);
     if (this.smashLeft > 0) return;
     this.smashLeft += this.cfg.structureInterval;
-    this.attackLeft = CONFIG.anim.attackTime;
     this.system.hitStructure(this, s);
   }
 
-  // 주인공의 단검에 맞았다: 흔들리고, 하얗게 번쩍이고, 타격 그림. 체력이 0이 되면 사라진다.
-  hurt(n) {
-    const fx = this.scene.effects, F = CONFIG.fx, sp = this.sprite;
-    this.hp -= n;
-    this.shakeLeft = F.shakeTime;
-    fx.hit(sp.x + Math.sign(this.scene.player.sprite.x - sp.x) * 10, sp.y - F.hitHeight);
-    fx.flash(sp);
-    if (this.hp <= 0) this.system.kill(this);
+  // 때리기까지 left 초 남았다 (12.3): attack 의 hit 프레임까지 걸리는 시간 안으로 들어오면 attack 을 튼다.
+  // 늦었으면(프레임이 길었으면) 그만큼 지난 곳부터. 그래서 hit 프레임이 피해를 주는 순간에 나온다.
+  windUp(what, left) {
+    if (this.body.attacking()) return;
+    const W = this.body.hitAt(this.body.pick('attack'));
+    if (W === null || left > W) return;
+    this.body.play('attack', W - left);
+    this.swingFor = what;
   }
 
-  // 그림: 걸을 때 walk1·walk2, 서 있을 때 walk1, 때릴 때 attack (3.5). 깊이는 발 위치. 깎였을 때만 체력 막대.
+  // 주인공(from)에게 맞았다 (12.4): 맞은 곳, 하얗게 번쩍임, 조각(goo), 때린 쪽 반대로 밀림, hurt, 멈칫.
+  // 체력이 0이 되면 hurt 와 멈칫 없이 쓰러진다(EnemySystem.kill).
+  hurt(n, from = this.scene.player) {
+    const F = CONFIG.fx, fx = this.scene.effects, me = this.foot(), at = from.foot();
+    this.hp -= n;
+    const p = fx.impact(me.x, me.y - F.impactHeight.char, at);
+    fx.flash(this.sprite);
+    fx.burst(['goo'], F.chips.enemyHit, p.x, p.y);
+    if (this.hp <= 0) {
+      this.system.kill(this, me.x - at.x, me.y - at.y);
+      return;
+    }
+    this.body.hurt();
+    this.body.knockFrom(me.x - at.x, me.y - at.y);
+    this.body.freeze();
+  }
+
+  // 그림: 걸으면 walk, 서 있으면 idle, 때릴 때 attack (12.3). 깊이는 발 위치. 깎였을 때만 체력 막대.
+  // standing: 서 있는가(시설에 막혀 길은 있지만 서 있는 것도).
   syncSprite(standing = !this.moving) {
     const F = CONFIG.fx, sp = this.sprite;
-    const w = tileToWorld(this.col, this.row);
-    const shake = this.shakeLeft > 0 ? (this.shakeLeft > F.shakeTime / 2 ? -F.shakePx : F.shakePx) : 0;
-    sp.setPosition(w.x + shake, w.y);
+    const w = tileToWorld(this.col, this.row), o = this.body.offset();
+    sp.setPosition(w.x + o.x, w.y + o.y);
     sp.setDepth(CONFIG.depth.objectBase + w.y + CONFIG.depth.charBias);
-    if (!standing) {
-      sp.anims.play(this.key + '_walk', true);
-    } else {
-      if (sp.anims.isPlaying) sp.anims.stop();
-      sp.setFrame(this.frame(this.attackLeft > 0 ? 'attack' : 'walk1'));
-    }
+    this.body.show(!standing);
     if (this.hp < this.maxHp) {
       this.scene.effects.showBar(this, this.hp / this.maxHp, w.x, w.y - sp.displayHeight * sp.originY - F.barGap, Infinity);
     }
   }
 
-  // 없앤다(먼지는 부르는 쪽에서)
+  // 쓰러졌다 (12.3): 규칙에서는 바로 빠지고(EnemySystem.kill), 그림은 쓰러진 몸이 되어 die -> 흐려짐 -> 연기.
+  // (dx, dy): 맞아서 밀려나는 쪽
+  die(dx, dy) {
+    this.alive = false;
+    this.path.length = 0;
+    this.scene.effects.removeBar(this);
+    this.body.detach();
+    const L = Math.hypot(dx, dy) || 1;
+    this.scene.effects.corpse(this.sprite, this.key, dx / L, dy / L, this.kind === 'zombie' ? 'fx_vanish' : 'fx_dust');
+  }
+
+  // 없앤다(아침. 먼지는 부르는 쪽에서)
   destroy() {
     this.alive = false;
     this.path.length = 0;
     this.scene.effects.removeBar(this);
+    this.body.detach();
     this.sprite.destroy();
   }
 }

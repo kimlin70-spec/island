@@ -59,11 +59,8 @@ export const CONFIG = {
     maxFrameTime: 0.1,       // 한 프레임에 흐를 수 있는 가장 긴 시간(초). 화면이 잠깐 멈췄을 때 캐릭터가 튀지 않게.
   },
   anim: {
-    walkFps: 6,              // 걷는 그림을 초당 몇 장 바꾸는가
     burnFps: 6,              // 모닥불 그림을 초당 몇 장 바꾸는가
-    toolRaise: 0.2,          // 도구를 들어 올린 그림을 보여 주는 시간(초)
-    toolStrike: 0.15,        // 내려친 그림을 보여 주는 시간(초). 이 그림으로 바뀌는 순간에 피해를 준다
-    attackTime: 0.3,         // 좀비가 때릴 때 attack 그림을 보여 주는 시간(초) (3.5)
+    // 캐릭터와 효과의 애니메이션(프레임 순서와 시간)은 manifest 의 anims 를 쓴다 (12.1)
   },
   input: {
     cursorTime: 0.4,         // 누른 칸 표시가 보이는 시간(초)
@@ -71,15 +68,55 @@ export const CONFIG = {
     pickAlphaFence: 30,      // 울타리는 이 값으로 고른다. 그림자가 없어서, 기둥과 가로대의 옅은 가장자리까지 울타리로 본다.
     enemyPad: 12,            // 적은 그림 사각형을 사방으로 이만큼(px) 넓힌 곳을 눌러도 고른다 (3.5)
   },
-  // 효과와 체력 막대
+  // 효과와 체력 막대. 12.10 의 이름은 그대로 두었다(hitStop ~ particleCount).
   fx: {
-    shakeTime: 0.1, shakePx: 3,      // 맞은 대상이 좌우로 흔들리는 시간(초)과 폭(px)
-    hitTime: 0.15, hitHeight: 28,    // 타격 그림을 보여 주는 시간(초), 대상의 발에서 위로 얼마나(px)
+    // ── 12.10 ──
+    hitStop: 0.05,           // 맞힐 때 때린 쪽과 맞은 쪽의 그림만 멈추는 시간(초)
+    flash: 0.06,             // 맞은 캐릭터가 하얗게 번쩍이는 시간(초)
+    knockback: 6, knockbackTime: 0.12,   // 맞은 캐릭터가 때린 쪽 반대로 밀리는 거리(px)와 시간(초)
+    cameraShake: { duration: 120, intensity: 0.004 },   // 주인공이 맞았을 때 카메라 흔들림(ms, 세기)
+    treeShake: 3,            // 나무·돌을 칠 때 좌우로 흔드는 폭(px)
+    treeFall: { angle: 80, time: 0.5, fadeAfter: 0.3 },   // 다 벤 나무가 넘어가는 각도(도), 시간(초), 흐려지기 시작(초)
+    buildPop: { from: 0.8, over: 1.06, time: 0.25 },     // 지을 때 크기 0.8 -> 1.06 -> 1.0 (초)
+    blinkEvery: [3, 5],      // 주인공이 눈을 깜빡이는 간격(초, 이 사이에서 무작위)
+    stepDustScale: 0.4,      // 걸을 때 디딜 때마다 뒷발에 이는 먼지의 크기(배)
+    footprintLife: 3, footprintMax: 20,   // 모래 발자국이 남는 시간(초), 한 번에 최대 수
+    arrowStuckLife: 2,       // (2단계) 땅에 꽂힌 화살이 남는 시간(초)
+    particles: { lifespan: 600, speed: [90, 220], gravityY: 650 },   // 조각 효과(12.6)
+    particleCount: 1,        // 조각 수 배율. 태블릿에서 느리면 0.5
+    // ── 12장에 나오는 그 밖의 숫자 ──
+    treeShakeTime: 0.16,     // 나무·돌이 흔들리는 시간(초)
+    fallEase: 1.6,           // 넘어가는 나무가 점점 빨라지는 정도(각도 = angle × (t/time)^fallEase)
+    fallDustAt: 0.38,        // 넘어간 끝에 먼지와 잎이 이는 때(초)
+    fallDustDistance: 60,    // 그 자리: 기준점에서 넘어간 쪽으로(px)
+    buildDustScale: 0.6,     // 지을 때 이는 먼지의 크기(배)
+    impactHeight: { char: 40, object: 30 },   // 맞은 곳: 캐릭터는 발에서, 나무·돌·시설은 기준점에서 위로(px)
+    impactPull: 6,           // 맞은 곳을 때린 쪽으로 당기는 거리(px)
+    stepBack: 8,             // 걸을 때 먼지가 이는 곳: 발에서 걷는 반대쪽으로(px)
+    footprintFade: 1,        // 발자국이 사라지는 데 걸리는 시간(초)
+    stepMargin: 100,         // 화면 밖 이만큼(px)보다 먼 곳의 발걸음 먼지·발자국은 만들지 않는다
+    downDelay: 1,            // 주인공이 쓰러진 뒤 "쓰러졌습니다" 창이 뜨기까지(초)
+    dieFade: 0.4,            // 쓰러진 적이 흐려지며 사라지는 시간(초)
+    splashDistance: 30,      // 해적이 상륙할 때 물보라: 상륙 칸에서 배 쪽으로(px)
+    emberEvery: 0.3,         // 밤에 모닥불에서 불티가 하나씩 오르는 간격(초)
+    buildPopPeak: 0.6,       // 지을 때 가장 커지는 때(buildPop 시간에 대한 비율)
+    corpseShift: 30,         // 쓰러진 적의 몸 한가운데: 발에서 보는 쪽의 뒤로(px). 연기가 여기서 난다
+    // 조각의 수 (12.6 표). [a, b]는 앞의 조각 a개 + 뒤의 조각 b개
+    chips: { treeHit: [3, 2], treeFall: 8, rockHit: [3, 1], rockBreak: 6, enemyHit: 3, rise: [6, 2], build: 4, broken: 6, hearts: 2, ember: 1 },
+    // 조각이 흩어지는 모양: 보통(12.6 예시), 천천히 지는 잎, 위로 오르는 하트, 모닥불 불티.
+    // 적지 않은 값(speed, gravityY, lifespan)은 particles 의 값을 쓴다.
+    burst: {
+      chips:  { angle: [200, 340], rotate: [0, 360], scale: [0.8, 1.2] },
+      leaves: { angle: [200, 340], rotate: [0, 360], scale: [0.8, 1.2], speed: [40, 140], gravityY: 250 },
+      hearts: { angle: [250, 290], speed: [40, 70], gravityY: -20 },
+      ember:  { angle: [255, 285], speed: [30, 60], gravityY: -15, lifespan: 1200 },
+    },
+    // ── 3장의 효과와 체력 막대 ──
+    hitHeight: 28,           // 그루터기·돌 부스러기를 팔 때 맞은 곳: 발에서 위로(px, 그림 높이의 절반을 넘지 않게)
     poofTime: 0.3, poofFrom: 0.6, poofTo: 1.4,   // 먼지 그림이 커지며 흐려지는 시간(초)과 크기(배)
     popupTime: 0.9, popupRise: 60, popupIcon: 44, popupFont: 30,   // 떠오르는 "+4": 시간(초), 높이(px), 아이콘과 글자 크기
     barWidth: 56, barHeight: 8, barGap: 10,      // 체력 막대 크기, 그림 위쪽과의 간격(px)
     barLinger: 0.9,                  // 마지막으로 친 뒤 막대가 남아 있는 시간(초)
-    flashTime: 0.1,                  // 맞은 캐릭터가 하얗게 번쩍이는 시간(초) (3.5)
     barBorder: 0x4a3d38, barTrack: 0xc4b8a8, barFill: 0x8fbb78,
   },
   // 캐릭터가 키 큰 사물 뒤에 가려지면 그 사물을 반투명하게 한다
@@ -90,7 +127,7 @@ export const CONFIG = {
     bodyWidth: 36,           // 캐릭터 몸통의 폭(px)
     inset: 0.15,             // 사물 그림 가장자리의 빈 곳(그림 폭에 대한 비율)
   },
-  depth: { ground: 0, floor: 3, objectBase: 10, charBias: 0.5, fx: 50000 },
+  depth: { ground: 0, footprint: 2, floor: 3, objectBase: 10, charBias: 0.5, fx: 50000 },   // footprint: 모래 발자국(12.9)
 
   // ── 화면 UI (7장). 위치와 크기는 1920×1200 기준이고 preview 그림의 배치를 따른다 ──
   ui: {

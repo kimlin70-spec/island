@@ -45,20 +45,26 @@ export class BootScene extends Phaser.Scene {
     this.load.start();
   }
 
-  // 걷는 동작(주인공, 좀비, 해적): walk1, walk2 를 번갈아.  모닥불: burn1~burn3 을 반복.
+  // 애니메이션 (12.1): manifest 의 anims 를 모두 '그림이름:애니메이션이름'으로 만든다(프레임마다 그 시간(ms)).
+  // 모닥불은 anims 가 없어서 burn1~burn3 을 burnFps 로 반복한다('build_campfire_burn').
   makeAnimations(manifest) {
-    const make = (key, a, name, frames, frameRate) => {
-      if (!a.frames || !a.frames.includes(frames[0]) || this.anims.exists(key + '_' + name)) return;
+    for (const [key, a] of Object.entries(manifest.assets)) {
+      for (const [name, v] of Object.entries(a.anims || {})) {
+        this.anims.create({
+          key: key + ':' + name,
+          frames: v.frames.map(([f, ms]) => ({ key, frame: a.frames.indexOf(f), duration: ms })),
+          repeat: v.loop ? -1 : 0,
+        });
+      }
+    }
+    const fire = manifest.assets.build_campfire;
+    if (fire && fire.frames && !this.anims.exists('build_campfire_burn')) {
       this.anims.create({
-        key: key + '_' + name,
-        frames: frames.map((f) => ({ key, frame: a.frames.indexOf(f) })),
-        frameRate,
+        key: 'build_campfire_burn',
+        frames: ['burn1', 'burn2', 'burn3'].map((f) => ({ key: 'build_campfire', frame: fire.frames.indexOf(f) })),
+        frameRate: CONFIG.anim.burnFps,
         repeat: -1,
       });
-    };
-    for (const [key, a] of Object.entries(manifest.assets)) {
-      make(key, a, 'walk', ['walk1', 'walk2'], CONFIG.anim.walkFps);
-      make(key, a, 'burn', ['burn1', 'burn2', 'burn3'], CONFIG.anim.burnFps);
     }
   }
 }

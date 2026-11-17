@@ -13,6 +13,8 @@ export class Walker {
     this.row = row;
     this.tile = { col, row };
     this.path = [];
+    this.heading = null;     // 지금 걷는 걸음의 방향(칸) { dc, dr }. 발걸음 먼지를 뒤쪽에 놓을 때 쓴다
+    this.newPath = false;    // 길이 막 바뀌었다(첫걸음의 앞뒤를 길 전체가 가는 쪽으로 정한다)
   }
 
   get moving() { return this.path.length > 0; }
@@ -49,6 +51,7 @@ export class Walker {
     const best = this.findRoute(goals, next);
     if (!best) return false;
     this.path = best;                                // best[0] 이 지금 들어서는 칸이다
+    this.newPath = true;
     return true;
   }
 
@@ -58,6 +61,7 @@ export class Walker {
     const next = this.path[0];
     if (next && best.length >= 2 && best[1].col === next.col && best[1].row === next.row) best.shift();
     this.path = (!next && best.length === 1) ? [] : best;   // 이미 그 칸에 서 있으면 갈 곳이 없다
+    this.newPath = true;
   }
 
   // 지금 몸이 걸쳐 있는 칸들. 여기에는 시설을 지을 수 없다.
@@ -93,8 +97,31 @@ export class Walker {
   mayEnter() { return true; }
   // 한 칸에 도착했을 때(좀비는 목표 옆에 오면 멈춘다)
   onArrive() {}
-  // 걷는 쪽을 본다. dx: 화면 x 방향
+  // 화면 방향 (dx, dy)를 본다(주인공과 적은 그림의 좌우와 앞뒤를 바꾼다)
   face() {}
+
+  // 걷는 쪽을 본다 (12.2). 칸으로 잰다: 화면 x = dc - dr, 화면 y = dc + dr.
+  // 화면 가로로 가는 걸음(y 가 0)은 길 가운데에서는 앞뒤를 그대로 둔다(비스듬한 길에서 앞뒤가 번갈아 떨리지 않게).
+  // 새 길의 첫걸음이 가로면 길 전체가 가는 쪽으로 정한다. 길 전체도 가로면 앞모습(12.2의 '그 밖').
+  faceStep(dc, dr) {
+    const e = 1e-6;
+    let y = Math.abs(dc + dr) > e ? dc + dr : 0;
+    if (!y && this.newPath) {
+      const end = this.path[this.path.length - 1];
+      const h = end.col - this.col + end.row - this.row;
+      y = Math.abs(h) > e ? h : 1;
+    }
+    this.newPath = false;
+    this.face(Math.abs(dc - dr) > e ? dc - dr : 0, y);
+  }
+
+  // 디딜 때마다(걷기 그림의 디딤 프레임): 뒷발 쪽 먼지와 모래 위의 발자국 (12.9). scene, sprite 는 주인공과 적에 있다.
+  stepped() {
+    const d = this.heading;
+    if (!d) return;
+    const h = this.here();
+    this.scene.effects.step(this.sprite.x, this.sprite.y, (d.dc - d.dr) * 2, d.dc + d.dr, this.map.isSand(h.col, h.row));
+  }
 
   // 길을 따라 dt 초 동안 speed(칸/초)로 걷는다
   walk(dt, speed) {
@@ -105,7 +132,10 @@ export class Walker {
       if (atCentre && (t.col !== this.tile.col || t.row !== this.tile.row) && !this.mayEnter(t)) break;
       const dc = t.col - this.col, dr = t.row - this.row;
       const dist = Math.hypot(dc, dr);
-      this.face(dc - dr);
+      if (dist > 0) {
+        this.heading = { dc, dr };
+        this.faceStep(dc, dr);
+      }
       if (dist <= left) {
         this.col = t.col; this.row = t.row;
         this.tile = { col: t.col, row: t.row };

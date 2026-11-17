@@ -1,12 +1,13 @@
 import { CONFIG } from '../config.js';
 import { tileToWorld } from '../iso.js';
 import { Walker } from './Walker.js';
+import { Body } from './Body.js';
 
-// 도구 -> 캐릭터 시트의 그림 이름 앞부분 (dagger1, dagger2 / axe1, axe2 / pick1, pick2)
-const TOOL_FRAME = { dagger: 'dagger', axe: 'axe', pickaxe: 'pick' };
+// 도구 -> 주인공의 애니메이션 이름 (12.3)
+const TOOL_ANIM = { dagger: 'dagger', axe: 'axe', pickaxe: 'pick' };
 
-// 주인공: 눌러서 이동, 걷는 동작, 좌우 뒤집기, 깊이 정렬, 옆 칸의 대상에게 도구 쓰기.
-// 위치와 길, 걷기, 몸이 걸친 칸은 Walker 에 있다(좀비와 같다).
+// 주인공: 눌러서 이동, 옆 칸의 대상에게 도구 쓰기, 쓰러지기.
+// 위치와 길, 걷기, 몸이 걸친 칸은 Walker 에, 그림의 움직임(애니메이션, 앞뒤, 맞기, 멈칫)은 Body 에 있다.
 export class Player extends Walker {
   constructor(scene, map, col, row) {
     super(map, col, row);
@@ -15,18 +16,23 @@ export class Player extends Walker {
     this.asset = map.assets[this.key];
 
     this.action = null;        // 하려는 행동(act 참고)
-    this.swing = null;         // 도구를 휘두르는 중 { t, struck, tool }
+    this.swing = null;         // 도구를 휘두르는 중 { t, hitAt, total, struck, tool }
     this.cooldown = 0;         // 다음에 도구를 쓸 수 있을 때까지 남은 시간(초)
     this.chaseLeft = 0;        // 쫓아가는 적에게 가는 길을 다시 찾을 수 있을 때까지 남은 시간(초)
+    this.downLeft = null;      // 쓰러진 뒤 "쓰러졌습니다" 창까지 남은 시간(초). 쓰러지지 않았으면 null
 
     const w = tileToWorld(col, row);
-    this.sprite = scene.add.sprite(w.x, w.y, this.key, this.frame('idle'))
-      .setOrigin(this.asset.originX, this.asset.originY);
+    this.sprite = scene.add.sprite(w.x, w.y, this.key).setOrigin(this.asset.originX, this.asset.originY);
+    this.body = new Body(scene, this.sprite, this.key, { blink: true });
+    this.body.onStep = () => this.stepped();
     this.syncSprite();
+    this.body.show(false);
   }
 
-  // 그림 이름('idle', 'walk1' ...) -> 프레임 번호
-  frame(name) { return this.asset.frames.indexOf(name); }
+  get downed() { return this.downLeft !== null; }
+
+  // 발 위치(월드). 맞아서 밀린 그림이 아니라 규칙의 위치.
+  foot() { return tileToWorld(this.col, this.row); }
 
   // (col, row) 칸으로 걸어간다. 하던 행동은 멈춘다. 갈 수 없는 칸이면 아무 일도 하지 않고 false.
   goTo(col, row) {
@@ -57,7 +63,8 @@ export class Player extends Walker {
 
   // 대상에 붙은 칸 중 가장 가까운 곳까지 걸어가서 행동한다. (5.1, 5.2)
   //   target: { tiles, sprite }   isValid(): 계속해도 되는가
-  //   도구 쓰기:   tool(): 지금 쓸 도구, strike(tool): 내려치는 순간에 부른다. actionInterval 마다 되풀이한다.
+  //   도구 쓰기:   tool(): 지금 쓸 도구, strike(tool): 내려치는 순간에 부른다(피해가 들어갔으면 true). actionInterval 마다 되풀이한다.
+  //   wait():     true 인 동안은 옆에 서서 기다린다(땅에서 올라오는 중인 좀비)
   //   한 번 하기:  arrive(): 도착하면 한 번 부른다(텐트에 들어가기).
   //   stepOff:    대상 칸 위에 서 있으면 옆 칸으로 비켜서서 한다(밟고 지나갈 수 있는 그루터기 등).
   //   chase:      대상이 움직인다(적). 대상이 다른 칸으로 가면 길을 다시 찾아 쫓아간다.
@@ -93,26 +100,41 @@ export class Player extends Walker {
   stopAction() {
     this.action = null;
     this.swing = null;
+    this.body.cancel();
   }
 
-  // 그림은 오른쪽을 본다. 화면 왼쪽을 볼 때만 뒤집는다. dx: 보려는 쪽의 화면 x 방향
-  face(dx) {
-    if (dx < -0.001) this.sprite.setFlipX(true);
-    else if (dx > 0.001) this.sprite.setFlipX(false);
-  }
+  face(dx, dy) { this.body.face(dx, dy); }
 
-  // 대상 쪽을 본다(흔들리는 중이면 제자리 기준)
+  // 대상 쪽을 본다(칸으로 잰다. 여러 칸이면 그 한가운데)
   faceTarget(target) {
-    const ts = target.sprite;
-    this.face((ts.shakeBase === undefined ? ts.x : ts.shakeBase) - this.sprite.x);
+    const ts = target.tiles;
+    const c = ts.reduce((s, t) => s + t.col, 0) / ts.length - this.col;
+    const r = ts.reduce((s, t) => s + t.row, 0) / ts.length - this.row;
+    this.body.look(c - r, c + r);
   }
 
   update(dt) {
-    const A = CONFIG.anim;
+    this.body.tick(dt);
+    if (this.downed) {                                // 쓰러졌다: 아무것도 하지 않는다. 창은 GameScene 이 띄운다
+      this.downLeft -= dt;
+      this.syncSprite();
+      this.body.show(false);
+      return;
+    }
     this.cooldown = Math.max(0, this.cooldown - dt);
 
+    // 휘두르기: hit 프레임의 시각에 내려친다(피해). 애니메이션이 끝나면 끝. 새로 든 것은 다음 프레임부터 센다.
+    const s = this.swing;
+    if (s) {
+      s.t += dt;
+      if (!s.struck && s.t >= s.hitAt) {
+        s.struck = true;
+        if (this.action && this.action.strike(s.tool)) this.body.strike();   // 맞혔으면 멈칫과 휘두른 궤적 (12.4)
+      }
+      if (s.t >= s.total) this.swing = null;
+    }
+
     this.walk(dt, CONFIG.player.speed);
-    this.syncSprite();
 
     // 대상 옆에 도착했으면 행동한다
     if (this.action && this.action.chase) this.chase(this.action, dt);
@@ -127,42 +149,51 @@ export class Player extends Walker {
         this.action = null;
         this.faceTarget(a.target);
         a.arrive();
-      } else if (!this.swing && this.cooldown <= 0) { // 도구 들기
+      } else if (!this.swing && this.cooldown <= 0 && !(a.wait && a.wait())) {   // 도구 들기
         const tool = a.tool();
         if (!tool) {
           this.action = null;
         } else {
           this.faceTarget(a.target);
-          this.swing = { t: 0, struck: false, tool };
+          const n = TOOL_ANIM[tool], b = this.body;
+          b.play(n);
+          this.swing = { t: 0, hitAt: b.hitAt(n) || 0, total: b.ms(n), struck: false, tool };
           this.cooldown = CONFIG.player.actionInterval;
         }
       }
     }
-
-    // 휘두르기: 들어 올림 -> 내려침(이 순간에 피해) -> 서 있는 그림
-    if (this.swing) {
-      const s = this.swing;
-      s.t += dt;
-      if (!s.struck && s.t >= A.toolRaise) {
-        s.struck = true;
-        if (this.action) this.action.strike(s.tool);
-      }
-      if (s.t >= A.toolRaise + A.toolStrike) this.swing = null;
-    }
-
-    if (this.moving) {
-      this.sprite.anims.play(this.key + '_walk', true);
-    } else {
-      if (this.sprite.anims.isPlaying) this.sprite.anims.stop();
-      const s = this.swing;
-      this.sprite.setFrame(this.frame(s ? TOOL_FRAME[s.tool] + (s.struck ? '2' : '1') : 'idle'));
-    }
+    this.syncSprite();
+    this.body.show(this.moving);
   }
 
-  // 발 위치의 y가 클수록 앞에 그린다. y가 같으면 캐릭터가 사물보다 앞이다.
+  // 적에게 맞았다 (12.4): 맞은 곳, 하얗게 번쩍임, 때린 쪽 반대로 밀림, hurt, 멈칫, 카메라 흔들림.
+  // 쓰러지는 한 대(fatal)는 hurt 와 멈칫 대신 down 을 보여 준다(goDown).
+  struck(from, fatal) {
+    const F = CONFIG.fx, fx = this.scene.effects, me = this.foot(), at = from ? from.foot() : null;
+    fx.impact(me.x, me.y - F.impactHeight.char, at);
+    fx.flash(this.sprite);
+    if (at) this.body.knockFrom(me.x - at.x, me.y - at.y);
+    if (!fatal) {
+      this.body.hurt();
+      this.body.freeze();
+    }
+    this.scene.cameras.main.shake(F.cameraShake.duration, F.cameraShake.intensity);
+  }
+
+  // 하트가 0이 되었다: 하던 것을 멈추고 down 을 보여 준다. downDelay 초 뒤에 GameScene 이 "쓰러졌습니다" 창을 띄운다.
+  goDown() {
+    this.stopAction();
+    // 그 자리에 멈춘다. 내딛던 걸음은 길에 남겨 둔다(칸 사이에 멈춘 채, 더 걷지는 않는다).
+    const midStep = this.path[0] && (this.col !== this.tile.col || this.row !== this.tile.row);
+    this.path.length = midStep ? 1 : 0;
+    this.downLeft = CONFIG.fx.downDelay;
+    this.body.setFinal('down');
+  }
+
+  // 발 위치의 y가 클수록 앞에 그린다. y가 같으면 캐릭터가 사물보다 앞이다. 맞아서 밀린 만큼 그림만 옮긴다.
   syncSprite() {
-    const w = tileToWorld(this.col, this.row);
-    this.sprite.setPosition(w.x, w.y);
+    const w = tileToWorld(this.col, this.row), o = this.body.offset();
+    this.sprite.setPosition(w.x + o.x, w.y + o.y);
     this.sprite.setDepth(CONFIG.depth.objectBase + w.y + CONFIG.depth.charBias);
   }
 }

@@ -20,6 +20,8 @@ export class MapSystem {
   // 땅은 terrain 값이 0(물)이 아닌 칸이다
   isLand(col, row) { return this.inBounds(col, row) && this.map.terrain[row][col] !== 0; }
   objectAt(col, row) { return this.inBounds(col, row) ? this.objectGrid[row * this.cols + col] : null; }
+  // 모래 칸인가(terrain 1). 걸으면 발자국이 남는다 (12.9)
+  isSand(col, row) { return this.inBounds(col, row) && this.map.terrain[row][col] === 1; }
 
   structureAt(col, row) { return this.inBounds(col, row) ? this.structGrid[row * this.cols + col] : null; }
 

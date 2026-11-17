@@ -3,7 +3,7 @@ import { tileToWorld } from '../iso.js';
 
 // 해적 (5.12, Phase 6). config.pirate.enabled 일 때만 나온다.
 // 밤의 shipAt 시점: 해적선이 appearTime 초에 걸쳐 나타나고 등불이 켜진다. "해적선이 나타났습니다"
-// 밤의 landAt 시점: 보트가 나타나고, 해적 count 명이 상륙 칸과 그 옆의 빈 땅 칸에 나타난다(효과 없이). "해적이 상륙했습니다"
+// 밤의 landAt 시점: 보트가 나타나고, 해적 count 명이 상륙 칸과 그 옆의 빈 땅 칸에 나타난다. 물가에 물보라(12.9). "해적이 상륙했습니다"
 // 해적은 좀비와 같은 Enemy 다(숫자만 config.pirate). 아침에 먼지와 함께 사라지는 것도 좀비와 같다(EnemySystem.clearAll).
 // 아침: 배와 보트는 leaveTime 초에 걸쳐 사라진다.
 // 배와 보트는 바다 위의 그림일 뿐이다. 칸을 막지 않고, 누를 수 없다.
@@ -73,10 +73,14 @@ export class PirateSystem {
     this.stepFade(this.boat, dt);
   }
 
-  // 상륙: 보트가 나타나고 해적이 상륙 칸과 그 옆에 나온다. 둘 다 바로(문서에 나타나는 효과가 없다).
+  // 상륙: 보트가 나타나고 해적이 상륙 칸과 그 옆에 나온다. 둘 다 바로(5.12에 나타나는 효과가 없다).
+  // 상륙 칸에서 배 쪽으로 splashDistance 떨어진 물가에 물보라 (12.9)
   land() {
     this.fadeTo(this.boat, 1, 0);
     this.landingTiles(CONFIG.pirate.count).forEach((t, i) => this.scene.enemies.add(KINDS[i % KINDS.length], t));
+    const L = this.landing, w = tileToWorld(L.col, L.row), dx = this.ship.x - w.x, dy = this.ship.y - w.y;
+    const d = CONFIG.fx.splashDistance / (Math.hypot(dx, dy) || 1);
+    this.scene.effects.play('fx_splash', w.x + dx * d, w.y + dy * d);
     this.scene.notice('해적이 상륙했습니다');
   }
 

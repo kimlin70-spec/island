@@ -41,16 +41,19 @@ export class EnemySystem {
     return free.reduce((a, b) => (dist(b) > dist(a) ? b : a));
   }
 
-  // 좀비 한 마리가 좀비가 나오는 자리 중 하나에 나온다(fx_poof) (5.8)
+  // 좀비 한 마리가 좀비가 나오는 자리 중 하나에 나온다 (5.8). 땅에서 올라오며 흙이 튄다 (12.3, 12.6)
   spawn(kind = 'zombie') {
     const t = this.spawnPoint();
     if (!t) return null;
     const e = this.add(kind, t);
-    this.scene.effects.poof(e.sprite.x, e.sprite.y - e.sprite.displayHeight * e.sprite.originY * 0.5);
+    e.rise();
+    const F = CONFIG.fx, fx = this.scene.effects, w = e.foot();
+    fx.burst(['dirt'], F.chips.rise[0], w.x, w.y);
+    fx.burst(['dust'], F.chips.rise[1], w.x, w.y);
     return e;
   }
 
-  // kind 적 한 마리를 칸 t 에 둔다(효과 없이). 해적이 상륙할 때는 이것만 쓴다(5.12에 효과가 없다).
+  // kind 적 한 마리를 칸 t 에 둔다(효과 없이). 해적이 상륙할 때는 이것을 쓴다(물보라는 PirateSystem 이).
   add(kind, t) {
     const e = new Enemy(this, kind, t.col, t.row);
     this.list.push(e);
@@ -83,8 +86,8 @@ export class EnemySystem {
     for (const e of order) if (e.alive) e.update(dt);
   }
 
-  // 적이 주인공을 때렸다: 하트가 hitDamage 만큼 준다
-  hitPlayer(e) { this.scene.hurtPlayer(e.cfg.hitDamage); }
+  // 적이 주인공을 때렸다: 하트가 hitDamage 만큼 준다. 들어갔으면 때린 쪽은 멈칫(12.4)
+  hitPlayer(e) { if (this.scene.hurtPlayer(e.cfg.hitDamage, e)) e.body.strike(); }
 
   // 적이 시설을 쳤다. 텐트가 공격받기 시작하면(attackNotice 초 동안 안 맞다가 맞으면) 알린다. (5.6)
   hitStructure(e, s) {
@@ -93,17 +96,23 @@ export class EnemySystem {
       if (scene.elapsed - this.tentHitAt >= CONFIG.build.tent.attackNotice) scene.notice('텐트가 공격받고 있습니다');
       this.tentHitAt = scene.elapsed;
     }
-    scene.build.damage(s, e.cfg.structureDamage);
+    scene.build.damage(s, e.cfg.structureDamage, e);
+    e.body.strike();
   }
 
-  // 주인공이 적을 물리쳤다
-  kill(e) {
-    this.remove(e);
+  // 주인공이 적을 물리쳤다: 바로 목록에서 빠진다(길, 칸, 짓기, 목표는 이제 이 적을 보지 않는다).
+  // 그림은 쓰러진 몸으로 남아 사라진다 (12.3). (dx, dy): 밀려나는 쪽
+  kill(e, dx, dy) {
+    const i = this.list.indexOf(e);
+    if (i < 0) return;
+    this.list.splice(i, 1);
     this.defeated += 1;
+    e.die(dx, dy);
   }
 
-  // 먼지와 함께 없앤다
+  // 먼지와 함께 없앤다(아침)
   remove(e) {
+    if (!this.list.includes(e)) return;
     const sp = e.sprite;
     this.scene.effects.poof(sp.x, sp.y - sp.displayHeight * sp.originY * 0.5);
     e.destroy();
@@ -128,10 +137,11 @@ export class EnemySystem {
     return best;
   }
 
-  // tile 과 붙은 칸(8방향, 같은 칸 포함)에 있는 적 중 가장 가까운 것
+  // tile 과 붙은 칸(8방향, 같은 칸 포함)에 있는 적 중 가장 가까운 것. 땅에서 올라오는 중인 좀비는 빼고.
   nextTo(tile) {
     let best = null, bestD = Infinity;
     for (const e of this.list) {
+      if (e.rising) continue;
       const h = e.here();
       if (Math.max(Math.abs(h.col - tile.col), Math.abs(h.row - tile.row)) > 1) continue;
       const d = Math.hypot(e.col - tile.col, e.row - tile.row);

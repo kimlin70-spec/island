@@ -15,10 +15,12 @@ export class Hearts {
     this.scene.events.emit('hearts-changed');
   }
 
+  // 하트를 n 만큼 채운다. 실제로 늘었으면 true. 쓰러진 뒤(창이 뜨기 전 1초)에는 차지 않는다.
   heal(n) {
     const v = Math.min(this.max, this.value + n);
-    if (v === this.value) return;
+    if (v === this.value || this.scene.player.downed) return false;
     this.value = v;
     this.scene.events.emit('hearts-changed');
+    return true;
   }
 }

@@ -26,6 +26,9 @@ export class GameScene extends Phaser.Scene {
     this.mapData = this.cache.json.get('map');
     this.debugSpeed = 1;                              // 시험용 도구의 속도(×1 / ×3)
     this.speed = 1;                                   // 게임 시간이 흐르는 빠르기(시험용 속도 × 텐트에서 자는 동안의 빠르기)
+    this.dt = 0;                                      // 이번 프레임에 흐르는 게임 시간(초)
+    this.frame = 0;                                   // 프레임 번호(효과와 그림의 시간을 언제부터 셀지 정할 때 쓴다)
+    this.updating = false;                            // 프레임을 돌리는 중인가(아니면 프레임 사이: 누르기 등)
     this.elapsed = 0;                                 // 흐른 게임 시간(초). 모닥불 빛이 일렁이는 데 쓴다.
 
     this.inventory = new Inventory(this);
@@ -70,14 +73,33 @@ export class GameScene extends Phaser.Scene {
     this.events.on('dusk', () => this.notice('곧 밤이 됩니다'));
     this.events.on('night', () => this.notice('밤이 되었습니다'));
     this.events.on('morning', (day) => this.onMorning(day));
+    // 프레임마다 맨 먼저(그림의 애니메이션이 움직이기 전에) 게임 시간을 정한다
+    this.events.on('preupdate', (time, delta) => this.beforeUpdate(delta));
+    this.events.on('postupdate', () => { this.updating = false; });
 
     this.scene.launch('ui');
+  }
+
+  // 게임 시간의 빠르기: 시험용 속도 × (텐트에서 자는 동안 sleepTimeScale. 텐트 둘레에 적이 오면 원래대로).
+  // 한 프레임은 maxFrameTime 까지만 흐른다. 캐릭터와 효과의 애니메이션, 조각도 이 게임 시간으로 흐르게 한다(12.1).
+  beforeUpdate(delta) {
+    this.frame += 1;
+    this.updating = true;
+    const T = CONFIG.build.tent;
+    const sleeping = this.rest.resting && !this.enemyNear(this.rest.tent, T.wakeRange);
+    this.speed = this.debugSpeed * (sleeping ? T.sleepTimeScale : 1);
+    const real = delta / 1000;
+    this.dt = Math.min(real, CONFIG.screen.maxFrameTime) * this.speed;
+    const scale = real > 0 ? this.dt / real : this.speed;
+    this.anims.globalTimeScale = scale;
+    this.effects.setTimeScale(scale);
   }
 
   // 한 번 누르기(마우스 클릭 = 터치). 화면 UI를 누른 것은 여기로 오지 않는다.
   // 우선순위: 적 -> 사물·시설 -> 땅 (3.5)
   onPress(p) {
     if (!p.wasTouch && p.button !== 0) return;        // 마우스는 왼쪽 버튼만
+    if (this.player.downed) return;                   // 쓰러진 뒤 창이 뜨기까지는 누를 수 없다
     if (this.build.mode) {                            // 짓기·치우기 상태: 걷지 않는다. 손을 뗄 때 짓는다.
       this.pressing = true;
       this.hovering = true;
@@ -110,7 +132,7 @@ export class GameScene extends Phaser.Scene {
 
   // 클릭하거나 손을 뗐을 때: 짓기 상태면 그 칸에 짓는다
   onRelease(p) {
-    if (this.pressing && this.build.mode) this.build.commit(p.worldX, p.worldY);
+    if (this.pressing && this.build.mode && !this.player.downed) this.build.commit(p.worldX, p.worldY);
     this.pressing = false;
     if (p.wasTouch) this.pointerLeft();               // 터치는 손을 떼면 표시도 사라진다
   }
@@ -138,23 +160,48 @@ export class GameScene extends Phaser.Scene {
   }
 
   // 적을 눌렀다(또는 가만히 서 있는데 적이 붙었다): 붙은 칸으로 가서 단검으로 친다 (5.9)
+  // 땅에서 올라오는 중인 좀비는 다 올라올 때까지 옆에서 기다린다(그동안은 맞지 않는다, 12.3).
   pressEnemy(e) {
     this.player.act({
       target: e,
       chase: true,                                    // 적이 움직이면 쫓아간다
       tool: () => bestTool(this.tools, 'enemy'),
       isValid: () => e.alive,
-      strike: (tool) => { if (e.alive && this.player.isNextTo(e.tiles)) e.hurt(CONFIG.tools[tool].power.enemy); },
+      wait: () => e.rising,
+      strike: (tool) => {
+        if (!e.alive || e.rising || !this.player.isNextTo(e.tiles)) return false;
+        e.hurt(CONFIG.tools[tool].power.enemy, this.player);
+        return true;
+      },
     });
   }
 
-  // 좀비에게 맞았다: 하트가 줄고 주인공이 번쩍인다. 0이 되면 쓰러진다.
-  hurtPlayer(n) {
-    if (this.rest.resting) return;                    // 텐트 안에서는 공격받지 않는다
-    if (this.hearts.value <= 0) return;               // 이미 쓰러졌다(같은 프레임에 여러 마리가 때린 경우)
+  // 적(from)에게 맞았다: 하트가 줄고 타격감(12.4). 0이 되면 쓰러진다(down 을 보여 주고 downDelay 초 뒤에 창).
+  // 들어갔으면 true.
+  hurtPlayer(n, from) {
+    if (this.rest.resting) return false;              // 텐트 안에서는 공격받지 않는다
+    if (this.player.downed) return false;             // 이미 쓰러졌다(같은 프레임에 여러 마리가 때린 경우도)
     this.hearts.damage(n);
-    this.effects.flash(this.player.sprite);
-    if (this.hearts.value <= 0) this.stopGame('down');
+    const down = this.hearts.value <= 0;
+    this.player.struck(from, down);
+    if (down) this.player.goDown();
+    return true;
+  }
+
+  // 하트가 찼을 때 (12.6): 주인공의 가슴(텐트 안이면 텐트 문)에서 하트 조각이 천천히 오른다
+  heartsUp() {
+    const F = CONFIG.fx;
+    let x, y;
+    if (this.rest.resting) {
+      const s = this.rest.tent, door = this.map.assets.build_tent.door;
+      x = s.sprite.x + door[0];
+      y = s.sprite.y + door[1];
+    } else {
+      const w = this.player.foot();
+      x = w.x;
+      y = w.y - F.impactHeight.char;
+    }
+    this.effects.burst(['heart'], F.chips.hearts, x, y, 'hearts');
   }
 
   // "쓰러졌습니다" 창이나 첫 아침의 결과 창을 띄우고, 떠 있는 동안 게임 시간을 멈춘다
@@ -251,7 +298,7 @@ export class GameScene extends Phaser.Scene {
   onMorning(day) {
     this.enemies.clearAll();
     this.nightEndHearts = this.hearts.value;          // 결과 창의 "남은 하트": 밤을 넘긴 때의 하트(아침에 차기 전)
-    this.hearts.heal(CONFIG.player.morningHeal);
+    if (this.hearts.heal(CONFIG.player.morningHeal)) this.heartsUp();
     this.build.repairAll();
     this.todo.check('morning');
     if (day === 2) this.resultPending = true;
@@ -298,16 +345,8 @@ export class GameScene extends Phaser.Scene {
     this.events.emit('speed-changed');
   }
 
-  update(time, delta) {
-    // 게임 시간의 빠르기: 시험용 속도 × (텐트에서 자는 동안 sleepTimeScale. 텐트 둘레에 적이 오면 원래대로)
-    const T = CONFIG.build.tent;
-    const sleeping = this.rest.resting && !this.enemyNear(this.rest.tent, T.wakeRange);
-    const speed = this.debugSpeed * (sleeping ? T.sleepTimeScale : 1);
-    if (speed !== this.speed) {
-      this.speed = speed;
-      this.anims.globalTimeScale = speed;             // 걷는 그림, 모닥불 그림도 같은 빠르기로
-    }
-    const dt = Math.min(delta / 1000, CONFIG.screen.maxFrameTime) * this.speed;
+  update() {
+    const dt = this.dt;                               // beforeUpdate 에서 정한 게임 시간
     this.elapsed += dt;
 
     this.clock.update(dt);
@@ -315,9 +354,12 @@ export class GameScene extends Phaser.Scene {
     this.player.update(dt);
     this.enemies.update(dt);
     this.pirates.update(dt);
-    // 가만히 서 있을 때 붙은 칸에 적이 오면 자동으로 공격한다 (5.9)
+    this.build.update(dt);
     const pl = this.player;
-    if (!this.rest.resting && !pl.moving && !pl.action && !pl.swing) {
+    // 쓰러진 뒤 downDelay 초가 지나면 "쓰러졌습니다" 창 (12.3)
+    if (pl.downed && pl.downLeft <= 0 && this.scene.isActive()) this.stopGame('down');
+    // 가만히 서 있을 때 붙은 칸에 적이 오면 자동으로 공격한다 (5.9)
+    if (!this.rest.resting && !pl.downed && !pl.moving && !pl.action && !pl.swing) {
       const e = this.enemies.nextTo(pl.tile);
       if (e) this.pressEnemy(e);
     }
@@ -337,7 +379,7 @@ export class GameScene extends Phaser.Scene {
       if (this.cursorLeft <= 0) this.cursor.setVisible(false);
     }
     // 첫 아침: 화면이 낮으로 다 돌아오면 결과 창
-    if (this.resultPending && this.clock.dawn <= 0 && this.scene.isActive()) {
+    if (this.resultPending && this.clock.dawn <= 0 && this.scene.isActive() && !pl.downed) {
       this.resultPending = false;
       this.stopGame('result');
     }

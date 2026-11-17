@@ -86,7 +86,7 @@ export class BuildSystem {
     const type = this.mode;
     if (!this.scene.inventory.pay(CONFIG.build[type].cost)) return;
     const s = this.place(type, this.spot.tiles);
-    this.scene.effects.poof(s.sprite.x, s.sprite.y);
+    this.popUp(s);
     this.scene.onBuilt(s);
     this.point(wx, wy);                              // 방금 지은 칸은 이제 지을 수 없는 칸이다
     // 짓기 상태는 유지된다. 더 지을 수 없게 되면 풀린다.
@@ -128,6 +128,15 @@ export class BuildSystem {
     return s;
   }
 
+  // 지었을 때 (12.7, 12.6): 튀어나오듯 커지고, 먼지(작게)와 반짝임, 먼지 조각
+  popUp(s) {
+    const F = CONFIG.fx, fx = this.scene.effects, sp = s.sprite;
+    fx.pop(sp);
+    fx.dust(sp.x, sp.y, F.buildDustScale);
+    fx.play('fx_sparkle', sp.x, sp.y - sp.displayHeight * sp.originY * 0.5);
+    fx.burst(['dust'], F.chips.build, sp.x, sp.y);
+  }
+
   // 치우기: 없애고 재료의 절반(내림)을 돌려준다. 울타리는 돌려받는 것이 없다.
   remove(s) {
     const fx = this.scene.effects, x = s.sprite.x, y = s.sprite.y;
@@ -141,11 +150,18 @@ export class BuildSystem {
     this.destroy(s);
   }
 
-  // 시설을 없앤다(재료 없이). 먼지가 뜬다. 들어가 있던 텐트면 주인공은 들어갔던 칸(텐트 옆)으로 나온다.
-  destroy(s) {
+  // 시설을 없앤다(재료 없이). 들어가 있던 텐트면 주인공은 들어갔던 칸(텐트 옆)으로 나온다.
+  // broken: 적에게 부서졌다 -> 나무 조각과 먼지 (12.7). 아니면(치우기) fx_poof.
+  destroy(s, broken = false) {
     if (this.scene.rest.tent === s) this.scene.rest.exit();
-    this.scene.effects.poof(s.sprite.x, s.sprite.y);
-    this.scene.effects.removeBar(s);
+    const fx = this.scene.effects, sp = s.sprite;
+    if (broken) {
+      fx.burst(['wood1', 'wood2'], CONFIG.fx.chips.broken, sp.x, sp.y - CONFIG.fx.impactHeight.object);
+      fx.dust(sp.x, sp.y);
+    } else {
+      fx.poof(sp.x, sp.y);
+    }
+    fx.removeBar(s);
     this.map.removeStructure(s);
     s.sprite.destroy();
     if (s.glow) s.glow.destroy();
@@ -154,14 +170,16 @@ export class BuildSystem {
     this.scene.events.emit('structures-changed');
   }
 
-  // 적이 시설을 쳤다: 체력이 깎이고, 깎인 동안 체력 막대를 보여 준다. 0이 되면 먼지와 함께 사라진다. (5.4)
-  damage(s, n) {
+  // 적이 시설을 쳤다: 체력이 깎이고, 깎인 동안 체력 막대를 보여 준다. 0이 되면 부서져 사라진다. (5.4)
+  // 맞은 곳은 기준점에서 30px 위를 때린 쪽(from)으로 조금 당긴 곳 (12.4)
+  damage(s, n, from) {
+    const sp = s.sprite;
     s.hp -= n;
+    this.scene.effects.impact(sp.x, sp.y - CONFIG.fx.impactHeight.object, from ? from.foot() : null);
     if (s.hp <= 0) {
-      this.destroy(s);
+      this.destroy(s, true);
       return;
     }
-    const sp = s.sprite;
     this.scene.effects.showBar(s, s.hp / s.maxHp, sp.x, sp.y - sp.displayHeight * sp.originY - CONFIG.fx.barGap, Infinity);
   }
 
@@ -170,6 +188,20 @@ export class BuildSystem {
     for (const s of this.map.structures) {
       s.hp = s.maxHp;
       this.scene.effects.removeBar(s);
+    }
+  }
+
+  // 밤에는 모닥불마다 불꽃에서 불티가 emberEvery 초마다 하나씩 오른다 (12.6)
+  update(dt) {
+    if (!this.scene.clock.isNight) return;
+    const F = CONFIG.fx, flame = this.map.assets.build_campfire.flame;
+    for (const s of this.map.structures) {
+      if (s.type !== 'campfire') continue;
+      s.emberLeft = (s.emberLeft === undefined ? F.emberEvery : s.emberLeft) - dt;
+      while (s.emberLeft <= 0) {
+        s.emberLeft += F.emberEvery;
+        this.scene.effects.burst(['ember'], F.chips.ember, s.sprite.x + flame[0], s.sprite.y + flame[1], 'ember');
+      }
     }
   }
 
