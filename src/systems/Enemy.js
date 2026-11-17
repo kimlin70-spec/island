@@ -31,7 +31,7 @@ export class Enemy extends Walker {
     this.wantPath = true;    // 길을 다시 찾아야 한다(목표의 칸이 바뀌었거나 시설이 생기고 없어졌다)
     this.goalKey = null;     // 지금 길을 찾았을 때의 목표 칸들
     this.goalKind = null;    // 그때의 목표: 'player' | 'tent'
-    this.avoid = null;       // 길을 찾는 동안에만: 지나가지 않는 칸(목표 칸: 주인공의 칸, 텐트). 'col,row' 의 Set
+    this.targetKeys = null;  // 길을 찾는 동안에만: 목표 칸(주인공의 칸, 텐트)들. 'col,row' 의 Set
     this.hitLeft = null;     // 주인공을 때리기까지 남은 시간(초). 붙어 있지 않으면 null
     this.smashing = null;    // 치고 있는 시설
     this.smashLeft = 0;      // 그 시설을 치기까지 남은 시간(초)
@@ -48,12 +48,15 @@ export class Enemy extends Walker {
   get tiles() { return [this.here()]; }
 
   // 지나가는 비용: 땅 1, 내 시설은 breakCost(부수고 지나간다). 물과 나무·돌·덤불은 못 간다.
-  // 길을 찾는 동안에는 목표 칸(주인공의 칸, 텐트)도 지나가지 않는다: 주인공 칸을 밟고 건너편으로 가지 않고 둘레로 돌아간다.
-  // (이미 걷고 있는 길을 볼 때는 막힌 칸이 아니다. 주인공이 길 위로 걸어 들어와도 내딛던 걸음은 그대로 간다.)
   costAt(col, row) {
     if (!this.map.isOpen(col, row)) return 0;
-    if (this.avoid && this.avoid.has(col + ',' + row)) return 0;
     return this.map.structureAt(col, row) ? this.cfg.breakCost : 1;
+  }
+
+  // 길을 찾을 때: 목표 칸(주인공의 칸)에서 시설 칸으로 바로 들어가는 걸음은 넣지 않는다.
+  // 주인공의 칸을 밟고 지나가는 것은 되지만(문 같은 좁은 틈), 거기 멈춰 서서 시설을 부수게 되는 길은 고르지 않는다.
+  stepOk(fc, fr, tc, tr) {
+    return !(this.targetKeys && this.targetKeys.has(fc + ',' + fr) && this.map.structureAt(tc, tr));
   }
 
   // 비스듬히 갈 때 양옆 칸은 비어 있어야 한다. 시설 두 개 사이를 비스듬히 빠져나가지 않는다.
@@ -124,7 +127,7 @@ export class Enemy extends Walker {
     const step1 = (list) => list.filter((t) => this.canStep(from, t));
     const lists = this.onTarget(target, from) ? [step1(g.freePlain), step1(g.plain), g.free, g.all] : [g.free, g.all];
     const tried = new Set();
-    this.avoid = new Set(target.tiles.map((t) => t.col + ',' + t.row));
+    this.targetKeys = new Set(target.tiles.map((t) => t.col + ',' + t.row));
     let found = false;
     for (const list of lists) {
       const k = list.map((t) => t.col + ',' + t.row).join(' ');
@@ -132,7 +135,7 @@ export class Enemy extends Walker {
       tried.add(k);
       if (this.routeOn(list)) { found = true; break; }
     }
-    this.avoid = null;
+    this.targetKeys = null;
     if (!found) this.wantPath = true;                // 갈 길이 없으면 조금 뒤에 다시 찾는다
   }
 

@@ -2,6 +2,7 @@
 // costAt(col, row): 지나갈 수 없으면 0, 지나갈 수 있으면 그 칸에 들어가는 비용(보통 1).
 // goal: 도착 칸 하나, 또는 칸 목록(그중 가장 적은 비용으로 갈 수 있는 곳까지의 길).
 // sideOk(col, row): 비스듬히 갈 때 양옆 칸이 비어 있는가. 주지 않으면 costAt 이 0이 아닌 칸.
+// stepOk(fromCol, fromRow, toCol, toRow): 이 걸음을 길에 넣어도 되는가(주지 않으면 모두 된다).
 //   (좀비는 시설을 부수고 지나갈 수 있지만, 시설 두 개 사이를 비스듬히 빠져나가지는 못한다)
 // 돌려주는 값: 시작 칸부터 도착 칸까지의 칸 목록(.cost 에 전체 비용). 길이 없으면 null.
 
@@ -11,7 +12,7 @@ const DIRS = [
 ];
 const DIAG = Math.SQRT2;
 
-export function findPath(cols, rows, start, goal, costAt, sideOk = (c, r) => costAt(c, r) > 0) {
+export function findPath(cols, rows, start, goal, costAt, sideOk = (c, r) => costAt(c, r) > 0, stepOk = null) {
   const goals = (Array.isArray(goal) ? goal : [goal]).filter((t) =>
     t.col >= 0 && t.row >= 0 && t.col < cols && t.row < rows && (costAt(t.col, t.row) || (t.col === start.col && t.row === start.row)));
   if (goals.some((t) => t.col === start.col && t.row === start.row)) {
@@ -91,6 +92,7 @@ export function findPath(cols, rows, start, goal, costAt, sideOk = (c, r) => cos
       const diagonal = dc !== 0 && dr !== 0;
       // 비스듬히 갈 때는 양옆 칸이 모두 비어 있어야 한다
       if (diagonal && (!sideOk(cc + dc, cr) || !sideOk(cc, cr + dr))) continue;
+      if (stepOk && !stepOk(cc, cr, nc, nr)) continue;
       const ng = g[cur] + cost * (diagonal ? DIAG : 1);
       if (ng < g[ni]) {
         g[ni] = ng;

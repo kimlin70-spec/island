@@ -19,6 +19,8 @@ export class Walker {
 
   costAt(col, row) { return this.map.isWalkable(col, row) ? 1 : 0; }
   sideOk(col, row) { return this.costAt(col, row) > 0; }
+  // 길을 찾을 때 (fc, fr) 에서 (tc, tr) 로 가는 걸음을 넣어도 되는가. 기본은 모두 된다(좀비는 Enemy 에서 정한다).
+  stepOk() { return true; }
 
   // 몸의 한가운데가 있는 칸
   here() { return { col: Math.round(this.col), row: Math.round(this.row) }; }
@@ -26,7 +28,8 @@ export class Walker {
   // goals(칸 목록) 중 가장 적은 비용으로 갈 수 있는 곳까지의 길. from(기본: this.tile)에서 출발한다. 없으면 null.
   findRoute(goals, from = this.tile) {
     const m = this.map;
-    return findPath(m.cols, m.rows, from, goals, (c, r) => this.costAt(c, r), (c, r) => this.sideOk(c, r));
+    return findPath(m.cols, m.rows, from, goals, (c, r) => this.costAt(c, r), (c, r) => this.sideOk(c, r),
+      (fc, fr, tc, tr) => this.stepOk(fc, fr, tc, tr));
   }
 
   // goals 중 가장 가까운 곳까지의 길로 바꾼다. 갈 수 없으면 false.
