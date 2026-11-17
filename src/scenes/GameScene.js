@@ -11,6 +11,7 @@ import { TimeSystem } from '../systems/TimeSystem.js';
 import { Hearts } from '../systems/Hearts.js';
 import { RestSystem } from '../systems/RestSystem.js';
 import { EnemySystem } from '../systems/EnemySystem.js';
+import { PirateSystem } from '../systems/PirateSystem.js';
 import { bestTool, cardCost, cardName, objectParticle } from '../systems/Crafting.js';
 
 // 월드: 섬, 사물, 주인공, 적, 카메라, 누르기, 시간. 화면 UI(UIScene)에는 events 로 바뀐 것을 알린다.
@@ -43,6 +44,7 @@ export class GameScene extends Phaser.Scene {
     this.build = new BuildSystem(this);
     this.rest = new RestSystem(this);
     this.enemies = new EnemySystem(this);
+    this.pirates = new PirateSystem(this);           // 해적선, 보트, 해적의 상륙 (5.12)
     this.resultPending = false;                       // 첫 아침: 화면이 다 밝아지면 결과 창을 띄운다
 
     // 카메라: 주인공을 부드럽게 따라가고, 바닥 그림 밖으로 나가지 않는다
@@ -276,6 +278,7 @@ export class GameScene extends Phaser.Scene {
       const L = CONFIG.player.light, sp = this.player.sprite;
       out.push({ x: sp.x, y: sp.y - L.lift, radius: L.radius, color: L.color, alpha: L.alpha });
     }
+    out.push(...this.pirates.lights());               // 해적선 등불
     return out;
   }
 
@@ -310,6 +313,7 @@ export class GameScene extends Phaser.Scene {
     this.rest.update(dt);
     this.player.update(dt);
     this.enemies.update(dt);
+    this.pirates.update(dt);
     // 가만히 서 있을 때 붙은 칸에 적이 오면 자동으로 공격한다 (5.9)
     const pl = this.player;
     if (!this.rest.resting && !pl.moving && !pl.action && !pl.swing) {

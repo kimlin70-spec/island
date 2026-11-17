@@ -1,7 +1,8 @@
 import { CONFIG } from '../config.js';
 import { Enemy } from './Enemy.js';
 
-// 적 전체: 밤마다 나오게 하기, 고르기(누르기), 주인공·시설을 때렸을 때, 아침에 사라지기. (5.8)
+// 적 전체(좀비와 해적): 밤마다 좀비가 나오게 하기, 고르기(누르기), 주인공·시설을 때렸을 때, 아침에 사라지기. (5.8)
+// 해적이 나오는 때와 자리는 PirateSystem 이 정한다(여기의 add 를 부른다).
 export class EnemySystem {
   constructor(scene) {
     this.scene = scene;
@@ -40,13 +41,19 @@ export class EnemySystem {
     return free.reduce((a, b) => (dist(b) > dist(a) ? b : a));
   }
 
-  // 한 마리 나온다(fx_poof)
+  // 좀비 한 마리가 좀비가 나오는 자리 중 하나에 나온다(fx_poof) (5.8)
   spawn(kind = 'zombie') {
     const t = this.spawnPoint();
     if (!t) return null;
+    const e = this.add(kind, t);
+    this.scene.effects.poof(e.sprite.x, e.sprite.y - e.sprite.displayHeight * e.sprite.originY * 0.5);
+    return e;
+  }
+
+  // kind 적 한 마리를 칸 t 에 둔다(효과 없이). 해적이 상륙할 때는 이것만 쓴다(5.12에 효과가 없다).
+  add(kind, t) {
     const e = new Enemy(this, kind, t.col, t.row);
     this.list.push(e);
-    this.scene.effects.poof(e.sprite.x, e.sprite.y - e.sprite.displayHeight * e.sprite.originY * 0.5);
     return e;
   }
 

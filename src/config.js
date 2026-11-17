@@ -41,11 +41,14 @@ export const CONFIG = {
   zombie: { hp: 3, speed: 1.2, hitInterval: 2.0, firstHitDelay: 1.5, hitDamage: 1,   // hitDamage: 한 번 때릴 때 깎는 하트
             structureDamage: 1, structureInterval: 1.5, breakCost: 8, spawnMinDistance: 12,
             repathInterval: 0.5,     // 길을 다시 찾는 가장 짧은 간격(초) (5.8)
-            repathsPerFrame: 3 },    // 한 프레임에 길을 다시 찾는 좀비 수의 최대(느린 기기에서 화면이 끊기지 않게)
+            repathsPerFrame: 3 },    // 한 프레임에 길을 다시 찾는 적(좀비와 해적을 합해) 수의 최대(느린 기기에서 화면이 끊기지 않게)
   wave:   { base: 4, perNight: 2, max: 14, spawnWindow: 0.6 },
-  pirate: { enabled: false, count: 2, hp: 4, speed: 1.8, hitInterval: 1.6, firstHitDelay: 1.0,
+  pirate: { enabled: true, count: 2, hp: 4, speed: 1.8, hitInterval: 1.6, firstHitDelay: 1.0,   // enabled: Phase 6 에서 켰다
             structureDamage: 1, structureInterval: 1.0, breakCost: 8, shipAt: 0.35, landAt: 0.45,
-            lampLight: { radius: 130, color: 0xffedc7, alpha: 0.9 } },
+            lampLight: { radius: 130, color: 0xffedc7, alpha: 0.9 },
+            hitDamage: 1, repathInterval: 0.5,   // 좀비와 같은 값(5.12: 다른 점은 위의 숫자뿐이다)
+            appearTime: 2,           // 해적선이 나타나는 데 걸리는 시간(초)
+            leaveTime: 2 },          // 아침에 배와 보트가 사라지는 데 걸리는 시간(초)
   todo:   { fenceCount: 8 },
 
   // ── 아래는 6장에 없는, 화면과 조작에 쓰는 숫자 ──

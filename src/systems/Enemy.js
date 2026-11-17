@@ -2,12 +2,14 @@ import { CONFIG } from '../config.js';
 import { tileToWorld } from '../iso.js';
 import { Walker } from './Walker.js';
 
-// 적 한 마리. 지금은 좀비뿐이다. (5.8)
+// 적 한 마리: 좀비(5.8)와 해적(5.12). 해적은 좀비와 같은 규칙으로 움직이고 때린다. 다른 것은 숫자(cfg)와 그림뿐이다.
 // 목표(주인공. 주인공이 텐트 안에 있으면 텐트)에 붙은 칸 중 가장 가까운 곳으로 걸어가서 때린다.
 // 내 시설은 "부수면 지나갈 수 있는 칸"이다(길찾기 비용 breakCost). 다음에 갈 칸이 시설이면 그 앞에 서서 부순다.
 // 위치와 길, 걷기, 몸이 걸친 칸은 Walker 에 있다(주인공과 같다).
 export const ENEMY_KINDS = {
-  zombie: { key: 'char_zombie', cfg: () => CONFIG.zombie, slowByFire: true },
+  zombie:   { key: 'char_zombie',   cfg: () => CONFIG.zombie, slowByFire: true },
+  pirate_1: { key: 'char_pirate_1', cfg: () => CONFIG.pirate, slowByFire: false },   // 해적은 모닥불에 느려지지 않는다 (5.7)
+  pirate_2: { key: 'char_pirate_2', cfg: () => CONFIG.pirate, slowByFire: false },
 };
 
 export class Enemy extends Walker {
