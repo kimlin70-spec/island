@@ -9,6 +9,7 @@ export const CONFIG = {
     maxHearts: 5,
     actionInterval: 0.55,    // 도구를 한 번 쓰는 간격(초)
     morningHeal: 2,
+    chaseInterval: 0.5,      // 적을 쫓아갈 때 길을 다시 찾는 가장 짧은 간격(초)
     light: { radius: 150, color: 0xebf0ff, alpha: 0.6, lift: 24 },   // lift: 발에서 위로(px) (3.7)
   },
   tools: {
@@ -34,10 +35,13 @@ export const CONFIG = {
                 glow: { size: 220, day: 0.2, night: 0.45 } },   // 불꽃 둘레의 빛무리(3.7): 크기(px)와 낮·밤의 진하기
     tent:     { name: '텐트', cost: { wood: 8, stone: 2 }, hp: 24, max: 1,
                 healInterval: 8, sleepTimeScale: 4, wakeRange: 6,
+                attackNotice: 5,     // 텐트가 이만큼(초) 안 맞다가 맞으면 "텐트가 공격받고 있습니다"를 띄운다(5초에 한 번 이하) (5.6)
                 light: { radius: 110, color: 0xffedc7, alpha: 0.8 } },
   },
-  zombie: { hp: 3, speed: 1.2, hitInterval: 2.0, firstHitDelay: 1.5,
-            structureDamage: 1, structureInterval: 1.5, breakCost: 8, spawnMinDistance: 12 },
+  zombie: { hp: 3, speed: 1.2, hitInterval: 2.0, firstHitDelay: 1.5, hitDamage: 1,   // hitDamage: 한 번 때릴 때 깎는 하트
+            structureDamage: 1, structureInterval: 1.5, breakCost: 8, spawnMinDistance: 12,
+            repathInterval: 0.5,     // 길을 다시 찾는 가장 짧은 간격(초) (5.8)
+            repathsPerFrame: 3 },    // 한 프레임에 길을 다시 찾는 좀비 수의 최대(느린 기기에서 화면이 끊기지 않게)
   wave:   { base: 4, perNight: 2, max: 14, spawnWindow: 0.6 },
   pirate: { enabled: false, count: 2, hp: 4, speed: 1.8, hitInterval: 1.6, firstHitDelay: 1.0,
             structureDamage: 1, structureInterval: 1.0, breakCost: 8, shipAt: 0.35, landAt: 0.45,
@@ -56,11 +60,13 @@ export const CONFIG = {
     burnFps: 6,              // 모닥불 그림을 초당 몇 장 바꾸는가
     toolRaise: 0.2,          // 도구를 들어 올린 그림을 보여 주는 시간(초)
     toolStrike: 0.15,        // 내려친 그림을 보여 주는 시간(초). 이 그림으로 바뀌는 순간에 피해를 준다
+    attackTime: 0.3,         // 좀비가 때릴 때 attack 그림을 보여 주는 시간(초) (3.5)
   },
   input: {
     cursorTime: 0.4,         // 누른 칸 표시가 보이는 시간(초)
     pickAlpha: 110,          // 그림에서 이 값보다 진한 부분을 눌러야 그 사물을 고른다(0~255). 옅은 그림자는 빼려고.
     pickAlphaFence: 30,      // 울타리는 이 값으로 고른다. 그림자가 없어서, 기둥과 가로대의 옅은 가장자리까지 울타리로 본다.
+    enemyPad: 12,            // 적은 그림 사각형을 사방으로 이만큼(px) 넓힌 곳을 눌러도 고른다 (3.5)
   },
   // 효과와 체력 막대
   fx: {
@@ -70,6 +76,7 @@ export const CONFIG = {
     popupTime: 0.9, popupRise: 60, popupIcon: 44, popupFont: 30,   // 떠오르는 "+4": 시간(초), 높이(px), 아이콘과 글자 크기
     barWidth: 56, barHeight: 8, barGap: 10,      // 체력 막대 크기, 그림 위쪽과의 간격(px)
     barLinger: 0.9,                  // 마지막으로 친 뒤 막대가 남아 있는 시간(초)
+    flashTime: 0.1,                  // 맞은 캐릭터가 하얗게 번쩍이는 시간(초) (3.5)
     barBorder: 0x4a3d38, barTrack: 0xc4b8a8, barFill: 0x8fbb78,
   },
   // 캐릭터가 키 큰 사물 뒤에 가려지면 그 사물을 반투명하게 한다
@@ -116,5 +123,8 @@ export const CONFIG = {
     debug: { buttonW: 88, buttonH: 40, gap: 10, font: 20, radius: 14,
              w: 300, pad: 16, itemH: 56, itemGap: 10, itemFont: 24, giveAmount: 20,
              fastSpeed: 3 },                     // 속도 ×1 / ×3
+    // 화면 가운데: "쓰러졌습니다" 창과 첫 아침의 결과 창. 떠 있는 동안 뒤의 화면은 흐려지고 눌리지 않는다.
+    modal: { w: 600, pad: 40, titleY: 64, titleFont: 40, lineY: 136, lineH: 50, lineFont: 28, labelX: 70, valueX: 530,
+             buttonW: 236, buttonH: 76, buttonGap: 28, buttonFont: 28, buttonRadius: 20, gapAfterLines: 24, dim: 0.35 },
   },
 };

@@ -10,11 +10,13 @@ import { BuildSystem } from '../systems/BuildSystem.js';
 import { TimeSystem } from '../systems/TimeSystem.js';
 import { Hearts } from '../systems/Hearts.js';
 import { RestSystem } from '../systems/RestSystem.js';
-import { cardCost, cardName, objectParticle } from '../systems/Crafting.js';
+import { EnemySystem } from '../systems/EnemySystem.js';
+import { bestTool, cardCost, cardName, objectParticle } from '../systems/Crafting.js';
 
-// 월드: 섬, 사물, 주인공, 카메라, 누르기, 시간. 화면 UI(UIScene)에는 events 로 바뀐 것을 알린다.
+// 월드: 섬, 사물, 주인공, 적, 카메라, 누르기, 시간. 화면 UI(UIScene)에는 events 로 바뀐 것을 알린다.
 //   inventory-changed, tools-changed, todo-changed, build-changed, structures-changed,
-//   hearts-changed, rest-changed, speed-changed, dusk, night, morning(날짜), notice(글)
+//   hearts-changed, rest-changed, speed-changed, dusk, night, morning(날짜), notice(글),
+//   down(쓰러짐), result(첫 아침의 결과)
 export class GameScene extends Phaser.Scene {
   constructor() { super('game'); }
 
@@ -40,6 +42,8 @@ export class GameScene extends Phaser.Scene {
     this.player = new Player(this, this.map, st.col, st.row);
     this.build = new BuildSystem(this);
     this.rest = new RestSystem(this);
+    this.enemies = new EnemySystem(this);
+    this.resultPending = false;                       // 첫 아침: 화면이 다 밝아지면 결과 창을 띄운다
 
     // 카메라: 주인공을 부드럽게 따라가고, 바닥 그림 밖으로 나가지 않는다
     const G = manifest.meta.ground;
@@ -69,7 +73,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   // 한 번 누르기(마우스 클릭 = 터치). 화면 UI를 누른 것은 여기로 오지 않는다.
-  // 우선순위: 사물·시설 -> 땅 (3.5)
+  // 우선순위: 적 -> 사물·시설 -> 땅 (3.5)
   onPress(p) {
     if (!p.wasTouch && p.button !== 0) return;        // 마우스는 왼쪽 버튼만
     if (this.build.mode) {                            // 짓기·치우기 상태: 걷지 않는다. 손을 뗄 때 짓는다.
@@ -85,7 +89,9 @@ export class GameScene extends Phaser.Scene {
       if (o === tent || this.map.structureAt(t.col, t.row) === tent) this.rest.exit();
       return;
     }
-    if (o && o.node) this.pressNode(o);               // 나무, 돌, 그루터기, 돌 부스러기
+    const e = this.enemies.pickAt(p.worldX, p.worldY);
+    if (e) this.pressEnemy(e);                        // 적: 다가가서 단검으로 친다 (5.9)
+    else if (o && o.node) this.pressNode(o);               // 나무, 돌, 그루터기, 돌 부스러기
     else if (o && o.type === 'tent') this.pressTent(o);
     else if (o && o.type === 'fence') this.walkTo(o.col, o.row);   // 울타리를 누른 것은 그 울타리 칸(땅)을 누른 것과 같다.
     else if (!o) this.walkTo(t.col, t.row);           // 땅
@@ -118,8 +124,47 @@ export class GameScene extends Phaser.Scene {
     if (this.player.goTo(col, row)) this.showCursor(col, row);
   }
 
-  // 캐릭터가 몸을 걸치고 있는 칸들(Player.occupiedTiles). 여기에는 시설을 지을 수 없다. 텐트 안에 있는 동안에는 들어갔던 칸이다.
-  characterTiles() { return this.player.occupiedTiles(); }
+  // 캐릭터(주인공과 적)가 몸을 걸치고 있는 칸들(Walker.occupiedTiles). 여기에는 시설을 지을 수 없다.
+  // 주인공이 텐트 안에 있는 동안에는 들어갔던 칸이다.
+  characterTiles() { return [...this.player.occupiedTiles(), ...this.enemies.occupiedTiles()]; }
+
+  // 시설이 생기거나 없어졌다: 걷던 길을 다시 본다
+  onMapChanged() {
+    this.player.onMapChanged();
+    this.enemies.onMapChanged();
+  }
+
+  // 적을 눌렀다(또는 가만히 서 있는데 적이 붙었다): 붙은 칸으로 가서 단검으로 친다 (5.9)
+  pressEnemy(e) {
+    this.player.act({
+      target: e,
+      chase: true,                                    // 적이 움직이면 쫓아간다
+      tool: () => bestTool(this.tools, 'enemy'),
+      isValid: () => e.alive,
+      strike: (tool) => { if (e.alive && this.player.isNextTo(e.tiles)) e.hurt(CONFIG.tools[tool].power.enemy); },
+    });
+  }
+
+  // 좀비에게 맞았다: 하트가 줄고 주인공이 번쩍인다. 0이 되면 쓰러진다.
+  hurtPlayer(n) {
+    if (this.rest.resting) return;                    // 텐트 안에서는 공격받지 않는다
+    this.hearts.damage(n);
+    this.effects.flash(this.player.sprite);
+    if (this.hearts.value <= 0) this.stopGame('down');
+  }
+
+  // "쓰러졌습니다" 창이나 첫 아침의 결과 창을 띄우고, 떠 있는 동안 게임 시간을 멈춘다
+  stopGame(kind) {
+    this.scene.pause();
+    if (kind === 'down') {
+      this.events.emit('down');
+    } else {
+      this.events.emit('result', { defeated: this.enemies.defeated, fences: this.build.count('fence'), hearts: this.nightEndHearts });
+    }
+  }
+
+  // 결과 창의 "계속하기"
+  resumeGame() { this.scene.resume(); }
 
   // 나무, 돌, 그루터기, 돌 부스러기를 눌렀다: 붙은 칸까지 걸어가서 도구로 친다 (5.2)
   pressNode(o) {
@@ -197,15 +242,20 @@ export class GameScene extends Phaser.Scene {
 
   // ── 낮과 밤 ──
 
-  // 아침 (5.10): 하트가 2 찬다. 결과 창, 남은 적이 사라지는 것, 시설 수리는 적이 나오는 Phase 5에서 넣는다.
+  // 아침 (5.10): 남은 적이 사라지고, 하트가 2 차고, 남아 있는 시설의 체력이 가득 찬다.
+  // 첫 밤을 넘긴 아침에는 화면이 다 밝아진 뒤 결과 창을 띄운다. 그 뒤의 아침에는 알림만.
   onMorning(day) {
-    this.notice(`${day}일째 아침입니다`);
+    this.enemies.clearAll();
+    this.nightEndHearts = this.hearts.value;          // 결과 창의 "남은 하트": 밤을 넘긴 때의 하트(아침에 차기 전)
     this.hearts.heal(CONFIG.player.morningHeal);
+    this.build.repairAll();
     this.todo.check('morning');
+    if (day === 2) this.resultPending = true;
+    else this.notice(`${day}일째 아침입니다`);
   }
 
-  // 텐트에서 range 칸 안에 적이 있는가. 적은 Phase 5에서 나온다.
-  enemyNear() { return false; }
+  // 텐트에서 range 칸 안에 적이 있는가
+  enemyNear(tent, range) { return this.enemies.near(tent, range); }
 
   // 밤의 빛 (3.7): 월드 좌표의 빛 목록 { x, y, radius, color, alpha }. UIScene 이 빛 지도에 그린다.
   lightSources() {
@@ -234,8 +284,9 @@ export class GameScene extends Phaser.Scene {
     this.inventory.add('stone', CONFIG.ui.debug.giveAmount);
   }
 
-  debugNight() { if (!this.clock.isNight) this.clock.startNight(); }
+  debugNight() { if (!this.clock.isNight && !this.resultPending) this.clock.startNight(); }   // 결과 창을 기다리는 동안은 넘기지 않는다
   debugMorning() { if (this.clock.isNight) this.clock.startMorning(); }
+  debugZombie() { this.enemies.spawn(); }
 
   debugToggleSpeed() {
     this.debugSpeed = this.debugSpeed === 1 ? CONFIG.ui.debug.fastSpeed : 1;
@@ -257,6 +308,13 @@ export class GameScene extends Phaser.Scene {
     this.clock.update(dt);
     this.rest.update(dt);
     this.player.update(dt);
+    this.enemies.update(dt);
+    // 가만히 서 있을 때 붙은 칸에 적이 오면 자동으로 공격한다 (5.9)
+    const pl = this.player;
+    if (!this.rest.resting && !pl.moving && !pl.action && !pl.swing) {
+      const e = this.enemies.nextTo(pl.tile);
+      if (e) this.pressEnemy(e);
+    }
     this.effects.update(dt);
     this.build.updateGlow(this.clock.ambient().strength);
     // 짓기 표시는 포인터를 따라간다. 주인공이 걸으면 카메라가 움직이므로 프레임마다 다시 잡는다.
@@ -265,10 +323,17 @@ export class GameScene extends Phaser.Scene {
       p.updateWorldPoint(this.cameras.main);
       this.build.point(p.worldX, p.worldY);
     }
-    this.map.updateOcclusion(this.player.sprite.visible ? [this.player.sprite] : [], dt);
+    const chars = this.enemies.sprites();
+    if (this.player.sprite.visible) chars.push(this.player.sprite);
+    this.map.updateOcclusion(chars, dt);
     if (this.cursorLeft > 0) {
       this.cursorLeft -= dt;
       if (this.cursorLeft <= 0) this.cursor.setVisible(false);
+    }
+    // 첫 아침: 화면이 낮으로 다 돌아오면 결과 창
+    if (this.resultPending && this.clock.dawn <= 0 && this.scene.isActive()) {
+      this.resultPending = false;
+      this.stopGame('result');
     }
   }
 }

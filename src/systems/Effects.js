@@ -56,6 +56,12 @@ export class Effects {
     });
   }
 
+  // 맞은 캐릭터는 잠깐 하얗게 번쩍인다 (3.5)
+  flash(sprite) {
+    sprite.setTintFill(0xffffff);
+    this.run(CONFIG.fx.flashTime, () => {}, () => { if (sprite.active) sprite.clearTint(); });
+  }
+
   // 재료를 얻었을 때: 아이콘과 "+4"가 떠오른다
   popup(x, y, iconKey, label) {
     const F = CONFIG.fx;

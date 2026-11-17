@@ -43,6 +43,10 @@ export class UIScene extends Phaser.Scene {
     listen('rest-changed', () => this.restBox.setVisible(this.world.rest.resting));
     listen('speed-changed', () => this.refreshDebug());
     listen('notice', (text) => this.notice(text));
+    listen('down', () => this.showModal('쓰러졌습니다', [], [['다시 시작', () => this.restart(), true]]));
+    listen('result', (r) => this.showModal('첫 밤을 넘겼습니다',
+      [['물리친 적', `${r.defeated}마리`], ['남은 울타리', `${r.fences}개`], ['남은 하트', `${r.hearts}칸`]],
+      [['계속하기', () => { this.closeModal(); this.world.resumeGame(); }, true], ['다시 시작', () => this.restart()]]));
 
     // 빛 지도와 시계는 화면을 그리기 직전에 고친다. Phaser는 위에 있는 씬(UI)을 월드보다 먼저 update 하고,
     // 카메라 위치는 그리기 직전에 정해지므로, 여기서 그려야 이번 프레임의 주인공·카메라 위치와 맞는다.
@@ -318,6 +322,7 @@ export class UIScene extends Phaser.Scene {
       [`나무, 돌 +${D.giveAmount}`, () => this.world.debugGive()],
       ['밤으로 넘기기', () => this.world.debugNight()],
       ['아침으로 넘기기', () => this.world.debugMorning()],
+      ['좀비 1마리 부르기', () => this.world.debugZombie()],
       [() => `속도 ×${this.world.debugSpeed}`, () => this.world.debugToggleSpeed()],
       ['닫기', () => this.debugWin.setVisible(false)],
     ];
@@ -356,6 +361,44 @@ export class UIScene extends Phaser.Scene {
     text.setPosition(x + R.padX + R.icon + R.gap, y + R.h / 2);
     this.restBox = this.add.container(0, 0, [bg, icon, text]).setVisible(false);
   }
+
+  // ── 화면 가운데: "쓰러졌습니다" 창, 첫 아침의 결과 창 (5.9, 5.10) ──
+  // 떠 있는 동안 월드는 멈춰 있다(GameScene.stopGame). 뒤의 화면은 흐려지고 눌리지 않는다.
+  //   lines: [[이름, 값], ...]   buttons: [[글, 누르면 할 일, 노란 버튼인가], ...]
+  showModal(title, lines, buttons) {
+    const M = U.modal;
+    this.closeModal();
+    const blocker = this.add.graphics().fillStyle(0x000000, M.dim).fillRect(0, 0, this.W, this.H);
+    this.hitRect(blocker, 0, 0, this.W, this.H);
+    const h = M.lineY + lines.length * M.lineH + M.gapAfterLines + M.buttonH + M.pad;
+    const x = (this.W - M.w) / 2, y = (this.H - h) / 2;
+    const parts = [blocker, this.panel(this.add.graphics(), x, y, M.w, h)];
+    parts.push(this.label(this.W / 2, y + M.titleY, title, M.titleFont, { originX: 0.5 }));
+    lines.forEach(([name, value], i) => {
+      const ly = y + M.lineY + i * M.lineH + M.lineH / 2;
+      parts.push(this.label(x + M.labelX, ly, name, M.lineFont, { regular: true }));
+      parts.push(this.label(x + M.valueX, ly, value, M.lineFont, { originX: 1 }));
+    });
+    const by = y + M.lineY + lines.length * M.lineH + M.gapAfterLines;
+    const total = buttons.length * M.buttonW + (buttons.length - 1) * M.buttonGap;
+    buttons.forEach(([text, onPress, primary], i) => {
+      const bx = this.W / 2 - total / 2 + i * (M.buttonW + M.buttonGap);
+      const g = this.hitRect(this.add.graphics(), bx, by, M.buttonW, M.buttonH);
+      this.roundRect(g, bx, by, M.buttonW, M.buttonH, M.buttonRadius, primary ? U.yellow : U.cardColor, 1, INK, U.panel.borderWidth);
+      g.on('pointerdown', onPress);
+      parts.push(g, this.label(bx + M.buttonW / 2, by + M.buttonH / 2, text, M.buttonFont, { originX: 0.5 }));
+    });
+    this.modal = this.add.container(0, 0, parts).setDepth(30);
+  }
+
+  closeModal() {
+    if (!this.modal) return;
+    this.modal.destroy();
+    this.modal = null;
+  }
+
+  // "다시 시작": 처음부터 다시 시작한다. 저장하는 것이 없으므로 페이지를 새로 읽는다.
+  restart() { window.location.reload(); }
 
   // ── 가운데 위쪽: 알림 ──
 

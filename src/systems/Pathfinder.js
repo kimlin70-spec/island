@@ -1,5 +1,8 @@
 // A* 길찾기. 8방향, 모서리를 비스듬히 끊고 지나가지 않는다.
 // costAt(col, row): 지나갈 수 없으면 0, 지나갈 수 있으면 그 칸에 들어가는 비용(보통 1).
+// goal: 도착 칸 하나, 또는 칸 목록(그중 가장 적은 비용으로 갈 수 있는 곳까지의 길).
+// sideOk(col, row): 비스듬히 갈 때 양옆 칸이 비어 있는가. 주지 않으면 costAt 이 0이 아닌 칸.
+//   (좀비는 시설을 부수고 지나갈 수 있지만, 시설 두 개 사이를 비스듬히 빠져나가지는 못한다)
 // 돌려주는 값: 시작 칸부터 도착 칸까지의 칸 목록(.cost 에 전체 비용). 길이 없으면 null.
 
 const DIRS = [
@@ -8,24 +11,33 @@ const DIRS = [
 ];
 const DIAG = Math.SQRT2;
 
-export function findPath(cols, rows, start, goal, costAt) {
-  if (start.col === goal.col && start.row === goal.row) {
+export function findPath(cols, rows, start, goal, costAt, sideOk = (c, r) => costAt(c, r) > 0) {
+  const goals = (Array.isArray(goal) ? goal : [goal]).filter((t) =>
+    t.col >= 0 && t.row >= 0 && t.col < cols && t.row < rows && (costAt(t.col, t.row) || (t.col === start.col && t.row === start.row)));
+  if (goals.some((t) => t.col === start.col && t.row === start.row)) {
     const same = [{ col: start.col, row: start.row }];
     same.cost = 0;
     return same;
   }
-  if (!costAt(goal.col, goal.row)) return null;
+  if (!goals.length) return null;
 
   const n = cols * rows;
   const g = new Float64Array(n).fill(Infinity);
   const from = new Int32Array(n).fill(-1);
   const closed = new Uint8Array(n);
+  const isGoal = new Uint8Array(n);
+  for (const t of goals) isGoal[t.row * cols + t.col] = 1;
   const startI = start.row * cols + start.col;
-  const goalI = goal.row * cols + goal.col;
+  let goalI = -1;
 
+  // 가장 가까운 도착 칸까지의 거리(8방향)
   const h = (c, r) => {
-    const dx = Math.abs(c - goal.col), dy = Math.abs(r - goal.row);
-    return Math.max(dx, dy) + (DIAG - 1) * Math.min(dx, dy);
+    let best = Infinity;
+    for (const t of goals) {
+      const dx = Math.abs(c - t.col), dy = Math.abs(r - t.row);
+      best = Math.min(best, Math.max(dx, dy) + (DIAG - 1) * Math.min(dx, dy));
+    }
+    return best;
   };
 
   // 작은 값이 먼저 나오는 더미
@@ -66,7 +78,7 @@ export function findPath(cols, rows, start, goal, costAt) {
     const [, cur] = pop();
     if (closed[cur]) continue;
     closed[cur] = 1;
-    if (cur === goalI) break;
+    if (isGoal[cur]) { goalI = cur; break; }
     const cc = cur % cols, cr = (cur - cc) / cols;
 
     for (const [dc, dr] of DIRS) {
@@ -78,7 +90,7 @@ export function findPath(cols, rows, start, goal, costAt) {
       if (!cost) continue;
       const diagonal = dc !== 0 && dr !== 0;
       // 비스듬히 갈 때는 양옆 칸이 모두 비어 있어야 한다
-      if (diagonal && (!costAt(cc + dc, cr) || !costAt(cc, cr + dr))) continue;
+      if (diagonal && (!sideOk(cc + dc, cr) || !sideOk(cc, cr + dr))) continue;
       const ng = g[cur] + cost * (diagonal ? DIAG : 1);
       if (ng < g[ni]) {
         g[ni] = ng;
@@ -88,7 +100,7 @@ export function findPath(cols, rows, start, goal, costAt) {
     }
   }
 
-  if (from[goalI] === -1) return null;
+  if (goalI === -1) return null;
   const path = [];
   for (let i = goalI; i !== -1; i = from[i]) path.push({ col: i % cols, row: Math.floor(i / cols) });
   path.reverse();

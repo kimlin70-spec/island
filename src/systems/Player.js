@@ -1,26 +1,23 @@
 import { CONFIG } from '../config.js';
 import { tileToWorld } from '../iso.js';
-import { findPath } from './Pathfinder.js';
+import { Walker } from './Walker.js';
 
 // 도구 -> 캐릭터 시트의 그림 이름 앞부분 (dagger1, dagger2 / axe1, axe2 / pick1, pick2)
 const TOOL_FRAME = { dagger: 'dagger', axe: 'axe', pickaxe: 'pick' };
 
-// 주인공: 눌러서 이동, 걷는 동작, 좌우 뒤집기, 깊이 정렬, 옆 칸의 대상에게 도구 쓰기
-export class Player {
+// 주인공: 눌러서 이동, 걷는 동작, 좌우 뒤집기, 깊이 정렬, 옆 칸의 대상에게 도구 쓰기.
+// 위치와 길, 걷기, 몸이 걸친 칸은 Walker 에 있다(좀비와 같다).
+export class Player extends Walker {
   constructor(scene, map, col, row) {
+    super(map, col, row);
     this.scene = scene;
-    this.map = map;
     this.key = 'char_player';
     this.asset = map.assets[this.key];
-    this.col = col;            // 지금 위치(소수 칸)
-    this.row = row;
-    this.tile = { col, row };  // 지금 서 있는(또는 막 떠난) 칸
-    this.path = [];            // 앞으로 지나갈 칸들
-    this.costAt = (c, r) => (this.map.isWalkable(c, r) ? 1 : 0);
 
     this.action = null;        // 하려는 행동(act 참고)
     this.swing = null;         // 도구를 휘두르는 중 { t, struck, tool }
     this.cooldown = 0;         // 다음에 도구를 쓸 수 있을 때까지 남은 시간(초)
+    this.chaseLeft = 0;        // 쫓아가는 적에게 가는 길을 다시 찾을 수 있을 때까지 남은 시간(초)
 
     const w = tileToWorld(col, row);
     this.sprite = scene.add.sprite(w.x, w.y, this.key, this.frame('idle'))
@@ -30,24 +27,6 @@ export class Player {
 
   // 그림 이름('idle', 'walk1' ...) -> 프레임 번호
   frame(name) { return this.asset.frames.indexOf(name); }
-  get moving() { return this.path.length > 0; }
-
-  // goals(칸 목록) 중 가장 가까운 곳까지의 길로 바꾼다. 갈 수 없으면 false.
-  routeTo(goals) {
-    const m = this.map;
-    let best = null;
-    for (const g of goals) {
-      const p = findPath(m.cols, m.rows, this.tile, g, this.costAt);
-      if (p && (!best || p.cost < best.cost)) best = p;
-    }
-    if (!best) return false;
-    // 걷던 중이면 떠나온 칸과 가던 칸 사이에 있다.
-    // 새 길이 가던 칸을 바로 지나가면 되돌아가지 않고 그대로 이어 간다.
-    const next = this.path[0];
-    if (next && best.length >= 2 && best[1].col === next.col && best[1].row === next.row) best.shift();
-    this.path = (!next && best.length === 1) ? [] : best;   // 이미 그 칸에 서 있으면 갈 곳이 없다
-    return true;
-  }
 
   // (col, row) 칸으로 걸어간다. 하던 행동은 멈춘다. 갈 수 없는 칸이면 아무 일도 하지 않고 false.
   goTo(col, row) {
@@ -81,6 +60,7 @@ export class Player {
   //   도구 쓰기:   tool(): 지금 쓸 도구, strike(tool): 내려치는 순간에 부른다. actionInterval 마다 되풀이한다.
   //   한 번 하기:  arrive(): 도착하면 한 번 부른다(텐트에 들어가기).
   //   stepOff:    대상 칸 위에 서 있으면 옆 칸으로 비켜서서 한다(밟고 지나갈 수 있는 그루터기 등).
+  //   chase:      대상이 움직인다(적). 대상이 다른 칸으로 가면 길을 다시 찾아 쫓아간다.
   // 갈 수 없으면 아무 일도 하지 않고 false.
   act(action) {
     const tiles = action.target.tiles;
@@ -98,34 +78,15 @@ export class Player {
     return true;
   }
 
-  // 지금 몸이 걸쳐 있는 칸들. 여기에는 시설을 지을 수 없다.
-  // 서 있으면 그 칸. 걷는 중이면 막 떠난 칸, 지금 자리, 막 들어서는 칸을 모두 덮는 칸들(비스듬히 가는 중이면 양옆 칸까지 네 칸).
-  // 막 떠난 칸도 따로 넣는다. 소수 계산의 오차로, 들어서는 칸에 딱 닿았지만 아직 도착하지 않은 프레임이 있다.
-  occupiedTiles() {
-    const pts = [this.tile, this, this.path[0] || this];
-    const cs = pts.map((p) => p.col), rs = pts.map((p) => p.row);
-    const out = [];
-    for (let c = Math.floor(Math.min(...cs)); c <= Math.ceil(Math.max(...cs)); c++) {
-      for (let r = Math.floor(Math.min(...rs)); r <= Math.ceil(Math.max(...rs)); r++) out.push({ col: c, row: r });
-    }
-    return out;
-  }
-
-  // a 에서 이웃 칸 b 로 한 걸음 갈 수 있는가. 비스듬히 갈 때는 양옆 칸도 비어 있어야 한다(길찾기와 같은 규칙).
-  canStep(a, b) {
-    const m = this.map;
-    if (!m.isWalkable(b.col, b.row)) return false;
-    return a.col === b.col || a.row === b.row || (m.isWalkable(b.col, a.row) && m.isWalkable(a.col, b.row));
-  }
-
-  // 시설이 새로 생겨 가던 길이 막혔으면 그 앞에서 멈춘다.
-  // 칸이 막힌 것뿐 아니라, 양옆 칸이 막혀 비스듬히 지나갈 수 없게 된 걸음도 막힌 것이다.
-  onMapChanged() {
-    let from = this.tile;
-    for (let i = 0; i < this.path.length; i++) {
-      if (!this.canStep(from, this.path[i])) { this.path.length = i; return; }
-      from = this.path[i];
-    }
+  // 움직이는 대상(적)을 쫓는다. 지금 길이 대상 옆에서 끝나지 않으면 길을 다시 찾는다(chaseInterval 마다 한 번 이하).
+  // 내딛던 걸음은 마저 간다(되돌아가지 않는다). 갈 수 없게 되면 그만둔다.
+  chase(a, dt) {
+    this.chaseLeft -= dt;
+    if (!a.isValid() || this.chaseLeft > 0) return;
+    const tiles = a.target.tiles;
+    if (this.isNextTo(tiles, this.path[this.path.length - 1] || this.tile)) return;
+    this.chaseLeft = CONFIG.player.chaseInterval;
+    if (!this.routeOn(this.neighborsOf(tiles)) && !this.moving) this.action = null;
   }
 
   // 하던 행동을 멈춘다. 들어 올린 도구는 내려치지 않는다.
@@ -150,30 +111,18 @@ export class Player {
     const A = CONFIG.anim;
     this.cooldown = Math.max(0, this.cooldown - dt);
 
-    let left = CONFIG.player.speed * dt;   // 이번 프레임에 갈 수 있는 거리(칸)
-    while (left > 0 && this.path.length) {
-      const t = this.path[0];
-      const dc = t.col - this.col, dr = t.row - this.row;
-      const dist = Math.hypot(dc, dr);
-      this.face(dc - dr);
-      if (dist <= left) {
-        this.col = t.col; this.row = t.row;
-        this.tile = { col: t.col, row: t.row };
-        this.path.shift();
-        left -= dist;
-      } else {
-        this.col += dc / dist * left;
-        this.row += dr / dist * left;
-        left = 0;
-      }
-    }
+    this.walk(dt, CONFIG.player.speed);
     this.syncSprite();
 
     // 대상 옆에 도착했으면 행동한다
+    if (this.action && this.action.chase) this.chase(this.action, dt);
     const a = this.action;
     if (a && !this.moving) {
-      if (!a.isValid() || !this.isNextTo(a.target.tiles)) {
+      const near = this.isNextTo(a.target.tiles);
+      if (!a.isValid() || (!near && !a.chase)) {
         this.action = null;
+      } else if (!near) {
+        // 쫓는 중에 대상이 비켜 갔다. chase 가 길을 다시 찾는다.
       } else if (a.arrive) {                          // 한 번 하기
         this.action = null;
         this.faceTarget(a.target);

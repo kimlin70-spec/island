@@ -123,7 +123,7 @@ export class BuildSystem {
     }
     this.map.addStructure(s);
     if (type === 'fence') this.refreshFences(s.col, s.row);
-    scene.player.onMapChanged();
+    scene.onMapChanged();
     scene.events.emit('structures-changed');
     return s;
   }
@@ -141,7 +141,7 @@ export class BuildSystem {
     this.destroy(s);
   }
 
-  // 시설을 없앤다(재료 없이). 먼지가 뜬다. 들어가 있던 텐트면 주인공은 들어갔던 칸으로 나온다.
+  // 시설을 없앤다(재료 없이). 먼지가 뜬다. 들어가 있던 텐트면 주인공은 들어갔던 칸(텐트 옆)으로 나온다.
   destroy(s) {
     if (this.scene.rest.tent === s) this.scene.rest.exit();
     this.scene.effects.poof(s.sprite.x, s.sprite.y);
@@ -150,7 +150,27 @@ export class BuildSystem {
     s.sprite.destroy();
     if (s.glow) s.glow.destroy();
     if (s.type === 'fence') this.refreshFences(s.col, s.row);
+    this.scene.onMapChanged();
     this.scene.events.emit('structures-changed');
+  }
+
+  // 적이 시설을 쳤다: 체력이 깎이고, 깎인 동안 체력 막대를 보여 준다. 0이 되면 먼지와 함께 사라진다. (5.4)
+  damage(s, n) {
+    s.hp -= n;
+    if (s.hp <= 0) {
+      this.destroy(s);
+      return;
+    }
+    const sp = s.sprite;
+    this.scene.effects.showBar(s, s.hp / s.maxHp, sp.x, sp.y - sp.displayHeight * sp.originY - CONFIG.fx.barGap, Infinity);
+  }
+
+  // 아침: 남아 있는 시설의 체력이 가득 찬다 (5.10)
+  repairAll() {
+    for (const s of this.map.structures) {
+      s.hp = s.maxHp;
+      this.scene.effects.removeBar(s);
+    }
   }
 
   // 모닥불 빛무리의 진하기: 낮 glow.day ~ 밤 glow.night (3.7). strength: 지금의 빛 세기(0~1)
