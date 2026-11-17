@@ -10,6 +10,8 @@ const FRONT_ONLY = new Set(['hurt', 'down', 'rise', 'blink', 'die']);
 // 그림을 hit 프레임에 맞추고 잠깐 멈춘다. 그림의 시간도 게임 시간(dt)으로 센다.
 //   늘 하는 것: 서 있으면 idle, 걸으면 walk. 뒷모습이면 앞에 b 가 붙은 것(있을 때만. 적은 bidle 이 없어 서면 앞모습).
 //   한 번 하는 것(play): 도구 쓰기, 공격, 눈 깜빡임. hit 프레임 전(휘두르기 시작)에는 맞아도 끊기지 않는다.
+//   hit 가 있는 것은 주인이 strike(맞힘) 또는 pass(빗나감)를 부를 때까지 hit 프레임을 넘어가지 않는다.
+//   그래서 프레임이 길어도 피해를 주는 순간보다 그림이 먼저 끝나지 않는다.
 //   맞기(hurt), 멈칫(freeze), 밀림(knock), 끝 상태(final: down, rise).
 // 매 프레임: tick(dt) -> (주인 쪽 규칙) -> show(걷는 중인가)
 // 이 프레임의 tick 전에 생긴 시간은 그 tick 에서 줄이지 않는다(fresh). 그림은 다음 프레임부터 흐르기 때문이다.
@@ -21,7 +23,7 @@ export class Body {
     this.asset = scene.map.assets[key];
     this.A = this.asset.anims || {};
     this.back = false;          // 뒷모습인가(화면 위쪽을 보는가). 좌우는 sprite.flipX
-    this.act = null;            // 한 번 하는 것 { name, back, t, total, hitAt, fresh }
+    this.act = null;            // 한 번 하는 것 { name, back, t, total, hitAt, struck, fresh }
     this.hurtLeft = 0;          // hurt 그림을 보여 줄 남은 시간(초)
     this.hurtFresh = false;
     this.freezeLeft = 0;        // 멈칫(그림만 멈춤) 남은 시간(초)
@@ -99,7 +101,8 @@ export class Body {
     if (this.final) return null;
     const n = this.pick(name);
     if (!this.A[n]) return null;
-    this.act = { name: n, back: n !== name, t: at, total: this.ms(n), hitAt: this.hitAt(n), fresh: this.fresh };
+    const hitAt = this.hitAt(n);
+    this.act = { name: n, back: n !== name, t: hitAt === null ? at : Math.min(at, hitAt), total: this.ms(n), hitAt, struck: false, fresh: this.fresh };
     this.hurtLeft = 0;
     this.run(n, at);
     if (this.freezeLeft > 0) this.sprite.anims.pause();
@@ -111,22 +114,28 @@ export class Body {
 
   // 도구 쓰기·공격 중인가(hit 프레임 전이든 뒤든)
   attacking() { return !!(this.act && this.act.hitAt !== null); }
-  // hit 프레임 전인가(휘두르기 시작)
-  winding() { return this.attacking() && this.act.t < this.act.hitAt; }
+  // 아직 맞히지(또는 빗나가지) 않았는가(휘두르기 시작)
+  winding() { return this.attacking() && !this.act.struck; }
   // 맞아도 hurt 로 끊지 않는 때: 휘두르기 시작과, 맞힌 순간의 멈칫(hit 프레임이 보이는 동안)
-  guarded() { return this.attacking() && this.act.t <= this.act.hitAt; }
+  guarded() { return this.attacking() && (!this.act.struck || this.act.t <= this.act.hitAt); }
 
   // 피해를 준 순간 (12.4, 12.5): 그림을 hit 프레임에 맞추고, 휘두른 궤적을 남기고, 잠깐 멈춘다
   strike() {
     const a = this.act;
     if (a && a.hitAt !== null) {
       a.t = a.hitAt;
+      a.struck = true;
       a.fresh = false;
       this.run(a.name, a.hitAt);
       const sw = this.A[a.name].swing;
       if (sw) this.scene.effects.swingTrail(this.sprite, sw, a.back);
     }
     this.freeze();
+  }
+
+  // 피해 없이 hit 시각을 지났다(빗나감, 텐트 안의 주인공을 친 것 등): 멈칫 없이 따라 내려가는 동작을 마저 한다
+  pass() {
+    if (this.attacking()) this.act.struck = true;
   }
 
   // 그림만 time 초 멈춘다(게임은 그대로 흐른다)
@@ -180,17 +189,25 @@ export class Body {
 
   tick(dt) {
     this.ticked = this.scene.frame;
-    if (this.freezeLeft > 0) {
-      if (this.freezeFresh) this.freezeFresh = false;
-      else if ((this.freezeLeft -= dt) <= 0) {
+    // 이번 프레임에 그림이 멈춰 있었는가. 이번 프레임(이 tick 전)에 생긴 멈칫은 그림이 이미 이번 몫만큼 움직인 뒤에 걸렸다.
+    const frozen = this.freezeLeft > 0 && !this.freezeFresh;
+    this.freezeFresh = false;
+    const a = this.act;
+    if (frozen) {
+      if ((this.freezeLeft -= dt) <= 0) {
         this.freezeLeft = 0;
         this.sprite.anims.resume();
       }
+      if (a) a.fresh = false;                        // 멈춘 동안 생긴 것은 멈칫이 풀린 뒤부터 센다
+      this.hurtFresh = false;
     } else {
-      const a = this.act;
       if (a) {
         if (a.fresh) a.fresh = false;
-        else if ((a.t += dt) >= a.total) this.act = null;
+        else {
+          a.t += dt;
+          if (!a.struck && a.hitAt !== null) a.t = Math.min(a.t, a.hitAt);   // 맞히기 전에는 hit 프레임에서 기다린다
+          if (a.t >= a.total) this.act = null;
+        }
       }
       if (this.hurtLeft > 0) {
         if (this.hurtFresh) this.hurtFresh = false;

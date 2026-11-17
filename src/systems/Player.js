@@ -124,17 +124,6 @@ export class Player extends Walker {
     }
     this.cooldown = Math.max(0, this.cooldown - dt);
 
-    // 휘두르기: hit 프레임의 시각에 내려친다(피해). 애니메이션이 끝나면 끝. 새로 든 것은 다음 프레임부터 센다.
-    const s = this.swing;
-    if (s) {
-      s.t += dt;
-      if (!s.struck && s.t >= s.hitAt) {
-        s.struck = true;
-        if (this.action && this.action.strike(s.tool)) this.body.strike();   // 맞혔으면 멈칫과 휘두른 궤적 (12.4)
-      }
-      if (s.t >= s.total) this.swing = null;
-    }
-
     this.walk(dt, CONFIG.player.speed);
 
     // 대상 옆에 도착했으면 행동한다
@@ -157,11 +146,23 @@ export class Player extends Walker {
         } else {
           this.faceTarget(a.target);
           const n = TOOL_ANIM[tool], b = this.body;
-          b.play(n);
+          b.play(n, dt);                              // 든 프레임의 시간도 센다(아래). 그림도 그만큼 지난 곳부터.
           this.swing = { t: 0, hitAt: b.hitAt(n) || 0, total: b.ms(n), struck: false, tool };
           this.cooldown = CONFIG.player.actionInterval;
         }
       }
+    }
+
+    // 휘두르기: 든 프레임부터 시간을 센다(Phase 5 까지와 같다). hit 프레임의 시각에 내려친다(피해). 애니메이션이 끝나면 끝.
+    const s = this.swing;
+    if (s) {
+      s.t += dt;
+      if (!s.struck && s.t >= s.hitAt) {
+        s.struck = true;
+        if (this.action && this.action.strike(s.tool)) this.body.strike();   // 맞혔으면 멈칫과 휘두른 궤적 (12.4)
+        else this.body.pass();                                                // 빗나갔으면 그대로 따라 내려간다
+      }
+      if (s.t >= s.total) this.swing = null;
     }
     this.syncSprite();
     this.body.show(this.moving);

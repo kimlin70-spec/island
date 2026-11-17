@@ -336,8 +336,9 @@ export class GameScene extends Phaser.Scene {
     this.inventory.add('stone', CONFIG.ui.debug.giveAmount);
   }
 
-  debugNight() { if (!this.clock.isNight && !this.resultPending) this.clock.startNight(); }   // 결과 창을 기다리는 동안은 넘기지 않는다
-  debugMorning() { if (this.clock.isNight) this.clock.startMorning(); }
+  // 결과 창을 기다리는 동안과 쓰러진 뒤에는 넘기지 않는다
+  debugNight() { if (!this.clock.isNight && !this.resultPending && !this.player.downed) this.clock.startNight(); }
+  debugMorning() { if (this.clock.isNight && !this.player.downed) this.clock.startMorning(); }
   debugZombie() { this.enemies.spawn(); }
 
   debugToggleSpeed() {
@@ -349,7 +350,7 @@ export class GameScene extends Phaser.Scene {
     const dt = this.dt;                               // beforeUpdate 에서 정한 게임 시간
     this.elapsed += dt;
 
-    this.clock.update(dt);
+    if (!this.player.downed) this.clock.update(dt);  // 쓰러진 뒤 창이 뜨기까지 1초 동안 시계는 멈춘다(그사이에 아침이 오지 않게)
     this.rest.update(dt);
     this.player.update(dt);
     this.enemies.update(dt);
@@ -371,7 +372,7 @@ export class GameScene extends Phaser.Scene {
       p.updateWorldPoint(this.cameras.main);
       this.build.point(p.worldX, p.worldY);
     }
-    const chars = this.enemies.sprites();
+    const chars = [...this.enemies.sprites(), ...this.effects.corpses];   // 쓰러지고 있는 적도 나무 뒤에 있으면 보이게
     if (this.player.sprite.visible) chars.push(this.player.sprite);
     this.map.updateOcclusion(chars, dt);
     if (this.cursorLeft > 0) {

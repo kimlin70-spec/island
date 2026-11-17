@@ -10,6 +10,7 @@ export class Effects {
     this.running = [];         // { t, life, step(k), done(), fresh, dead }  k: 0 -> 1
     this.bars = [];
     this.prints = [];          // 남아 있는 발자국(오래된 것부터)
+    this.corpses = [];         // 쓰러지고 있는 적의 그림(나무 뒤에 있으면 나무를 반투명하게 한다)
     this.emitters = new Map(); // 조각 효과(12.6)의 파티클. 흩어지는 모양과 조각 이름마다 하나
     this.updated = -1;         // 마지막으로 update 한 프레임 번호
   }
@@ -152,10 +153,10 @@ export class Effects {
   }
 
   // 다 벤 나무가 넘어간다 (12.7): 같은 그림을 발을 축으로 dir 쪽(1 오른쪽, -1 왼쪽)으로 넘어뜨리며 흐려지게 하고 없앤다.
-  // 넘어간 끝(발에서 넘어간 쪽으로)에 먼지와 잎.
-  fall(key, x, y, depth, dir, leaves) {
+  // 넘어간 끝(발에서 넘어간 쪽으로)에 먼지와 잎. alpha0: 넘어가기 전의 진하기(캐릭터를 가려 반투명이었으면 그대로).
+  fall(key, x, y, depth, dir, leaves, alpha0 = 1) {
     const F = CONFIG.fx, T = F.treeFall, a = this.scene.map.assets[key];
-    const img = this.scene.add.image(x, y, key).setOrigin(a.originX, a.originY).setDepth(depth);
+    const img = this.scene.add.image(x, y, key).setOrigin(a.originX, a.originY).setDepth(depth).setAlpha(alpha0);
     let landed = false;
     const land = () => {
       landed = true;
@@ -166,7 +167,7 @@ export class Effects {
     this.run(T.time, (k) => {
       const t = k * T.time;
       img.setRotation(dir * T.angle * Math.PI / 180 * Math.pow(k, F.fallEase));
-      img.setAlpha(t < T.fadeAfter ? 1 : 1 - (t - T.fadeAfter) / (T.time - T.fadeAfter));
+      img.setAlpha(alpha0 * (t < T.fadeAfter ? 1 : 1 - (t - T.fadeAfter) / (T.time - T.fadeAfter)));
       if (!landed && t >= F.fallDustAt) land();
     }, () => {
       img.destroy();
@@ -189,17 +190,26 @@ export class Effects {
     const F = CONFIG.fx, A = this.scene.map.assets[key].anims || {};
     const dieTime = A.die ? A.die.frames.reduce((s, f) => s + f[1], 0) / 1000 : 0;
     const bx = sprite.x, by = sprite.y;
+    this.corpses.push(sprite);
     if (A.die) sprite.play(key + ':die');
     this.run(F.knockbackTime, (k) => {
       const d = F.knockback * Math.sin(k * Math.PI / 2);
       if (sprite.active) sprite.setPosition(bx + ux * d, by + uy * d);
     }, () => { if (sprite.active) sprite.setPosition(bx + ux * F.knockback, by + uy * F.knockback); });
     this.run(dieTime, () => {}, () => {
-      if (!sprite.active) return;
+      if (!sprite.active) { this.dropCorpse(sprite); return; }
       // 몸은 보는 쪽의 뒤로 눕는다. 연기는 누운 몸의 한가운데에.
       this.play(smoke, sprite.x + (sprite.flipX ? 1 : -1) * F.corpseShift, sprite.y);
-      this.run(F.dieFade, (k) => { if (sprite.active) sprite.setAlpha(1 - k); }, () => sprite.destroy());
+      this.run(F.dieFade, (k) => { if (sprite.active) sprite.setAlpha(1 - k); }, () => {
+        this.dropCorpse(sprite);
+        sprite.destroy();
+      });
     });
+  }
+
+  dropCorpse(sprite) {
+    const i = this.corpses.indexOf(sprite);
+    if (i >= 0) this.corpses.splice(i, 1);
   }
 
   // ── 걷기 (12.9) ──

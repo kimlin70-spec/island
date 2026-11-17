@@ -70,7 +70,7 @@ export class NodeSystem {
       // 나무는 주인공 반대쪽으로 넘어간다. 주인공이 바로 위나 아래에 있으면 주인공이 보는 쪽으로.
       const pl = scene.player, dx = x - pl.foot().x;
       const dir = dx > 0 ? 1 : dx < 0 ? -1 : (pl.sprite.flipX ? -1 : 1);
-      fx.fall(o.key, x, y, s.depth, dir, leavesOf(o.key));
+      fx.fall(o.key, x, y, s.depth, dir, leavesOf(o.key), s.alpha);
     } else {
       fx.dust(x, y);
       fx.burst(STONE, C.rockBreak, x, y - lift);

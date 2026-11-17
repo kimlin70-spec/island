@@ -302,8 +302,8 @@ export class Enemy extends Walker {
     this.path.length = 0;
     this.scene.effects.removeBar(this);
     this.body.detach();
-    const L = Math.hypot(dx, dy) || 1;
-    this.scene.effects.corpse(this.sprite, this.key, dx / L, dy / L, this.kind === 'zombie' ? 'fx_vanish' : 'fx_dust');
+    const L = Math.hypot(dx || 0, dy || 0);
+    this.scene.effects.corpse(this.sprite, this.key, L ? dx / L : 0, L ? dy / L : 0, this.kind === 'zombie' ? 'fx_vanish' : 'fx_dust');
   }
 
   // 없앤다(아침. 먼지는 부르는 쪽에서)

@@ -86,8 +86,11 @@ export class EnemySystem {
     for (const e of order) if (e.alive) e.update(dt);
   }
 
-  // 적이 주인공을 때렸다: 하트가 hitDamage 만큼 준다. 들어갔으면 때린 쪽은 멈칫(12.4)
-  hitPlayer(e) { if (this.scene.hurtPlayer(e.cfg.hitDamage, e)) e.body.strike(); }
+  // 적이 주인공을 때렸다: 하트가 hitDamage 만큼 준다. 들어갔으면 때린 쪽은 멈칫(12.4). 아니면(텐트 안, 쓰러진 뒤) 그대로 휘두른다.
+  hitPlayer(e) {
+    if (this.scene.hurtPlayer(e.cfg.hitDamage, e)) e.body.strike();
+    else e.body.pass();
+  }
 
   // 적이 시설을 쳤다. 텐트가 공격받기 시작하면(attackNotice 초 동안 안 맞다가 맞으면) 알린다. (5.6)
   hitStructure(e, s) {
