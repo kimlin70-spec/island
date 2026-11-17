@@ -94,6 +94,7 @@ export class GameScene extends Phaser.Scene {
     const e = this.enemies.pickAt(p.worldX, p.worldY);
     if (e) this.pressEnemy(e);                        // 적: 다가가서 단검으로 친다 (5.9)
     else if (o && o.node) this.pressNode(o);               // 나무, 돌, 그루터기, 돌 부스러기
+    else if (o && o.kind === 'iron') this.notice('아직 캘 수 없습니다');   // 철광석은 2단계(Phase 7)부터 캔다 (4장)
     else if (o && o.type === 'tent') this.pressTent(o);
     else if (o && o.type === 'fence') this.walkTo(o.col, o.row);   // 울타리를 누른 것은 그 울타리 칸(땅)을 누른 것과 같다.
     else if (!o) this.walkTo(t.col, t.row);           // 땅

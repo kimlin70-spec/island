@@ -34,8 +34,8 @@ def one(sub, key, prims, kind, **meta):
     save(img, sub, key, anchor, kind, **meta)
 
 
-def sheet(sub, key, frames, names, kind, **meta):
-    """같은 크기의 프레임을 가로로 이어 붙인 시트. 발이 프레임 가로 한가운데에 온다."""
+def sheet(sub, key, frames, names, kind, cols=None, **meta):
+    """같은 크기의 프레임을 가로로 이어 붙인 시트(cols를 주면 그 수마다 다음 줄로). 발이 프레임 가로 한가운데에 온다."""
     boxes = [A.bbox(p, 12) for p in frames]
     m = max(max(abs(b[0]), abs(b[2])) for b in boxes)
     box = (-m, min(b[1] for b in boxes), m, max(b[3] for b in boxes))
@@ -44,9 +44,11 @@ def sheet(sub, key, frames, names, kind, **meta):
         img, anchor = wc.sprite(p, key, box=box, keep_box=True)      # 같은 이름 = 같은 흔들림 무늬
         imgs.append(img)
     fw, fh = imgs[0].size
-    strip = Image.new('RGBA', (fw * len(imgs), fh), (0, 0, 0, 0))
+    cols = cols or len(imgs)
+    rows = (len(imgs) + cols - 1) // cols
+    strip = Image.new('RGBA', (fw * cols, fh * rows), (0, 0, 0, 0))
     for i, im in enumerate(imgs):
-        strip.paste(im, (i * fw, 0))
+        strip.paste(im, ((i % cols) * fw, (i // cols) * fh))
     d = os.path.join(ASSETS, sub)
     os.makedirs(d, exist_ok=True)
     strip.save(os.path.join(d, key + '.png'))
@@ -77,6 +79,8 @@ def make_objects():
         one('objects', f'obj_bush_{i}', A.bush(seed), 'object')
     one('objects', 'obj_ship', A.ship(), 'object', lamp=px(A.SHIP_LAMP))
     one('objects', 'obj_rowboat', A.rowboat(), 'object')
+    one('objects', 'obj_iron_1', A.iron_ore(81, False), 'object')
+    one('objects', 'obj_iron_2', A.iron_ore(82, True), 'object')
 
 
 def make_builds():
@@ -92,18 +96,42 @@ def make_builds():
     sheet('build', 'build_campfire', [A.campfire(i) for i in range(3)], ['burn1', 'burn2', 'burn3'], 'build', flame=px((0, -28)))
 
 
+def make_defense():
+    """2단계: 철조망, 망루, 총 타워, 포탑(16방향)"""
+    b0, b1 = A.bbox(A.wire(15), 12), A.bbox(A.wire(0), 12)
+    box = (min(b0[0], b1[0]), min(b0[1], b1[1]), max(b0[2], b1[2]), max(b0[3], b1[3]))
+    for m in range(16):
+        img, anchor = wc.sprite(A.wire(m), 'build_wire', box=box, keep_box=True, pencil=0.8, wobble=0.6)
+        save(img, 'build', f'build_wire_{m}', anchor, 'build')
+    one('build', 'build_watchtower', A.watchtower(), 'build', footprint=[1, 1], mount=px((0, -A.WT_PIVOT)),
+        lamp=px(A.pr(A.WT_LAMP)), turret='turret_bow')
+    one('build', 'build_guntower', A.guntower(), 'build', footprint=[1, 1], mount=px((0, -A.GT_PIVOT)),
+        lamp=px(A.pr(A.GT_LAMP)), turret='turret_gun')
+    n = A.TURRET_DIRS
+    angles = [round(A.screen_angle(i), 1) for i in range(n)]
+    sheet('build', 'turret_bow', [A.crossbow(A.turret_phi(i), True) for i in range(n)] +
+          [A.crossbow(A.turret_phi(i), False) for i in range(n)],
+          [f'load{i}' for i in range(n)] + [f'shot{i}' for i in range(n)], 'turret', cols=n,
+          directions=n, muzzle=[px(A.turret_tip('bow', i)) for i in range(n)], screenAngle=angles)
+    sheet('build', 'turret_gun', [A.swivel_gun(A.turret_phi(i)) for i in range(n)], [f'dir{i}' for i in range(n)], 'turret',
+          directions=n, muzzle=[px(A.turret_tip('gun', i)) for i in range(n)], screenAngle=angles)
+
+
 def make_chars():
-    sheet('chars', 'char_player', [A.survivor(p) for p in A.POSES], list(A.POSES), 'char')
+    sheet('chars', 'char_player', [A.survivor(p) for p in A.POSES], list(A.POSES), 'char',
+          muzzle={p: px(A.survivor_muzzle(p)) for p in ('gun1', 'gun2')})
     sheet('chars', 'char_zombie', [A.zombie(p) for p in A.ZPOSES], list(A.ZPOSES), 'char')
     for v in (1, 2):
         sheet('chars', f'char_pirate_{v}', [A.pirate(v, p) for p in A.PPOSES], list(A.PPOSES), 'char')
+    sheet('chars', 'char_pirate_3', [A.gunner(p) for p in A.GPOSES], list(A.GPOSES), 'char',
+          muzzle={p: px(A.gunner_muzzle(p)) for p in ('aim', 'shoot')})
 
 
 def make_ui():
     box = (-64, -64, 64, 64)
     for name in ('wood', 'stone', 'heart', 'heart_empty', 'dagger', 'axe', 'pickaxe', 'tshirt', 'fence', 'tent',
-                 'campfire', 'sun', 'moon', 'craft', 'remove', 'sleep'):
-        prims = A.fit(A.icon(name), 94, enlarge=True)
+                 'campfire', 'sun', 'moon', 'craft', 'remove', 'sleep', 'iron', 'gun', 'wire', 'watchtower', 'guntower'):
+        prims = A.fit(icon2(name), 94, enlarge=True)
         img, anchor = wc.sprite(prims, 'icon_' + name, box=box, keep_box=True)
         save(img, 'ui', 'icon_' + name, (img.width / 2, img.height / 2), 'icon')
     # 바닥 표시: 지을 수 있음(초록) / 지을 수 없음(빨강, X 표시) / 누른 칸(흰 테두리).
@@ -111,6 +139,33 @@ def make_ui():
     for key, fill, mark in (('overlay_ok', (104, 224, 128, 140), None), ('overlay_no', (244, 86, 78, 178), 'x'),
                             ('overlay_cursor', None, None)):
         save(overlay(fill, mark), 'ui', key, (45, 25), 'overlay')
+    save(range_ring(), 'ui', 'overlay_range', (256, 128), 'overlay')
+
+
+def icon2(name):
+    """2단계 아이콘(나머지는 artlib.icon)"""
+    noshadow = lambda ps: [p for p in ps if p[-1].get('tag') != 'shadow']
+    if name == 'iron':
+        return noshadow(A.iron_ore(83, False))
+    if name == 'gun':
+        return A.musket((-40, 34), -38, 88, 1.0)[0]
+    if name == 'wire':
+        return A.xform(noshadow(A.wire(1)), -30, 14, 1.25) + A.xform(noshadow(A.wire(2)), 10, 34, 1.25)
+    if name == 'watchtower':
+        return noshadow(A.watchtower()) + A.xform(A.crossbow(A.turret_phi(2)), 0, -A.WT_PIVOT)
+    if name == 'guntower':
+        return noshadow(A.guntower()) + A.xform(A.swivel_gun(A.turret_phi(2)), 0, -A.GT_PIVOT)
+    return A.icon(name)
+
+
+def range_ring(w=512, h=256, s=3):
+    """사거리 표시: 땅 위의 원(화면에서는 가로 2 : 세로 1 타원). 사거리에 맞춰 늘려 쓴다."""
+    im = Image.new('RGBA', (w * s, h * s), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    m = 6 * s
+    d.ellipse((m, m, w * s - m, h * s - m), fill=(255, 255, 255, 34), outline=(74, 61, 56, 120), width=int(7 * s))
+    d.ellipse((m + 2 * s, m + 2 * s, w * s - m - 2 * s, h * s - m - 2 * s), outline=(255, 255, 255, 235), width=int(3 * s))
+    return im.resize((w, h), Image.LANCZOS)
 
 
 def overlay(fill, mark, w=90, h=50, s=4):
@@ -134,6 +189,11 @@ def make_fx():
         box = (-56, -56, 56, 56)
         img, anchor = wc.sprite(prims, key, box=box, keep_box=True)
         save(img, 'fx', key, (img.width / 2, img.height / 2), 'fx')
+    # 2단계: 날아가는 것(오른쪽을 향해 그렸다. 날아가는 방향으로 돌려서 쓴다)과 총 효과
+    for key, prims, kind in (('proj_arrow', A.arrow(), 'projectile'), ('proj_bullet', A.bullet(), 'projectile'),
+                             ('fx_muzzle', A.muzzle_flash(), 'fx'), ('fx_smoke', A.smoke(), 'fx')):
+        img, anchor = wc.sprite(prims, key, pencil=0.7)
+        save(img, 'fx', key, anchor, kind)
     # 빛 그림: 밤의 '빛 지도'에 찍는 부드러운 흰 원, 모닥불 둘레에 더하는 주황 빛무리
     for key, size, rgb, power in (('light_soft', 512, (255, 255, 255), 1.6), ('glow_warm', 256, (255, 176, 92), 2.2)):
         ys, xs = np.mgrid[0:size, 0:size].astype(np.float32)
@@ -148,11 +208,12 @@ def make_fx():
 def main():
     make_objects()
     make_builds()
+    make_defense()
     make_chars()
     make_ui()
     make_fx()
     ground = json.load(open(os.path.join(ASSETS, 'ground', 'ground.json'), encoding='utf-8'))
-    meta = dict(tileWidth=LY.HW * 2, tileHeight=LY.HH * 2, viewWidth=LY.VIEW_W, viewHeight=LY.VIEW_H, ground=ground,
+    meta = dict(tileWidth=LY.HW * 2, tileHeight=LY.HH * 2, viewWidth=LY.VIEW_W, viewHeight=LY.VIEW_H, ground=ground, turretDirections=A.TURRET_DIRS,
                 note='originX/originY = 그림에서 발이 닿는 점. 이 점을 칸 중심의 월드 좌표에 맞춘다.')
     with open(os.path.join(ASSETS, 'manifest.json'), 'w', encoding='utf-8') as fp:
         json.dump(dict(meta=meta, assets=MAN), fp, ensure_ascii=False, indent=1)

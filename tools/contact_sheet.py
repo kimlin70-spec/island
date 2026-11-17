@@ -9,8 +9,23 @@ from PIL import Image, ImageDraw, ImageFont
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ASSETS = os.path.join(ROOT, 'assets')
 WIDTH = 1900
-GROUPS = [('사물', 'object', (186, 208, 144)), ('시설', 'build', (186, 208, 144)), ('캐릭터 (가로로 이어진 프레임)', 'char', (186, 208, 144)),
-          ('아이콘', 'icon', (251, 246, 234)), ('바닥 표시, 효과', 'overlay fx', (186, 208, 144)), ('빛 (밤 화면용)', 'light', (58, 62, 96))]
+GROUPS = [('사물', 'object', (186, 208, 144)), ('시설', 'build', (186, 208, 144)),
+          ('포탑 (16방향, 망루와 총 타워 위에 올린다)', 'turret', (186, 208, 144)), ('캐릭터 (프레임)', 'char', (186, 208, 144)),
+          ('아이콘', 'icon', (251, 246, 234)), ('바닥 표시, 효과, 날아가는 것', 'overlay fx projectile', (186, 208, 144)),
+          ('빛 (밤 화면용)', 'light', (58, 62, 96))]
+
+
+def pieces(key, v, im):
+    """시트는 프레임 단위로 나눠서 보여 준다(긴 시트가 한 줄을 넘지 않게)."""
+    if 'frameWidth' not in v:
+        return [(key, im)]
+    fw, fh = v['frameWidth'], v['frameHeight']
+    cols = v['w'] // fw
+    out = []
+    for i, name in enumerate(v['frames']):
+        x, y = (i % cols) * fw, (i // cols) * fh
+        out.append((f'{key}:{name}' if i == 0 else name, im.crop((x, y, x + fw, y + fh))))
+    return out
 
 
 def font(size):
@@ -29,17 +44,20 @@ def main(out='preview_assets.png'):
             continue
         rows.append(('title', title, bg, 44))
         line, x, hmax = [], 16, 0
-        for k, v in items:
-            im = Image.open(os.path.join(ASSETS, v['file'])).convert('RGBA')
+        for key, v in items:
+            full = Image.open(os.path.join(ASSETS, v['file'])).convert('RGBA')
             if v['kind'] == 'light':
-                im = im.resize((160, 160), Image.LANCZOS)
-            w = max(im.width, int(len(k) * 8.2)) + 22
-            if x + w > WIDTH and line:
-                rows.append(('items', line, bg, hmax + 40))
-                line, x, hmax = [], 16, 0
-            line.append((k, im, x, w))
-            x += w
-            hmax = max(hmax, im.height)
+                full = full.resize((160, 160), Image.LANCZOS)
+            if v['kind'] == 'overlay' and full.width > 300:
+                full = full.resize((full.width // 2, full.height // 2), Image.LANCZOS)
+            for k, im in pieces(key, v, full):
+                w = max(im.width, int(len(k) * 8.2)) + (22 if ':' in k or 'frameWidth' not in v else 6)
+                if x + w > WIDTH and line:
+                    rows.append(('items', line, bg, hmax + 40))
+                    line, x, hmax = [], 16, 0
+                line.append((k, im, x, w))
+                x += w
+                hmax = max(hmax, im.height)
         rows.append(('items', line, bg, hmax + 40))
     sheet = Image.new('RGBA', (WIDTH, sum(r[3] for r in rows)), (255, 255, 255, 255))
     d = ImageDraw.Draw(sheet)

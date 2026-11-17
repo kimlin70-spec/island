@@ -105,6 +105,7 @@
     }
    ]
   },
+  "turretDirections": 16,
   "note": "originX/originY = 그림에서 발이 닿는 점. 이 점을 칸 중심의 월드 좌표에 맞춘다."
  },
  "assets": {
@@ -270,6 +271,22 @@
    "h": 68,
    "originX": 0.4447,
    "originY": 0.5059,
+   "kind": "object"
+  },
+  "obj_iron_1": {
+   "file": "objects/obj_iron_1.png",
+   "w": 72,
+   "h": 58,
+   "originX": 0.408,
+   "originY": 0.6552,
+   "kind": "object"
+  },
+  "obj_iron_2": {
+   "file": "objects/obj_iron_2.png",
+   "w": 92,
+   "h": 62,
+   "originX": 0.4647,
+   "originY": 0.6461,
    "kind": "object"
   },
   "build_fence_0": {
@@ -451,14 +468,426 @@
     -17.5
    ]
   },
+  "build_wire_0": {
+   "file": "build/build_wire_0.png",
+   "w": 59,
+   "h": 60,
+   "originX": 0.5,
+   "originY": 0.7188,
+   "kind": "build"
+  },
+  "build_wire_1": {
+   "file": "build/build_wire_1.png",
+   "w": 59,
+   "h": 60,
+   "originX": 0.5,
+   "originY": 0.7188,
+   "kind": "build"
+  },
+  "build_wire_2": {
+   "file": "build/build_wire_2.png",
+   "w": 59,
+   "h": 60,
+   "originX": 0.5,
+   "originY": 0.7188,
+   "kind": "build"
+  },
+  "build_wire_3": {
+   "file": "build/build_wire_3.png",
+   "w": 59,
+   "h": 60,
+   "originX": 0.5,
+   "originY": 0.7188,
+   "kind": "build"
+  },
+  "build_wire_4": {
+   "file": "build/build_wire_4.png",
+   "w": 59,
+   "h": 60,
+   "originX": 0.5,
+   "originY": 0.7188,
+   "kind": "build"
+  },
+  "build_wire_5": {
+   "file": "build/build_wire_5.png",
+   "w": 59,
+   "h": 60,
+   "originX": 0.5,
+   "originY": 0.7188,
+   "kind": "build"
+  },
+  "build_wire_6": {
+   "file": "build/build_wire_6.png",
+   "w": 59,
+   "h": 60,
+   "originX": 0.5,
+   "originY": 0.7188,
+   "kind": "build"
+  },
+  "build_wire_7": {
+   "file": "build/build_wire_7.png",
+   "w": 59,
+   "h": 60,
+   "originX": 0.5,
+   "originY": 0.7188,
+   "kind": "build"
+  },
+  "build_wire_8": {
+   "file": "build/build_wire_8.png",
+   "w": 59,
+   "h": 60,
+   "originX": 0.5,
+   "originY": 0.7188,
+   "kind": "build"
+  },
+  "build_wire_9": {
+   "file": "build/build_wire_9.png",
+   "w": 59,
+   "h": 60,
+   "originX": 0.5,
+   "originY": 0.7188,
+   "kind": "build"
+  },
+  "build_wire_10": {
+   "file": "build/build_wire_10.png",
+   "w": 59,
+   "h": 60,
+   "originX": 0.5,
+   "originY": 0.7188,
+   "kind": "build"
+  },
+  "build_wire_11": {
+   "file": "build/build_wire_11.png",
+   "w": 59,
+   "h": 60,
+   "originX": 0.5,
+   "originY": 0.7188,
+   "kind": "build"
+  },
+  "build_wire_12": {
+   "file": "build/build_wire_12.png",
+   "w": 59,
+   "h": 60,
+   "originX": 0.5,
+   "originY": 0.7188,
+   "kind": "build"
+  },
+  "build_wire_13": {
+   "file": "build/build_wire_13.png",
+   "w": 59,
+   "h": 60,
+   "originX": 0.5,
+   "originY": 0.7188,
+   "kind": "build"
+  },
+  "build_wire_14": {
+   "file": "build/build_wire_14.png",
+   "w": 59,
+   "h": 60,
+   "originX": 0.5,
+   "originY": 0.7188,
+   "kind": "build"
+  },
+  "build_wire_15": {
+   "file": "build/build_wire_15.png",
+   "w": 59,
+   "h": 60,
+   "originX": 0.5,
+   "originY": 0.7188,
+   "kind": "build"
+  },
+  "build_watchtower": {
+   "file": "build/build_watchtower.png",
+   "w": 121,
+   "h": 180,
+   "originX": 0.3347,
+   "originY": 0.8248,
+   "kind": "build",
+   "footprint": [
+    1,
+    1
+   ],
+   "mount": [
+    0.0,
+    -105.0
+   ],
+   "lamp": [
+    48.0,
+    -91.9
+   ],
+   "turret": "turret_bow"
+  },
+  "build_guntower": {
+   "file": "build/build_guntower.png",
+   "w": 98,
+   "h": 128,
+   "originX": 0.3044,
+   "originY": 0.7823,
+   "kind": "build",
+   "footprint": [
+    1,
+    1
+   ],
+   "mount": [
+    0.0,
+    -87.5
+   ],
+   "lamp": [
+    30.9,
+    -44.9
+   ],
+   "turret": "turret_gun"
+  },
+  "turret_bow": {
+   "file": "build/turret_bow.png",
+   "w": 1584,
+   "h": 124,
+   "originX": 0.5,
+   "originY": 0.6263,
+   "kind": "turret",
+   "frameWidth": 99,
+   "frameHeight": 62,
+   "frames": [
+    "load0",
+    "load1",
+    "load2",
+    "load3",
+    "load4",
+    "load5",
+    "load6",
+    "load7",
+    "load8",
+    "load9",
+    "load10",
+    "load11",
+    "load12",
+    "load13",
+    "load14",
+    "load15",
+    "shot0",
+    "shot1",
+    "shot2",
+    "shot3",
+    "shot4",
+    "shot5",
+    "shot6",
+    "shot7",
+    "shot8",
+    "shot9",
+    "shot10",
+    "shot11",
+    "shot12",
+    "shot13",
+    "shot14",
+    "shot15"
+   ],
+   "directions": 16,
+   "muzzle": [
+    [
+     41.7,
+     -9.5
+    ],
+    [
+     38.5,
+     -1.5
+    ],
+    [
+     29.5,
+     5.2
+    ],
+    [
+     16.0,
+     9.7
+    ],
+    [
+     0.0,
+     11.3
+    ],
+    [
+     -16.0,
+     9.7
+    ],
+    [
+     -29.5,
+     5.2
+    ],
+    [
+     -38.5,
+     -1.5
+    ],
+    [
+     -41.7,
+     -9.5
+    ],
+    [
+     -38.5,
+     -17.5
+    ],
+    [
+     -29.5,
+     -24.3
+    ],
+    [
+     -16.0,
+     -28.8
+    ],
+    [
+     -0.0,
+     -30.4
+    ],
+    [
+     16.0,
+     -28.8
+    ],
+    [
+     29.5,
+     -24.3
+    ],
+    [
+     38.5,
+     -17.5
+    ]
+   ],
+   "screenAngle": [
+    0.0,
+    11.7,
+    26.6,
+    50.4,
+    90.0,
+    129.6,
+    153.4,
+    168.3,
+    180.0,
+    -168.3,
+    -153.4,
+    -129.6,
+    -90.0,
+    -50.4,
+    -26.6,
+    -11.7
+   ]
+  },
+  "turret_gun": {
+   "file": "build/turret_gun.png",
+   "w": 1344,
+   "h": 56,
+   "originX": 0.5,
+   "originY": 0.6333,
+   "kind": "turret",
+   "frameWidth": 84,
+   "frameHeight": 56,
+   "frames": [
+    "dir0",
+    "dir1",
+    "dir2",
+    "dir3",
+    "dir4",
+    "dir5",
+    "dir6",
+    "dir7",
+    "dir8",
+    "dir9",
+    "dir10",
+    "dir11",
+    "dir12",
+    "dir13",
+    "dir14",
+    "dir15"
+   ],
+   "directions": 16,
+   "muzzle": [
+    [
+     34.4,
+     -7.5
+    ],
+    [
+     31.8,
+     -0.9
+    ],
+    [
+     24.3,
+     4.7
+    ],
+    [
+     13.2,
+     8.4
+    ],
+    [
+     0.0,
+     9.7
+    ],
+    [
+     -13.2,
+     8.4
+    ],
+    [
+     -24.3,
+     4.7
+    ],
+    [
+     -31.8,
+     -0.9
+    ],
+    [
+     -34.4,
+     -7.5
+    ],
+    [
+     -31.8,
+     -14.1
+    ],
+    [
+     -24.3,
+     -19.7
+    ],
+    [
+     -13.2,
+     -23.4
+    ],
+    [
+     -0.0,
+     -24.7
+    ],
+    [
+     13.2,
+     -23.4
+    ],
+    [
+     24.3,
+     -19.7
+    ],
+    [
+     31.8,
+     -14.1
+    ]
+   ],
+   "screenAngle": [
+    0.0,
+    11.7,
+    26.6,
+    50.4,
+    90.0,
+    129.6,
+    153.4,
+    168.3,
+    180.0,
+    -168.3,
+    -153.4,
+    -129.6,
+    -90.0,
+    -50.4,
+    -26.6,
+    -11.7
+   ]
+  },
   "char_player": {
    "file": "chars/char_player.png",
-   "w": 936,
+   "w": 1254,
    "h": 99,
    "originX": 0.5,
    "originY": 0.7722,
    "kind": "char",
-   "frameWidth": 104,
+   "frameWidth": 114,
    "frameHeight": 99,
    "frames": [
     "idle",
@@ -469,8 +898,20 @@
     "axe1",
     "axe2",
     "pick1",
-    "pick2"
-   ]
+    "pick2",
+    "gun1",
+    "gun2"
+   ],
+   "muzzle": {
+    "gun1": [
+     47.2,
+     -37.9
+    ],
+    "gun2": [
+     42.4,
+     -45.6
+    ]
+   }
   },
   "char_zombie": {
    "file": "chars/char_zombie.png",
@@ -516,6 +957,32 @@
     "walk2",
     "attack"
    ]
+  },
+  "char_pirate_3": {
+   "file": "chars/char_pirate_3.png",
+   "w": 524,
+   "h": 102,
+   "originX": 0.5,
+   "originY": 0.7805,
+   "kind": "char",
+   "frameWidth": 131,
+   "frameHeight": 102,
+   "frames": [
+    "walk1",
+    "walk2",
+    "aim",
+    "shoot"
+   ],
+   "muzzle": {
+    "aim": [
+     55.9,
+     -38.0
+    ],
+    "shoot": [
+     51.1,
+     -47.1
+    ]
+   }
   },
   "icon_wood": {
    "file": "ui/icon_wood.png",
@@ -645,6 +1112,46 @@
    "originY": 0.5,
    "kind": "icon"
   },
+  "icon_iron": {
+   "file": "ui/icon_iron.png",
+   "w": 80,
+   "h": 80,
+   "originX": 0.5,
+   "originY": 0.5,
+   "kind": "icon"
+  },
+  "icon_gun": {
+   "file": "ui/icon_gun.png",
+   "w": 80,
+   "h": 80,
+   "originX": 0.5,
+   "originY": 0.5,
+   "kind": "icon"
+  },
+  "icon_wire": {
+   "file": "ui/icon_wire.png",
+   "w": 80,
+   "h": 80,
+   "originX": 0.5,
+   "originY": 0.5,
+   "kind": "icon"
+  },
+  "icon_watchtower": {
+   "file": "ui/icon_watchtower.png",
+   "w": 80,
+   "h": 80,
+   "originX": 0.5,
+   "originY": 0.5,
+   "kind": "icon"
+  },
+  "icon_guntower": {
+   "file": "ui/icon_guntower.png",
+   "w": 80,
+   "h": 80,
+   "originX": 0.5,
+   "originY": 0.5,
+   "kind": "icon"
+  },
   "overlay_ok": {
    "file": "ui/overlay_ok.png",
    "w": 90,
@@ -669,6 +1176,14 @@
    "originY": 0.5,
    "kind": "overlay"
   },
+  "overlay_range": {
+   "file": "ui/overlay_range.png",
+   "w": 512,
+   "h": 256,
+   "originX": 0.5,
+   "originY": 0.5,
+   "kind": "overlay"
+  },
   "fx_poof": {
    "file": "fx/fx_poof.png",
    "w": 70,
@@ -683,6 +1198,38 @@
    "h": 70,
    "originX": 0.5,
    "originY": 0.5,
+   "kind": "fx"
+  },
+  "proj_arrow": {
+   "file": "fx/proj_arrow.png",
+   "w": 60,
+   "h": 18,
+   "originX": 0.4603,
+   "originY": 0.4444,
+   "kind": "projectile"
+  },
+  "proj_bullet": {
+   "file": "fx/proj_bullet.png",
+   "w": 33,
+   "h": 13,
+   "originX": 0.7803,
+   "originY": 0.5385,
+   "kind": "projectile"
+  },
+  "fx_muzzle": {
+   "file": "fx/fx_muzzle.png",
+   "w": 42,
+   "h": 33,
+   "originX": 0.0825,
+   "originY": 0.4848,
+   "kind": "fx"
+  },
+  "fx_smoke": {
+   "file": "fx/fx_smoke.png",
+   "w": 43,
+   "h": 32,
+   "originX": 0.4957,
+   "originY": 0.5431,
    "kind": "fx"
   },
   "light_soft": {

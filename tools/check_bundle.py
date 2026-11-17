@@ -35,8 +35,22 @@ def main():
         w, h = Image.open(path).size
         if (w, h) != (v['w'], v['h']):
             bad(f'{k}: 크기가 manifest와 다름 {(w, h)} != {(v["w"], v["h"])}')
-        if 'frameWidth' in v and v['frameWidth'] * len(v['frames']) != v['w']:
-            bad(f'{k}: 프레임 수와 시트 폭이 맞지 않음')
+        if 'frameWidth' in v:
+            fw, fh = v['frameWidth'], v['frameHeight']
+            if v['w'] % fw or v['h'] % fh or (v['w'] // fw) * (v['h'] // fh) < len(v['frames']) or \
+                    (v['w'] // fw) * (v['h'] // fh - 1) >= len(v['frames']):
+                bad(f'{k}: 프레임 수와 시트 크기가 맞지 않음')
+        if v['kind'] == 'turret':
+            n = v.get('directions')
+            if not n or len(v.get('muzzle', [])) != n or len(v.get('screenAngle', [])) != n or len(v['frames']) % n:
+                bad(f'{k}: 포탑 방향 수, muzzle, screenAngle 개수가 맞지 않음')
+        if 'turret' in v:
+            if v['turret'] not in A or A[v['turret']]['kind'] != 'turret' or 'mount' not in v or 'lamp' not in v:
+                bad(f'{k}: 탑 받침의 turret/mount/lamp 값이 잘못됨')
+        if isinstance(v.get('muzzle'), dict):
+            for f in v['muzzle']:
+                if f not in v.get('frames', []):
+                    bad(f'{k}: muzzle 의 프레임 이름 {f} 가 없음')
         if not (0 <= v['originX'] <= 1 and 0 <= v['originY'] <= 1):
             bad(f'{k}: 기준점이 그림 밖')
     for ch in G['chunks']:
@@ -55,8 +69,13 @@ def main():
     print('2) 맵')
     N, T = M['cols'], M['terrain']
     occ = {}
+    if set(M['terrainLegend']) != {str(k) for row in T for k in set(row)} | set(M['terrainLegend']) or \
+            any(str(k) not in M['terrainLegend'] for row in T for k in row):
+        bad('terrainLegend 에 없는 땅 종류가 있음')
     for o in M['objects']:
         p = (o['col'], o['row'])
+        if o['kind'] == 'iron' and T[p[1]][p[0]] != 5:
+            bad(f'철광석이 철광 지대 밖에 있음: {p}')
         if o['sprite'] not in A:
             bad(f'맵의 사물 그림이 manifest에 없음: {o["sprite"]}')
         if T[p[1]][p[0]] == 0:
@@ -105,10 +124,10 @@ def main():
     names = set()
     for token in re.findall(r'`([^`\n]+)`', spec):
         for part in re.split(r'[,\s/·→]+', token):
-            m = re.fullmatch(r'((?:obj|build|char|icon|overlay|fx|light|glow|ground)_[a-z0-9_]*?)(\d+)~([a-z]?)(\d+)', part)
+            m = re.fullmatch(r'((?:obj|build|char|icon|overlay|fx|light|glow|ground|turret|proj)_[a-z0-9_]*?)(\d+)~([a-z]?)(\d+)', part)
             if m:                                           # obj_tree_a1~a3, build_fence_0~15 같은 범위 표기
                 names.update(f'{m.group(1)}{i}' for i in range(int(m.group(2)), int(m.group(4)) + 1))
-            elif re.fullmatch(r'(obj|build|char|icon|overlay|fx|light|glow|ground)_[a-z0-9_]+', part):
+            elif re.fullmatch(r'(obj|build|char|icon|overlay|fx|light|glow|ground|turret|proj)_[a-z0-9_]+', part):
                 names.add(part)
     for n in sorted(names):
         if n not in keys:
@@ -117,9 +136,12 @@ def main():
     if unused:
         bad(f'지시문에 한 번도 나오지 않는 그림: {unused}')
     frames = {f for v in A.values() for f in v.get('frames', [])}
-    for f in re.findall(r'`((?:idle|walk|dagger|axe|pick|attack|burn)\d?)`', spec):
+    for f in re.findall(r'`((?:idle|walk|dagger|axe|pick|attack|burn|gun|aim|shoot)\d?)`', spec):
         if f not in frames:
             bad(f'지시문에 있는 프레임 이름이 그림에 없음: {f}')
+    for pre, n in re.findall(r'(load|shot|dir)0~(?:load|shot|dir)(\d+)', spec):
+        if any(f'{pre}{i}' not in frames for i in range(int(n) + 1)):
+            bad(f'지시문의 프레임 범위 {pre}0~{pre}{n} 가 그림에 없음')
     # 지시문의 manifest 예시 숫자
     for k in ('obj_tree_a1', 'char_player'):
         v = A[k]

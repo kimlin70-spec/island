@@ -26,6 +26,7 @@ COL = {
     2: ((190, 211, 146), (167, 197, 128)),      # 풀
     3: ((150, 187, 126), (131, 170, 115)),      # 숲 바닥
     4: ((216, 203, 176), (198, 183, 154)),      # 돌밭
+    5: ((216, 186, 162), (196, 160, 138)),      # 철광 지대(붉은 흙)
 }
 
 
@@ -40,12 +41,12 @@ def decorations(tmap, W, H):
                 continue
             wx, wy = LY.t2w(c, r)
             sx, sy = wx - LY.GROUND_X0, wy - LY.GROUND_Y0
-            if k in (1, 4):
+            if k in (1, 4, 5):
                 n = 1 if k == 1 else 3
                 for i in range(n):
                     if LY.h01(c, r, 40 + i) < (0.10 if k == 1 else 0.45):
                         ox, oy = (LY.h01(c, r, 50 + i) - 0.5) * 56, (LY.h01(c, r, 60 + i) - 0.5) * 24
-                        col = '#cfb992' if k == 1 else ('#b9b0a2' if i % 2 else '#a79d8f')
+                        col = '#cfb992' if k == 1 else ('#b9b0a2' if i % 2 else '#a79d8f') if k == 4 else ('#b47d60' if i % 2 else '#8f8186')
                         parts.append(f'<ellipse cx="{f(sx+ox)}" cy="{f(sy+oy)}" rx="{3.2 if k == 1 else 4}" ry="{2 if k == 1 else 2.6}" fill="{col}" opacity="0.85"/>')
                 continue
             dark = '#7fa56c' if k == 2 else '#6a9463'
@@ -79,7 +80,7 @@ def main():
     # 칸 경계를 둥글게: 종류별 '소속도'를 부드럽게 만든 뒤 가장 큰 쪽으로 정한다
     kind = np.zeros((H, W), np.uint8)
     best = np.full((H, W), -1.0, np.float32)
-    for k in range(5):
+    for k in range(6):
         ind = ndi.gaussian_filter((tmap == k).astype(np.float32), 0.66)
         mk = ndi.map_coordinates(ind, [rf, cf], order=1, mode='constant', cval=1.0 if k == 0 else 0.0).astype(np.float32)
         upd = mk > best

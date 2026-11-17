@@ -17,7 +17,8 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 N = 64
 CEN = (N - 1) / 2.0
 SEED = 21
-WATER, SAND, GRASS, FOREST, DIRT = 0, 1, 2, 3, 4
+WATER, SAND, GRASS, FOREST, DIRT, IRONSOIL = 0, 1, 2, 3, 4, 5
+IRON_CENTER = (46, 31)          # 2단계: 동쪽 철광 지대
 START = (37, 39)
 
 
@@ -148,9 +149,33 @@ def main():
         landing = (int(round(CEN + dv[0] * k)), int(round(CEN + dv[1] * k)))
     boat = (CEN + dv[0] * (k + 1.7), CEN + dv[1] * (k + 1.7))
 
+    # 2단계: 동쪽 철광 지대. 위에서 만든 것(사물, 좀비 자리, 해적 자리)은 그대로 두고,
+    # 땅 색만 바꾼 뒤 별도의 난수로 철광석을 더한다.
+    irng = random.Random(SEED + 500)
+    for r in range(N):
+        for c in range(N):
+            if terrain[r][c] in (GRASS, FOREST) and \
+                    math.hypot(c - IRON_CENTER[0], r - IRON_CENTER[1]) < 3.3 + 0.7 * math.sin(c * 1.1 + r * 0.9):
+                terrain[r][c] = IRONSOIL
+    cand = [(c, r) for r in range(N) for c in range(N) if terrain[r][c] == IRONSOIL and (c, r) not in blocked]
+    irng.shuffle(cand)
+    irons = []
+    for (c, r) in cand:
+        if len(irons) >= 10:
+            break
+        if any(abs(c - a) + abs(r - b) <= 1 for a, b in irons):     # 바로 옆(상하좌우)에 붙지 않게
+            continue
+        trial = blocked | {(c, r)}
+        if reachable(trial) != n_land - len(trial):
+            continue
+        blocked.add((c, r))
+        irons.append((c, r))
+        objects.append(dict(kind='iron', sprite='obj_iron_2' if irng.random() < 0.4 else 'obj_iron_1', col=c, row=r))
+    objects.sort(key=lambda o: (o['col'] + o['row'], o['col']))
+
     data = dict(
         cols=N, rows=N, tileWidth=80, tileHeight=40,
-        terrainLegend={"0": "water", "1": "sand", "2": "grass", "3": "forest", "4": "dirt"},
+        terrainLegend={"0": "water", "1": "sand", "2": "grass", "3": "forest", "4": "dirt", "5": "ironsoil"},
         terrain=terrain,
         playerStart=dict(col=START[0], row=START[1]),
         zombieSpawns=[dict(col=c, row=r) for c, r in spawns],

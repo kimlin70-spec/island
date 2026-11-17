@@ -41,6 +41,12 @@ PAL = {
     'sail_l': '#fdf7e9', 'sail': '#efe5cc', 'sail_d': '#d9cbab', 'flag': '#3d3745', 'foam': '#ffffff', 'lamp': '#ffdb85',
     'heart': '#e0625c', 'heart_l': '#f4a59a', 'heart_e': '#d9d2c8', 'sun': '#f6cf5e', 'sun_d': '#eaa94a', 'moon': '#f7ebb4',
     'puff_d': '#dfe3e8', 'ok': '#5fe07a', 'no': '#f2605a',
+    # 2단계: 철, 총, 방어 시설
+    'metal_l': '#b3bbc6', 'metal': '#7c8591', 'metal_d': '#5a616d', 'brass': '#d9a94e',
+    'iron_l': '#b7a8a3', 'iron': '#988986', 'iron_d': '#76696b', 'rust_l': '#eaa877', 'rust': '#d07d4f', 'rust_d': '#a65f43',
+    'ore': '#4c4855', 'ore_hi': '#d5dde8', 'wire': '#6a6672', 'string': '#f4ecd8', 'fletch': '#d9655f',
+    'smoke_l': '#f1f2f5', 'smoke': '#d7dbe3', 'smoke_d': '#b7becb',
+    'pgun': '#4f7f86', 'pgun_d': '#3e676e', 'hatb': '#5c4739', 'patch': '#3d3745', 'leather': '#8a5d45',
 }
 PENCIL = np.array([84, 70, 64], np.float32) / 255
 SHADOW_ALPHA = 0.30
