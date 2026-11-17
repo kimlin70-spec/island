@@ -169,14 +169,17 @@ export class Enemy extends Walker {
     this.body.look(dc - dr, dc + dr);
   }
 
-  // 지금 서 있는 자리에서 칠 것: 목표 옆이면 목표(주인공은 'player', 텐트는 그 시설), 다음 칸이 시설이면 그 시설. 없으면 null.
+  // 지금 서 있는 자리에서 칠 것: 목표 옆이면 목표(주인공은 'player', 텐트는 그 시설), 다음 칸이 시설이면 그 시설.
+  // 시설이 아닌 칸으로 걸어갈 길이 있으면(다른 칸으로 옮기려는 중) 치지 않고 걷는다. 없으면 null.
   // (update 의 '서 있는 동안 하는 일'과 같은 규칙. 휘두르기 시작한 대상이 이것과 다르면 그만둔다.)
   aim(target) {
-    if (this.col !== this.tile.col || this.row !== this.tile.row) return null;
+    const t = this.tile;
+    if (this.col !== t.col || this.row !== t.row) return null;
+    const next = this.path.find((p) => p.col !== t.col || p.row !== t.row);
+    const blocker = next ? this.map.structureAt(next.col, next.row) : null;
+    if (next && !blocker) return null;
     if (this.nextTo(target) && !this.onTarget(target)) return target.structure || 'player';
-    const next = this.path[0];
-    if (next && (next.col !== this.tile.col || next.row !== this.tile.row)) return this.map.structureAt(next.col, next.row);
-    return null;
+    return blocker;
   }
 
   update(dt) {

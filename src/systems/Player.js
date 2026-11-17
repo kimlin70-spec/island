@@ -36,7 +36,7 @@ export class Player extends Walker {
 
   // (col, row) 칸으로 걸어간다. 하던 행동은 멈춘다. 갈 수 없는 칸이면 아무 일도 하지 않고 false.
   goTo(col, row) {
-    if (!this.map.isWalkable(col, row)) return false;
+    if (this.downed || !this.map.isWalkable(col, row)) return false;
     if (!this.routeTo([{ col, row }])) return false;
     this.stopAction();
     return true;
@@ -70,6 +70,7 @@ export class Player extends Walker {
   //   chase:      대상이 움직인다(적). 대상이 다른 칸으로 가면 길을 다시 찾아 쫓아간다.
   // 갈 수 없으면 아무 일도 하지 않고 false.
   act(action) {
+    if (this.downed) return false;                    // 쓰러진 뒤에는 아무것도 하지 않는다
     const tiles = action.target.tiles;
     // 이미 그 대상에게 하는 중이면 그대로 둔다. 다만 걷는 길이 시설에 끊겨 대상 옆까지 가지 못하면 길을 다시 찾는다.
     // 하던 행동이 막 끝났으면(나무가 방금 그루터기가 되었으면) 새 행동으로 받는다.
