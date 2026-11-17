@@ -1,4 +1,4 @@
-# 섬 생존 프로토타입 — 개발 지시문 (1단계: 첫날과 첫 밤 · 2단계: 철과 방어 시설)
+# 섬 생존 프로토타입 — 개발 지시문 (1단계: 첫날과 첫 밤 · 2단계: 철과 방어 시설 · 다듬기)
 
 이 문서는 Claude Code가 읽고 그대로 만드는 기준 문서다. 그림(`assets/`)과 맵(`data/map.json`)은 이미 들어 있다.
 
@@ -7,6 +7,7 @@
 - **목적**: 게임 초반의 흐름이 재미있는지 직접 해 보고 판단하기 위한 프로토타입. 앞으로 많이 고칠 것이므로 **작게, 고치기 쉽게** 만든다.
 - **1단계 (Phase 1~6)**: 단검과 티셔츠만 가지고 시작 → 단검으로 나무를 벤다 → 나무 도끼와 나무 곡괭이를 만든다 → 나무와 돌을 모아 울타리, 모닥불, 텐트를 짓는다 → 첫 밤을 넘긴다.
 - **2단계 (Phase 7~9, 11장)**: 철광석을 캐서 총과 철조망을 만들고, 화살을 쏘는 망루와 총을 쏘는 총 타워를 세워 밤을 막는다(타워 디펜스). 해적 중에는 멀리서 총을 쏘는 총잡이가 있다. **1단계를 끝내고 사용자가 원할 때** 시작한다.
+- **다듬기 (Phase 10, 12장)**: 게임 규칙은 그대로 두고 움직임과 타격감을 자연스럽게 한다. 걷기 4장, 뒷모습, 숨쉬기와 눈 깜빡임, 휘두르기 3장, 맞기·쓰러지기·땅에서 올라오기, 휘두른 궤적, 맞은 곳의 번쩍임, 나무 조각과 잎, 먼지 등. Phase 5 이후 아무 때나 할 수 있다.
 - **게임 전체 구상(참고만 한다. 이번에 만들지 않는다)**: 낮은 안전하고 밤에만 좀비나 해적이 나온다. 낮에는 나무와 돌을 캐서 캠프를 짓는다. 주기적으로 배가 고파져서 농사, 낚시, 사냥을 해야 한다. 나중에는 닭과 젖소를 키워 계란과 우유를 얻고, 강아지와 고양이도 키운다.
 - **넣지 않는 것**: 스토리, 저장, 소리, 제목 화면. 새로고침하면 처음부터 다시 시작한다. 자세한 목록은 10장.
 - **플레이 환경**: PC 브라우저(마우스)와 태블릿(터치). 가로 화면.
@@ -14,11 +15,13 @@
 - **완성 모습**: 먼저 `preview/` 폴더의 그림을 본다. 게임 화면이 이 그림과 같은 느낌이어야 한다.
   - `preview_map.png` 섬 전체 / `preview_day.png` 시작 직후 / `preview_build.png` 만들기 창을 열고 캠프를 짓는 중 / `preview_night.png` 첫 밤(해적은 Phase 6을 넣었을 때의 모습) / `preview_assets.png` 그림 전체
   - 2단계: `preview_iron.png` 철광석 캐기 / `preview_defense_day.png` 총 타워 지을 칸 고르기(사거리 표시) / `preview_defense_night.png` 탑, 철조망, 총잡이 해적이 있는 밤
+  - 다듬기: `preview_motion.gif` 움직이는 미리보기(걷기, 나무 베기, 돌 캐기, 맞기와 쓰러지기, 땅에서 올라오기, 장전)
 - **참고 예시**: `tools/reference_map.html`은 3장의 규칙만으로 화면을 그리는 확인용 페이지다. 서버를 켜고 `http://localhost:8000/tools/reference_map.html?mode=day` (또는 `night`, `full`, `defense`)로 연다. Phaser 3.90에서 아래 네 가지가 되는 것을 확인했다. 좌표, 겹침, 밤 화면이 헷갈리면 이 파일을 본다. 다만 게임 코드는 이 파일을 늘려 가지 말고 2장의 구성대로 새로 짠다.
   - 바닥 그림 조각 사이에 줄이 보이지 않는다(카메라가 소수 좌표에 있거나 확대·축소해도).
   - 누른 곳 → 칸 변환이 맞는다(1920×1200, 1366×768, 1024×768 터치).
   - 밤 화면(빛 지도)이 `preview_night.png`와 같게 나온다.
   - (`mode=defense`) 포탑이 움직이는 좀비 쪽으로 돌아가며 화살과 총알을 쏜다. 포탑 시트(두 줄짜리 포함), 받침 위의 포탑 위치, 총구 위치가 맞다.
+  - (`mode=motion`) manifest의 `anims` 55개가 빠진 프레임 없이 Phaser 애니메이션으로 만들어지고, 프레임마다 정한 시간대로 돈다. `fx_particles`로 Phaser 파티클이 나온다.
 
 ## 1. 작업 방식
 
@@ -73,19 +76,22 @@ tools/  preview/       제공됨 (게임에는 쓰지 않는다)
   },
   "assets": {
     "obj_tree_a1": { "file": "objects/obj_tree_a1.png", "w": 109, "h": 130, "originX": 0.4005, "originY": 0.8016, "kind": "object" },
-    "char_player": { "file": "chars/char_player.png", "w": 1254, "h": 99, "originX": 0.5, "originY": 0.7722, "kind": "char",
-                     "frameWidth": 114, "frameHeight": 99,
-                     "frames": ["idle", "walk1", "walk2", "dagger1", "dagger2", "axe1", "axe2", "pick1", "pick2", "gun1", "gun2"],
-                     "muzzle": { "gun1": [47.2, -37.9], "gun2": [42.4, -45.6] } }
+    "char_player": { "file": "chars/char_player.png", "w": 1310, "h": 504, "originX": 0.5, "originY": 0.6485, "kind": "char",
+                     "frameWidth": 131, "frameHeight": 126,
+                     "frames": ["idle", "walk1", "walk2", "dagger1", "dagger2", "axe1", "axe2", "pick1", "pick2", "gun1", "gun2", "idle2", ... ],
+                     "muzzle": { "gun1": [47.2, -37.9], "gun2": [42.4, -45.6], ... },
+                     "anims": { "walk": { "frames": [["walk1", 83], ["walk3", 83], ["walk2", 83], ["walk4", 83]], "loop": true },
+                                "axe": { "frames": [["axe1", 190], ["axe2", 90], ["axe3", 150]], "loop": false, "hit": "axe2", "swing": "heavy" }, ... } }
   }
 }
 ```
 
 - `originX`, `originY`: 그림에서 **발이 닿는 점**. `sprite.setOrigin(originX, originY)`를 하고 칸 중심 좌표에 놓으면 제자리에 선다. 그림자는 그림 안에 이미 들어 있다.
-- `frameWidth`가 있으면 가로로 늘어선 스프라이트 시트다. `frames`의 순서가 프레임 번호(0부터)다.
+- `frameWidth`가 있으면 스프라이트 시트다. `frames`의 순서가 프레임 번호(0부터)다.
 - 그 밖의 값: `build_tent`의 `footprint`(차지하는 칸 수)와 `door`(문 한가운데, 기준점에서의 px 거리), `build_campfire`의 `flame`(불꽃 위치), `obj_ship`의 `lamp`(등불 위치). 빛을 놓을 자리로 쓴다.
 - 2단계에서 쓰는 값: 탑 받침의 `turret`(올릴 포탑 그림 이름), `mount`(포탑을 올리는 자리), `lamp`(등불), 포탑의 `directions`(방향 수 16), `muzzle`(방향별 화살·총알이 나가는 곳 16개), `screenAngle`(방향별 화면 각도), 캐릭터의 `muzzle`(프레임별 총구 위치). 쓰는 법은 11.10.
-- 시트는 대부분 한 줄이지만 `turret_bow`는 두 줄(16개씩)이다. 프레임 번호는 왼쪽→오른쪽, 위→아래 순서다. Phaser의 `load.spritesheet`가 그대로 읽는다. 프레임은 번호 대신 이름으로 찾는다(`frames.indexOf(이름)`).
+- 시트는 여러 줄일 수 있다(캐릭터는 10개씩, `turret_bow`는 16개씩). 프레임 번호는 왼쪽→오른쪽, 위→아래 순서다. Phaser의 `load.spritesheet`가 그대로 읽는다. 프레임은 번호 대신 이름으로 찾는다(`frames.indexOf(이름)`). 프레임은 뒤에 붙여 늘리므로 예전 이름의 번호는 바뀌지 않는다.
+- `anims`: 애니메이션 이름 → 프레임 순서와 각 프레임의 시간(ms), `loop`(반복), `hit`(피해를 주는 프레임), `swing`(그때 함께 틀 `fx_swing`의 애니메이션). 쓰는 법은 12.1.
 
 ### 3.2 좌표 변환
 
@@ -149,6 +155,7 @@ this.cameras.main.setBounds(G.x, G.y, G.width, G.height);              // 카메
 - 다 벤 나무는 `obj_stump`, 다 캔 돌은 `obj_rubble`로 바꾼다. 이 둘은 장식이다. 밟고 지나갈 수 있고, 그 칸에 시설을 지으면 사라진다.
 - 캐릭터 그림은 모두 **오른쪽**을 본다. 화면 왼쪽으로 움직이거나 왼쪽의 대상을 향할 때 `setFlipX(true)`. 시트는 발이 프레임 가로 한가운데에 있어서 뒤집어도 위치가 변하지 않는다.
 - 걷기: `walk1`, `walk2`를 초당 6장으로 번갈아. 서 있을 때는 `idle`(좀비와 해적은 `walk1`).
+  - 새로 시작한다면 처음부터 manifest의 `anims`(12.1)로 걷기(4장)와 도구 쓰기(3장)를 만들어도 된다. 더 자연스럽고 코드는 같다. 이미 아래 방법으로 만들었다면 Phase 10에서 바꾼다.
 - 주인공이 도구를 쓸 때: 도구에 따라 `dagger1→dagger2`, `axe1→axe2`, `pick1→pick2`. 앞의 것(들어 올림)을 0.2초, 뒤의 것(내려침)을 0.15초 보여 주고 `idle`로 돌아간다. **내려치는 순간**에 피해를 주고, 맞은 대상을 0.1초 동안 좌우로 3px 흔들고 `fx_hit`을 0.15초 보여 준다.
 - 좀비와 해적이 때릴 때는 `attack` 프레임을 0.3초 보여 준다.
 - 맞은 캐릭터는 0.1초 동안 하얗게 번쩍인다. 사물이 다 쓰이거나 캐릭터·시설이 사라질 때는 `fx_poof`가 0.3초 동안 커지며 흐려진다.
@@ -234,6 +241,9 @@ for (const L of lights) {                          // { x, y, radius, color, alp
 | (2단계) 캐릭터 | `char_player`의 gun1, gun2 프레임, `char_pirate_3`(총잡이 해적: walk1, walk2, aim, shoot) |
 | (2단계) 아이콘 | `icon_iron`, `icon_gun`, `icon_wire`, `icon_watchtower`, `icon_guntower` |
 | (2단계) 날아가는 것, 효과 | `proj_arrow`, `proj_bullet`, `fx_muzzle`(총구 불꽃), `fx_smoke`(총 연기), `overlay_range`(사거리 표시) |
+| (다듬기) 캐릭터 프레임 | 걷기 walk3, walk4, 숨쉬기 idle2, 눈 깜빡임 blink, 휘두르기 마지막 장(dagger3 등), hurt, 쓰러짐(down, die1~3), 땅에서 올라옴(rise1~3), 해적 attack0·attack2, 총잡이 reload1·2, 뒷모습(b가 붙은 이름) |
+| (다듬기) 효과 시트 | `fx_swing`(휘두른 궤적), `fx_impact`(맞은 곳), `fx_dust`(먼지), `fx_sparkle`(반짝임), `fx_vanish`(보라 연기), `fx_splash`(물보라), `fx_smoke_puff`(총 연기 4장) |
+| (다듬기) 조각, 자국 | `fx_particles`(wood1, wood2, leaf1~3, stone1, stone2, iron, spark, ember, goo, dirt, dust, heart), `fx_footprint`(모래 발자국), `proj_arrow_stuck`(땅에 꽂힌 화살) |
 
 주인공 그림은 임시다. 누가 주인공인지는 나중에 정한다.
 
@@ -566,6 +576,19 @@ export const CONFIG = {
 - 총잡이 해적이 멈춰 서서 겨누는 자세를 잠깐 보인 뒤 쏜다. 그 사이에 움직이면 피할 수 있다.
 - 밤 화면이 `preview_defense_night.png`처럼 보인다(탑 등불, 화살, 총알, 쏠 때의 불빛).
 
+### Phase 10 — 움직임과 타격감 다듬기 (Phase 5 이후 아무 때나)
+
+- manifest의 `anims`로 애니메이션 만들기(12.1), 앞모습과 뒷모습 고르기(12.2), 캐릭터별 애니메이션(12.3)
+- 타격감(12.4), 휘두른 궤적(12.5), 조각 효과(12.6), 자원과 시설의 움직임(12.7), 총과 화살(12.8), 걷기 효과(12.9)
+- 아직 만들지 않은 Phase의 것(탑, 총잡이 등)은 그 Phase를 만들 때 12장을 함께 적용한다
+
+확인할 것
+- 화면 위쪽으로 걸어가면 뒷모습이 보이고, 다리가 4장으로 부드럽게 움직인다. 멈추면 숨을 쉬듯 살짝 움직이고 가끔 눈을 깜빡인다.
+- 나무를 베면 도끼를 들어 올렸다 내리치고 따라 내려가며, 흰 궤적과 나무 조각·잎이 튄다. 다 베면 나무가 넘어가며 먼지가 인다(`preview_motion.gif`).
+- 좀비를 때리면 잠깐 멈칫하며 하얗게 번쩍이고 뒤로 밀린다. 쓰러지면 넘어진 뒤 보라색 연기로 사라진다.
+- 밤이 되면 좀비가 흙을 튀기며 땅에서 올라온다.
+- 태블릿에서도 느려지지 않는다. 느리면 `config.fx.particleCount`를 0.5로 줄인다.
+
 ## 10. 이번에 하지 않는 것
 
 나중에 넣을 것(지금은 만들지 않는다. 다만 나중에 넣기 쉽도록 숫자와 종류를 `config.js`에 모아 둔다)
@@ -731,3 +754,142 @@ rotation = Math.atan2((y1 - y0) - h * 4 * (1 - 2 * t), x1 - x0);   // 화살 끝
 **사거리 원.** `overlay_range`(512×256, 땅 위의 원 모양)를 탑의 칸 중심에 놓고 `setDisplaySize(113.1 × R, 56.6 × R)` 한다(R = 사거리 칸 수). depth는 바닥 표시와 같은 3.
 
 `tools/reference_map.html?mode=defense`에 위 내용이 모두 들어 있다(포탑이 움직이는 좀비를 따라 돌며 화살과 총알을 쏜다).
+
+## 12. 움직임과 타격감 다듬기 (Phase 10)
+
+게임 규칙(피해, 시간, 수치)은 바꾸지 않고 보이는 것만 자연스럽게 한다. 숫자는 `config.fx`에 둔다(12.10). 3.5, 5장, 11장의 보이는 방법과 다른 곳은 Phase 10부터 12장을 따른다.
+
+### 12.1 애니메이션 만들기
+
+캐릭터와 효과 시트의 `anims`(3.1)를 게임 시작 때 모두 Phaser 애니메이션으로 만든다. 이름은 `그림이름:애니메이션이름`이다(예: `char_player:walk`).
+
+```js
+for (const [key, v] of Object.entries(A)) {                         // A = manifest.assets
+  for (const [name, a] of Object.entries(v.anims || {})) {
+    this.anims.create({
+      key: key + ':' + name, repeat: a.loop ? -1 : 0,
+      frames: a.frames.map(([f, ms]) => ({ key, frame: v.frames.indexOf(f), duration: ms })),
+    });
+  }
+}
+sprite.play('char_player:axe');
+```
+
+- Phaser 3.90은 프레임의 `duration`을 그 프레임이 보이는 시간으로 그대로 쓴다(확인함).
+- `hit`: 피해를 주는 프레임. 그 프레임이 나오는 순간 피해와 효과를 낸다. 첫 장이 `hit`인 것(총잡이의 shoot)도 있어서 `animationstart`와 `animationupdate`를 둘 다 본다(확인함).
+
+```js
+const hitFrame = (key, name) => A[key].frames.indexOf(A[key].anims[name].hit);
+function onFrame(anim, frame) {                  // sprite.on('animationstart', onFrame); sprite.on('animationupdate', onFrame);
+  const [key, name] = anim.key.split(':');
+  if (A[key].anims[name].hit && frame.textureFrame === hitFrame(key, name)) {
+    // 피해, 효과(12.4)
+  }
+}
+```
+
+- `swing`: 그 순간 함께 틀 `fx_swing`의 애니메이션 이름(12.5).
+- 빨리 감기(시험용 속도, 텐트)는 `this.anims.globalTimeScale`도 함께 바꾼다.
+
+### 12.2 앞모습과 뒷모습
+
+움직이는 방향(또는 때리는 목표 쪽)의 화면 방향 (dx, dy)로 고른다.
+
+- dy < 0(화면 위쪽으로): 뒷모습. 이름 앞에 `b`가 붙은 애니메이션을 쓴다(`bwalk`, `bidle`, `baxe`, `battack` 등).
+- 그 밖: 앞모습.
+- dx < 0: `setFlipX(true)`. 위아래로만 움직일 때(|dx|가 아주 작을 때)는 직전의 좌우를 그대로 둔다.
+- 뒷모습이 없는 동작(맞기, 쓰러지기, 올라오기, 총잡이의 겨누기·쏘기·장전)은 앞모습을 쓴다.
+
+### 12.3 캐릭터별 애니메이션
+
+| 그림 | 애니메이션 |
+|---|---|
+| `char_player` | idle, bidle(숨쉬기, 반복), walk, bwalk(반복), blink, dagger, axe, pick, gun과 b가 붙은 것, hurt, down |
+| `char_zombie` | idle, walk, bwalk, attack, battack, hurt, die, rise |
+| `char_pirate_1`, `char_pirate_2` | idle, walk, bwalk, attack, battack, hurt, die |
+| `char_pirate_3` | idle, walk, bwalk, aim, shoot, reload, hurt, die |
+
+- 서 있을 때는 idle을 반복한다. 주인공은 3~5초에 한 번 blink(0.12초)를 보여 주고 idle로 돌아간다.
+- 걸을 때는 walk를 반복하고, 멈추면 바로 idle로 바꾼다.
+- 도구 쓰기는 3장이다(들어 올림 → 내리침 → 따라 내려감). 피해는 `hit` 프레임에 준다. 한 번 휘두르는 시간이 `player.actionInterval`(0.55초)보다 짧아서, 남는 시간에는 idle을 보여 준다.
+- 좀비와 해적의 공격도 `attack`의 `hit` 프레임에 피해를 준다.
+- 총잡이: aim → shoot → reload를 되풀이한다. 11.7의 시간과 맞는다(겨누기 0.6초 + 쏘기 0.2초 + 장전 1.6초 + 쉼 0.2초 = 2.6초).
+- 맞을 때: hurt(주인공 0.22초, 적 0.2초) 뒤에 하던 애니메이션으로 돌아간다.
+- 쓰러질 때: die(마지막 장에서 0.7초 머문다) → 0.4초에 걸쳐 흐려지며 좀비는 `fx_vanish`, 해적은 `fx_dust`.
+- 좀비가 나올 때: 5.8의 `fx_poof` 대신 rise(땅에서 올라옴)와 흙 조각. rise 동안은 움직이지도 공격받지도 않는다.
+- 주인공이 쓰러질 때: down을 보여 주고 1초 뒤에 "쓰러졌습니다" 창을 띄운다.
+
+### 12.4 타격감(맞힐 때)
+
+`hit` 프레임에서 아래를 한꺼번에 한다.
+
+1. 피해를 주고, 맞은 곳에 `fx_hit` 대신 `fx_impact`를 튼다. 맞은 곳 = 캐릭터는 발에서 40px 위, 나무·돌·시설은 기준점에서 30px 위. 때린 쪽에는 `fx_swing`(12.5).
+2. 맞은 쪽: hurt 프레임, 0.06초 하얗게(`setTintFill(0xffffff)` → `clearTint()`), 때린 쪽 반대로 6px 밀림(0.12초).
+3. 멈칫(히트 스톱): 때린 쪽과 맞은 쪽의 애니메이션만 0.05초 멈췄다가 다시 튼다(`anims.pause()` → `anims.resume()`). 게임 전체를 멈추지는 않는다.
+4. 조각 효과(12.6).
+5. 주인공이 맞았을 때만 카메라를 살짝 흔든다: `cam.shake(120, 0.004)`.
+
+### 12.5 휘두른 궤적 `fx_swing`
+
+- 기준점이 캐릭터의 발이다. 캐릭터와 같은 자리에 놓고 같은 `setFlipX`를 준다.
+- 애니메이션: swing(단검), heavy(도끼, 곡괭이, 해적 칼), bswing, bheavy(뒷모습). 도구 `anims`의 `swing` 값을 쓴다.
+- 앞모습 궤적의 depth = 캐릭터 + 0.5, 뒷모습 궤적은 캐릭터 − 0.5(캐릭터 뒤).
+
+### 12.6 조각 효과 `fx_particles`
+
+프레임 이름: wood1, wood2, leaf1, leaf2, leaf3, stone1, stone2, iron, spark, ember, goo, dirt, dust, heart. Phaser 파티클로 흩뿌린다. 개수는 아래 표의 수 × `config.fx.particleCount`(반올림, 최소 1).
+
+```js
+const P = A.fx_particles, idx = (n) => P.frames.indexOf(n);
+const chips = this.add.particles(0, 0, 'fx_particles', {
+  frame: ['wood1', 'wood2', 'leaf1'].map(idx), emitting: false, lifespan: 600, speed: { min: 90, max: 220 },
+  angle: { min: 200, max: 340 }, gravityY: 650, rotate: { min: 0, max: 360 }, alpha: { start: 1, end: 0 },
+  scale: { min: 0.8, max: 1.2 } }).setDepth(50000);
+chips.explode(5, x, y);                                              // x, y = 맞은 곳
+```
+
+| 언제 | 조각 |
+|---|---|
+| 나무를 칠 때 | wood1, wood2 3개 + 잎 2개(leaf1, leaf2. 단풍나무 `obj_tree_w1`은 leaf3) |
+| 나무가 넘어갈 때 | 잎 8개(천천히: speed 40~140, gravityY 250) |
+| 돌을 칠 때 | stone1, stone2 3개 + dust 1개 |
+| 돌이 부서질 때 | stone 6개 |
+| 철광석을 칠 때 | iron 2개 + spark 3개 |
+| 적이 맞을 때 | goo 3개 |
+| 좀비가 올라올 때 | dirt 6개 + dust 2개 |
+| 시설을 지을 때 | dust 4개 |
+| 시설이 부서질 때 | 나무 시설은 wood 6개, 총 타워는 stone 6개 |
+| 하트가 찰 때(텐트, 아침) | heart 2개(위로 천천히: angle 250~290, speed 40~70, gravityY −20) |
+| 모닥불(밤에만) | ember를 0.3초마다 1개(angle 255~285, speed 30~60, gravityY −15, lifespan 1200) |
+
+### 12.7 자원과 시설의 움직임
+
+- 나무를 칠 때마다 나무 그림을 좌우로 3px 흔든다(0.16초).
+- 나무를 다 베면: 나무를 기준점(발)을 축으로 주인공 반대쪽으로 0.5초에 80° 넘어뜨리고(origin이 발이라 `setRotation`이 그대로 맞는다), 0.3초 뒤부터 흐려지게 한다. 넘어간 끝(기준점에서 넘어간 쪽으로 60px)에 `fx_dust`와 잎 조각. 그루터기는 바로 나타난다.
+- 돌, 철광석을 다 캐면: 바로 `obj_rubble`로 바꾸고 `fx_dust`와 조각.
+- 시설을 지을 때: 크기를 0.8 → 1.06 → 1.0으로 0.25초에(튀어나오듯), `fx_dust`(0.6배)와 `fx_sparkle`.
+- 시설이 부서질 때: 5.4의 `fx_poof` 대신 조각(12.6)과 `fx_dust`.
+
+### 12.8 총과 화살
+
+- 총을 쏠 때: `fx_muzzle`(0.07초) 뒤에 총구에서 `fx_smoke_puff`를 튼다(11.5의 `fx_smoke` 대신).
+- 탑이 쏜 화살이 목표를 잃으면(목표가 먼저 사라지면) 떨어진 곳에 `proj_arrow_stuck`을 남기고, 2초 뒤 0.5초에 걸쳐 없앤다. 화살이 왼쪽으로 날아가고 있었으면 `setFlipX(true)`.
+- 총알이 목표를 잃으면 떨어진 곳에 `fx_dust`(0.4배).
+
+### 12.9 걷기 효과
+
+- 걸을 때 디딤 프레임(walk1, walk2, bwalk1, bwalk2)이 나올 때마다 뒷발 쪽(발에서 뒤로 8px)에 `fx_dust`를 0.4배로 튼다.
+- 모래(terrain 1) 위에서는 디딜 때 `fx_footprint`를 땅에 남긴다(depth 2, 3초 뒤 1초에 걸쳐 사라짐, 한 번에 최대 20개). 걷는 방향이 왼쪽이면 `setFlipX(true)`.
+- 해적이 상륙할 때: 상륙 칸에서 배 쪽으로 30px 떨어진 물가에 `fx_splash`.
+
+### 12.10 수치 (src/config.js에 더한다)
+
+```js
+fx: {
+  hitStop: 0.05, flash: 0.06, knockback: 6, knockbackTime: 0.12, cameraShake: { duration: 120, intensity: 0.004 },
+  treeShake: 3, treeFall: { angle: 80, time: 0.5, fadeAfter: 0.3 }, buildPop: { from: 0.8, over: 1.06, time: 0.25 },
+  blinkEvery: [3, 5], stepDustScale: 0.4, footprintLife: 3, footprintMax: 20, arrowStuckLife: 2,
+  particles: { lifespan: 600, speed: [90, 220], gravityY: 650 },
+  particleCount: 1,        // 조각 수 배율. 태블릿에서 느리면 0.5
+},
+```

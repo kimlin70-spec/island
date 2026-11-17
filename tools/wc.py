@@ -47,6 +47,11 @@ PAL = {
     'ore': '#4c4855', 'ore_hi': '#d5dde8', 'wire': '#6a6672', 'string': '#f4ecd8', 'fletch': '#d9655f',
     'smoke_l': '#f1f2f5', 'smoke': '#d7dbe3', 'smoke_d': '#b7becb',
     'pgun': '#4f7f86', 'pgun_d': '#3e676e', 'hatb': '#5c4739', 'patch': '#3d3745', 'leather': '#8a5d45',
+    # 움직임과 효과
+    'dirt_l': '#c9ae8c', 'dirt': '#a98d6c', 'dirt_d': '#8a7057', 'dirt_dd': '#5e4b3e',
+    'swish': '#f7fbff', 'swish_d': '#cfe2f1', 'dust_l': '#f1ebdf', 'dust': '#e2d8c6', 'dust_d': '#c8bba4',
+    'vanish_l': '#c4b6dd', 'vanish': '#9786b4', 'vanish_d': '#73648f', 'splash': '#cde9f1', 'splash_d': '#97c9dc',
+    'goo': '#a9cf8f', 'goo_d': '#82ad6f', 'foot': '#c7b088', 'ember': '#ffb35c', 'pink': '#f4a0a0',
 }
 PENCIL = np.array([84, 70, 64], np.float32) / 255
 SHADOW_ALPHA = 0.30
@@ -203,3 +208,26 @@ def sprite(prims, name, box=None, pencil=1.0, wobble=1.0, keep_box=False, symmet
     if keep_box:
         return img, anchor
     return trim(img, anchor)
+
+
+def frame_prims(spec):
+    """한 프레임의 모든 도형(크기 계산용). spec = 도형 목록 또는 {'under','body','over','clip'}"""
+    if isinstance(spec, dict):
+        return spec['under'] + spec['body'] + spec['over']
+    return spec
+
+
+def sprite_layers(spec, name, box, pencil=1.0, wobble=1.0):
+    """층으로 나뉜 프레임(땅에서 올라오는 좀비 등): 뒤층 -> 몸(clip 높이 아래는 지움) -> 앞층. 크기와 기준점은 box 그대로."""
+    if not isinstance(spec, dict):
+        return sprite(spec, name, box=box, keep_box=True, pencil=pencil, wobble=wobble)
+    under, anchor = sprite(spec['under'], name + '_u', box=box, keep_box=True, pencil=pencil, wobble=wobble)
+    body, _ = sprite(spec['body'], name, box=box, keep_box=True, pencil=pencil, wobble=wobble)
+    over, _ = sprite(spec['over'], name + '_o', box=box, keep_box=True, pencil=pencil, wobble=wobble)
+    a = np.asarray(body).copy()
+    cut = int(round(anchor[1] + spec['clip'] * A.SCALE))
+    a[max(0, cut):, :, 3] = 0
+    out = under.copy()
+    out.alpha_composite(Image.fromarray(a))
+    out.alpha_composite(over)
+    return out, anchor

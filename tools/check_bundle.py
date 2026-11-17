@@ -53,6 +53,16 @@ def main():
                     bad(f'{k}: muzzle 의 프레임 이름 {f} 가 없음')
         if not (0 <= v['originX'] <= 1 and 0 <= v['originY'] <= 1):
             bad(f'{k}: 기준점이 그림 밖')
+        for name, a in v.get('anims', {}).items():               # 애니메이션: 프레임 이름, 시간, hit, swing
+            names = [f for f, ms in a['frames']]
+            if any(f not in v.get('frames', []) for f in names):
+                bad(f'{k}:{name} 애니메이션에 없는 프레임이 있음: {[f for f in names if f not in v.get("frames", [])]}')
+            if any(not isinstance(ms, int) or ms <= 0 for f, ms in a['frames']):
+                bad(f'{k}:{name} 애니메이션의 프레임 시간이 잘못됨')
+            if 'hit' in a and a['hit'] not in names:
+                bad(f'{k}:{name} 의 hit 프레임 {a["hit"]} 가 애니메이션에 없음')
+            if 'swing' in a and a['swing'] not in A.get('fx_swing', {}).get('anims', {}):
+                bad(f'{k}:{name} 의 swing {a["swing"]} 가 fx_swing 에 없음')
     for ch in G['chunks']:
         path = os.path.join(ROOT, 'assets', ch['file'])
         if not os.path.exists(path) or Image.open(path).size != (G['chunkSize'], G['chunkSize']):
@@ -136,9 +146,24 @@ def main():
     if unused:
         bad(f'지시문에 한 번도 나오지 않는 그림: {unused}')
     frames = {f for v in A.values() for f in v.get('frames', [])}
-    for f in re.findall(r'`((?:idle|walk|dagger|axe|pick|attack|burn|gun|aim|shoot)\d?)`', spec):
-        if f not in frames:
-            bad(f'지시문에 있는 프레임 이름이 그림에 없음: {f}')
+    anim_names = {n for v in A.values() for n in v.get('anims', {})}
+    word = r'(?:b?(?:idle|walk|dagger|axe|pick|attack|gun|swing|heavy)|burn|aim|shoot|reload|hurt|down|die|rise|blink|impact|sparkle|vanish|splash|puff)\d?'
+    for f in re.findall(rf'`({word})`', spec):
+        if f not in frames | anim_names:
+            bad(f'지시문에 있는 프레임(애니메이션) 이름이 그림에 없음: {f}')
+    for k, n in re.findall(r"[`']([a-z0-9_]+):([a-z0-9]+)[`']", spec):  # `char_player:walk` 같은 애니메이션 이름
+        if n not in A.get(k, {}).get('anims', {}):
+            bad(f'지시문에 있는 애니메이션이 없음: {k}:{n}')
+    for line in spec.splitlines():                                     # 12.3 표: 그림별 애니메이션 이름
+        m = re.match(r'\|\s*((?:`char_[a-z0-9_]+`,?\s*)+)\|(.*)\|\s*$', line)
+        if m:
+            for k in re.findall(r'`(char_[a-z0-9_]+)`', m.group(1)):
+                for n in re.findall(r'\b[a-z][a-z0-9]{2,}\b', m.group(2)):
+                    if n not in A.get(k, {}).get('anims', {}):
+                        bad(f'12.3 표의 애니메이션 이름이 {k} 에 없음: {n}')
+    m = re.search(r'^프레임 이름: (.+)\. Phaser 파티클', spec, re.M)       # 12.6 조각 이름
+    if not m or [x.strip() for x in m.group(1).split(',')] != A['fx_particles']['frames']:
+        bad('12.6의 조각 이름이 fx_particles 프레임과 다름')
     for pre, n in re.findall(r'(load|shot|dir)0~(?:load|shot|dir)(\d+)', spec):
         if any(f'{pre}{i}' not in frames for i in range(int(n) + 1)):
             bad(f'지시문의 프레임 범위 {pre}0~{pre}{n} 가 그림에 없음')

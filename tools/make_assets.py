@@ -34,14 +34,14 @@ def one(sub, key, prims, kind, **meta):
     save(img, sub, key, anchor, kind, **meta)
 
 
-def sheet(sub, key, frames, names, kind, cols=None, **meta):
+def sheet(sub, key, frames, names, kind, cols=None, pencil=1.0, wobble=1.0, **meta):
     """같은 크기의 프레임을 가로로 이어 붙인 시트(cols를 주면 그 수마다 다음 줄로). 발이 프레임 가로 한가운데에 온다."""
-    boxes = [A.bbox(p, 12) for p in frames]
+    boxes = [A.bbox(wc.frame_prims(p), 12) for p in frames]
     m = max(max(abs(b[0]), abs(b[2])) for b in boxes)
     box = (-m, min(b[1] for b in boxes), m, max(b[3] for b in boxes))
     imgs = []
     for p in frames:
-        img, anchor = wc.sprite(p, key, box=box, keep_box=True)      # 같은 이름 = 같은 흔들림 무늬
+        img, anchor = wc.sprite_layers(p, key, box, pencil=pencil, wobble=wobble)      # 같은 이름 = 같은 흔들림 무늬
         imgs.append(img)
     fw, fh = imgs[0].size
     cols = cols or len(imgs)
@@ -117,14 +117,78 @@ def make_defense():
           directions=n, muzzle=[px(A.turret_tip('gun', i)) for i in range(n)], screenAngle=angles)
 
 
+# ---- 애니메이션: 프레임 순서와 각 프레임의 시간(ms). hit = 피해를 주는 프레임, swing = 그때 함께 보여 줄 fx_swing 애니메이션
+def anim(frames, loop=False, **extra):
+    return dict(frames=[[n, ms] for n, ms in frames], loop=loop, **extra)
+
+
+def walk(prefix, ms):
+    return anim([(prefix + 'walk1', ms), (prefix + 'walk3', ms), (prefix + 'walk2', ms), (prefix + 'walk4', ms)], True)
+
+
+def swing3(prefix, tool, ms, hit_fx):
+    return anim([(f'{prefix}{tool}1', ms[0]), (f'{prefix}{tool}2', ms[1]), (f'{prefix}{tool}3', ms[2])], hit=f'{prefix}{tool}2', swing=hit_fx)
+
+
+PLAYER_ANIMS = dict(
+    idle=anim([('idle', 700), ('idle2', 700)], True), bidle=anim([('bidle', 700), ('bidle2', 700)], True),
+    walk=walk('', 83), bwalk=walk('b', 83), blink=anim([('blink', 120)]),
+    dagger=swing3('', 'dagger', (140, 90, 140), 'swing'), axe=swing3('', 'axe', (190, 90, 150), 'heavy'),
+    pick=swing3('', 'pick', (190, 90, 150), 'heavy'), gun=anim([('gun1', 250), ('gun2', 150)], hit='gun2'),
+    bdagger=swing3('b', 'dagger', (140, 90, 140), 'bswing'), baxe=swing3('b', 'axe', (190, 90, 150), 'bheavy'),
+    bpick=swing3('b', 'pick', (190, 90, 150), 'bheavy'), bgun=anim([('bgun1', 250), ('bgun2', 150)], hit='bgun2'),
+    hurt=anim([('hurt', 220)]), down=anim([('down', 1000)]))
+ZOMBIE_ANIMS = dict(
+    idle=anim([('idle', 500), ('idle2', 500)], True), walk=walk('', 160), bwalk=walk('b', 160),
+    attack=anim([('attack0', 260), ('attack', 220)], hit='attack'), battack=anim([('battack0', 260), ('battack', 220)], hit='battack'),
+    hurt=anim([('hurt', 200)]), die=anim([('die1', 150), ('die2', 140), ('die3', 700)]),
+    rise=anim([('rise1', 260), ('rise2', 260), ('rise3', 260)]))
+PIRATE_ANIMS = dict(
+    idle=anim([('idle', 600), ('idle2', 600)], True), walk=walk('', 125), bwalk=walk('b', 125),
+    attack=anim([('attack0', 220), ('attack', 90), ('attack2', 160)], hit='attack', swing='heavy'),
+    battack=anim([('battack0', 220), ('battack', 160)], hit='battack', swing='bheavy'),
+    hurt=anim([('hurt', 200)]), die=anim([('die1', 150), ('die2', 140), ('die3', 700)]))
+GUNNER_ANIMS = dict(
+    idle=anim([('idle', 600), ('idle2', 600)], True), walk=walk('', 125), bwalk=walk('b', 125),
+    aim=anim([('aim', 600)]), shoot=anim([('shoot', 200)], hit='shoot'),
+    reload=anim([('reload1', 400), ('reload2', 400), ('reload1', 400), ('reload2', 400)]),
+    hurt=anim([('hurt', 200)]), die=anim([('die1', 150), ('die2', 140), ('die3', 700)]))
+
+
 def make_chars():
-    sheet('chars', 'char_player', [A.survivor(p) for p in A.POSES], list(A.POSES), 'char',
-          muzzle={p: px(A.survivor_muzzle(p)) for p in ('gun1', 'gun2')})
-    sheet('chars', 'char_zombie', [A.zombie(p) for p in A.ZPOSES], list(A.ZPOSES), 'char')
+    sheet('chars', 'char_player', [A.survivor(p) for p in A.POSES], list(A.POSES), 'char', cols=10, anims=PLAYER_ANIMS,
+          muzzle={p: px(A.survivor_muzzle(p)) for p in ('gun1', 'gun2', 'bgun1', 'bgun2')})
+    sheet('chars', 'char_zombie', [A.zombie(p) for p in A.ZPOSES], list(A.ZPOSES), 'char', cols=10, anims=ZOMBIE_ANIMS)
     for v in (1, 2):
-        sheet('chars', f'char_pirate_{v}', [A.pirate(v, p) for p in A.PPOSES], list(A.PPOSES), 'char')
-    sheet('chars', 'char_pirate_3', [A.gunner(p) for p in A.GPOSES], list(A.GPOSES), 'char',
+        sheet('chars', f'char_pirate_{v}', [A.pirate(v, p) for p in A.PPOSES], list(A.PPOSES), 'char', cols=10, anims=PIRATE_ANIMS)
+    sheet('chars', 'char_pirate_3', [A.gunner(p) for p in A.GPOSES], list(A.GPOSES), 'char', cols=10, anims=GUNNER_ANIMS,
           muzzle={p: px(A.gunner_muzzle(p)) for p in ('aim', 'shoot')})
+
+
+def make_motion_fx():
+    """움직임과 타격감을 위한 효과. 대부분 프레임 시트이고 anims 에 순서와 시간이 있다."""
+    names, frames, anims = [], [], {}
+    for nm in A.SWINGS:
+        fs = A.swing_frames(nm)
+        frames += fs
+        names += [f'{nm}{i}' for i in (1, 2, 3)]
+        anims[nm] = anim([(f'{nm}1', 40), (f'{nm}2', 60), (f'{nm}3', 70)])
+    sheet('fx', 'fx_swing', frames, names, 'fx', cols=6, pencil=0.35, wobble=0.6, anims=anims,
+          note='기준점 = 캐릭터의 발. 캐릭터와 같은 자리, 같은 좌우 뒤집기로 놓는다.')
+    for key, fs, prefix, ms, pencil in (('fx_impact', A.impact_frames(), 'impact', (40, 50, 60, 70), 0.15),
+                                        ('fx_dust', A.dust_frames(), 'dust', (70,) * 5, 0.25),
+                                        ('fx_sparkle', A.sparkle_frames(), 'sparkle', (80,) * 4, 0.3),
+                                        ('fx_vanish', A.vanish_frames(), 'vanish', (100,) * 5, 0.2),
+                                        ('fx_splash', A.splash_frames(), 'splash', (80,) * 4, 0.3),
+                                        ('fx_smoke_puff', A.smoke_puff_frames(), 'puff', (120,) * 4, 0.25)):
+        nm = [f'{prefix}{i}' for i in range(1, len(fs) + 1)]
+        sheet('fx', key, fs, nm, 'fx', pencil=pencil, wobble=0.6, anims={'play': anim(list(zip(nm, ms)))})
+    sheet('fx', 'fx_particles', [A.xform(A.particle(n), k=1.35) for n in A.PARTICLES], list(A.PARTICLES), 'particle',
+          pencil=0.6, wobble=0.4)
+    img, anchor = wc.sprite(A.footprint(), 'fx_footprint', pencil=0.0, wobble=0.5)
+    save(img, 'fx', 'fx_footprint', anchor, 'decal')
+    img, anchor = wc.sprite(A.arrow_stuck(), 'proj_arrow_stuck', pencil=0.7)
+    save(img, 'fx', 'proj_arrow_stuck', anchor, 'projectile')
 
 
 def make_ui():
@@ -212,6 +276,7 @@ def main():
     make_chars()
     make_ui()
     make_fx()
+    make_motion_fx()
     ground = json.load(open(os.path.join(ASSETS, 'ground', 'ground.json'), encoding='utf-8'))
     meta = dict(tileWidth=LY.HW * 2, tileHeight=LY.HH * 2, viewWidth=LY.VIEW_W, viewHeight=LY.VIEW_H, ground=ground, turretDirections=A.TURRET_DIRS,
                 note='originX/originY = 그림에서 발이 닿는 점. 이 점을 칸 중심의 월드 좌표에 맞춘다.')

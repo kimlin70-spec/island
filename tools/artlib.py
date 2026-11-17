@@ -338,19 +338,10 @@ def tool_prims(kind, hand, ang, k=1.0):
 
 
 # ------------------------------------------------------------------ 캐릭터
-def _legs(K, step):
-    far, near = [-10, 0], [1, 0]
-    if step == 1:
-        far, near = [-5, 3], [-3, 0]
-    elif step == 2:
-        far, near = [-14, 0], [6, 3]
-    prims = [S(4, 2, 22, 8)]
-    for (x, lift), key in ((far, K['pants_d']), (near, K['pants'])):
-        prims.append(P([(x, -22), (x + 8, -22), (x + 8, -2 - lift), (x, -2 - lift)], key))
-        prims.append(E(x + 5, -1 - lift, 6.5, 3.6, K['shoe']))
-    return prims
-
-
+# 모든 캐릭터를 같은 뼈대로 그린다: 다리 2, 팔 2, 몸통, 머리, 손에 든 것. 오른쪽을 본다.
+#   view 'f' = 앞모습(화면 아래쪽으로 갈 때), 'b' = 뒷모습(화면 위쪽으로 갈 때). 왼쪽은 게임에서 좌우로 뒤집는다.
+#   pose 값: legs = (먼 다리 발 x, 먼 발 들림, 가까운 다리 발 x, 가까운 발 들림) — 엉덩이 아래에서 앞(+)/뒤(-)로
+#            bob = 위아래(위가 -), lean = 앞뒤 기울기, near/far = 팔 각도(0 아래, 90 앞, 180 위), face, tool, rot(쓰러짐)
 def _arm(shoulder, ang, K, sleeve, far=False):
     """ang: 0=아래로 늘어뜨림, 90=앞으로, 180=위로. sleeve: 소매 길이(0~1)."""
     a = math.radians(ang)
@@ -365,120 +356,438 @@ def _arm(shoulder, ang, K, sleeve, far=False):
     return prims, hand
 
 
+def _leg(hip, dx, lift, key, shoe):
+    hx, hy = hip
+    fx, fy = hx + dx, -3.0 - lift
+    ddx, ddy = fx - hx, fy - hy
+    d = math.hypot(ddx, ddy) or 1.0
+    nx, ny = -ddy / d * 4.2, ddx / d * 4.2
+    return [P([(hx + nx, hy + ny), (hx - nx, hy - ny), (fx - nx, fy - ny), (fx + nx, fy + ny)], key),
+            E(fx + 1.5, fy + 2.2, 6.5, 3.6, shoe)]
+
+
+def _legs(K, legs, view='f'):
+    fdx, flift, ndx, nlift = legs
+    far_hip, near_hip = ((-6, -24), (5, -24)) if view == 'f' else ((5, -24), (-6, -24))
+    return _leg(far_hip, fdx, flift, K['pants_d'], K['shoe']) + _leg(near_hip, ndx, nlift, K['pants'], K['shoe'])
+
+
+def rotate(prims, deg, pivot=(0.0, 0.0)):
+    """도형 목록을 pivot 둘레로 돌린다(도, 화면에서 시계 방향이 +)."""
+    a = math.radians(deg)
+    c, s = math.cos(a), math.sin(a)
+    px, py = pivot
+    f = lambda x, y: (px + (x - px) * c - (y - py) * s, py + (x - px) * s + (y - py) * c)
+    out = []
+    for p in prims:
+        if p[0] == 'P':
+            out.append(('P', [f(x, y) for x, y in p[1]], p[2], p[3]))
+        elif p[0] == 'E':
+            cx, cy, rx, ry, r = p[1]
+            nx, ny = f(cx, cy)
+            out.append(('E', (nx, ny, rx, ry, r + deg), p[2], p[3]))
+        else:
+            out.append(('L', [f(x, y) for x, y in p[1]], p[2], p[3], p[4]))
+    return out
+
+
+STAND = (0, 0, 0, 0)
+STEP = (-5, 0, 7, 0)                 # 한 발 내딛고 때리는 자세
+
+
+def pose(**kw):
+    p = dict(legs=STAND, bob=0, lean=0, near=8, far=-8, face='open', view='f', tool=None, rot=0)
+    p.update(kw)
+    return p
+
+
+# 걷기 4장: walk1(디딤) -> walk3(지나감) -> walk2(디딤) -> walk4(지나감). 가까운 다리가 앞으로 나가면 가까운 팔은 뒤로.
+WALK = {'walk1': dict(legs=(-8, 0, 8, 0), bob=0, near=-28, far=26),
+        'walk3': dict(legs=(2, 5, -2, 0), bob=-2, near=-6, far=6),
+        'walk2': dict(legs=(9, 0, -10, 0), bob=0, near=28, far=-26),
+        'walk4': dict(legs=(-1, 0, 2, 5), bob=-2, near=6, far=-6)}
+
+
+def _eyes(hx, hy, face, spots, size=(2.1, 2.8)):
+    out = []
+    for i, (ex, ey) in enumerate(spots):
+        x, y = hx + ex, hy + ey
+        if face in ('open', 'bite'):
+            out.append(E(x, y, size[0], size[1], 'ink'))
+        elif face == 'blink':
+            out.append(L([(x - 2.6, y + 0.4), (x, y + 1.6), (x + 2.6, y + 0.4)], 1.8, 'ink'))
+        elif face == 'hurt':
+            dd = 1 if i == 0 else -1
+            out.append(L([(x - 2.6 * dd, y - 2.4), (x + 1.4 * dd, y), (x - 2.6 * dd, y + 2.4)], 1.8, 'ink'))
+        elif face == 'ko':
+            out += [L([(x - 2.4, y - 2.4), (x + 2.4, y + 2.4)], 1.7, 'ink'), L([(x + 2.4, y - 2.4), (x - 2.4, y + 2.4)], 1.7, 'ink')]
+    return out
+
+
+def _mouth(hx, hy, face, x=2.0, y=11.0):
+    if face in ('hurt', 'bite'):
+        return [E(hx + x, hy + y + 0.5, 3.2, 2.6, 'ink')]
+    if face == 'ko':
+        return [L([(hx + x - 4, hy + y + 1), (hx + x - 1.5, hy + y - 0.5), (hx + x + 1.5, hy + y + 1), (hx + x + 4, hy + y - 0.5)], 1.6, 'ink')]
+    return [L([(hx + x - 5, hy + y), (hx + x, hy + y + 2), (hx + x + 5, hy + y)], 2, 'ink')]
+
+
+def _back_hair(hx, hy, key):
+    return P([(hx - 18, hy + 5), (hx - 18, hy - 9), (hx - 11, hy - 18), (hx + 1, hy - 20), (hx + 12, hy - 17), (hx + 18, hy - 8),
+              (hx + 18, hy + 5), (hx + 11, hy + 10), (hx + 1, hy + 12), (hx - 10, hy + 10)], key)
+
+
+# ---- 주인공
 SURVIVOR = dict(skin='skin', skin_d='skin_d', shirt='tee', shirt_d='tee_d', pants='pants', pants_d='pants_d', shoe='shoe')
-POSES = {
-    #          다리, 몸 들썩임, 가까운 팔, 먼 팔, 도구, 도구 방향
-    'idle':    (0, 0, 8, -8, None, 0),
-    'walk1':   (1, -2, -28, 26, None, 0),
-    'walk2':   (2, -2, 28, -26, None, 0),
-    'dagger1': (0, 0, 58, -14, 'dagger', -62),
-    'dagger2': (1, -1, 92, -20, 'dagger', 4),
-    'axe1':    (0, 0, 152, -14, 'axe', -118),
-    'axe2':    (1, -1, 78, -20, 'axe', 34),
-    'pick1':   (0, 0, 152, -14, 'pickaxe', -118),
-    'pick2':   (1, -1, 78, -20, 'pickaxe', 34),
-    'gun1':    (0, 0, 107, 95, 'gun', -1),       # 겨누기
-    'gun2':    (1, -1, 113, 95, 'gun', -10),     # 쏘기(반동으로 총구가 들림)
-}
-GUN_BUTT = {'gun1': (-4, -57), 'gun2': (-8, -56)}   # 개머리 끝 위치
 GUN_LEN = 78                                         # 주인공 총 길이(해적 총은 92)
 
 
-def survivor(pose='idle'):
-    step, bob, a_near, a_far, tool, tang = POSES[pose]
-    K = SURVIVOR
-    lean = 3 if pose.endswith('2') and tool else 0
-    if tool == 'gun':
-        lean = -2 if pose == 'gun2' else 0
-    far_arm, _ = _arm((-14 + lean, -50 + bob), a_far, K, 0.42, far=True)
-    prims = far_arm + _legs(K, step)
-    prims += [E(lean * 0.5, -40 + bob, 16, 23, 'tee'), E(5 + lean * 0.5, -36 + bob, 9, 17, 'tee_d', soft=True),
-              L([(-6 + lean, -59 + bob), (1 + lean, -56 + bob), (8 + lean, -59 + bob)], 2.2, 'tee_d')]
-    hx, hy = 1 + lean, -74 + bob
-    prims += [E(hx, hy, 17, 16.5, 'skin'),
-              P([(hx - 18, hy), (hx - 18, hy - 10), (hx - 11, hy - 18), (hx + 1, hy - 20), (hx + 12, hy - 17), (hx + 18, hy - 8),
-                 (hx + 18, hy), (hx + 12, hy - 6), (hx + 3, hy - 8), (hx - 7, hy - 5)], 'hair'),
-              E(hx - 5, hy + 3, 2.1, 2.8, 'ink'), E(hx + 8, hy + 3, 2.1, 2.8, 'ink'),
-              E(hx - 11, hy + 9, 3.4, 2.2, 'blush', op=0.7), E(hx + 14, hy + 9, 3.4, 2.2, 'blush', op=0.7)]
-    near_arm, hand = _arm((15 + lean, -50 + bob), a_near, K, 0.42)
-    if tool == 'gun':
-        bx, by = GUN_BUTT[pose]
-        prims += musket((bx + lean, by + bob), tang, GUN_LEN)[0]
-    elif tool:
-        prims += tool_prims(tool, hand, tang)
-    return prims + near_arm
+def _player_head(hx, hy, view, face):
+    if view == 'b':
+        return [E(hx, hy, 17, 16.5, 'skin'), E(hx - 17, hy + 3, 3.6, 4.6, 'skin_d'), _back_hair(hx, hy, 'hair'),
+                L([(hx - 5, hy - 9), (hx + 1, hy - 4), (hx + 7, hy - 8)], 1.6, 'ink', op=0.3)]
+    out = [E(hx, hy, 17, 16.5, 'skin'),
+           P([(hx - 18, hy), (hx - 18, hy - 10), (hx - 11, hy - 18), (hx + 1, hy - 20), (hx + 12, hy - 17), (hx + 18, hy - 8),
+              (hx + 18, hy), (hx + 12, hy - 6), (hx + 3, hy - 8), (hx - 7, hy - 5)], 'hair')]
+    out += _eyes(hx, hy, face, ((-5, 3), (8, 3)))
+    out += [E(hx - 11, hy + 9, 3.4, 2.2, 'blush', op=0.7), E(hx + 14, hy + 9, 3.4, 2.2, 'blush', op=0.7)]
+    if face in ('hurt', 'ko'):
+        out += _mouth(hx, hy, face, 2.5, 11)
+    return out
 
 
-def survivor_muzzle(pose):
-    """총을 쏘는 프레임에서 총구 끝(마스터 좌표, 발 기준)"""
-    step, bob, *_ , tang = POSES[pose]
-    lean = -2 if pose == 'gun2' else 0
-    bx, by = GUN_BUTT[pose]
-    return musket((bx + lean, by + bob), tang, GUN_LEN)[1]
-
-
-ZOMBIE = dict(skin='zskin', skin_d='zskin_d', shirt='zshirt', shirt_d='zshirt_d', pants='zpants', pants_d='zpants', shoe='ink')
-ZPOSES = {'walk1': (1, -1, 86, 78, False), 'walk2': (2, -1, 94, 86, False), 'attack': (1, -2, 128, 118, True)}
-
-
-def zombie(pose='walk1'):
-    step, bob, a_near, a_far, bite = ZPOSES[pose]
-    K = ZOMBIE
-    far_arm, _ = _arm((-12, -50 + bob), a_far, K, 0.8, far=True)
-    prims = far_arm + _legs(K, step)
-    prims += [E(0, -40 + bob, 16, 23, 'zshirt'), E(5, -36 + bob, 9, 17, 'zshirt_d', soft=True),
-              P([(-9, -40 + bob), (-1, -40 + bob), (-1, -32 + bob), (-9, -32 + bob)], 'zpatch')]
-    hx, hy = 2, -74 + bob
-    prims += [E(hx, hy, 17, 16.5, 'zskin'),
-              P([(hx - 13, hy - 12), (hx - 10, hy - 24), (hx - 4, hy - 14)], 'zhair'), P([(hx - 3, hy - 15), (hx + 2, hy - 27), (hx + 7, hy - 14)], 'zhair'),
-              P([(hx + 7, hy - 13), (hx + 14, hy - 22), (hx + 15, hy - 9)], 'zhair'),
-              E(hx - 5, hy + 1, 5, 5, 'white'), E(hx - 4, hy + 1.5, 1.8, 1.8, 'ink'),
-              E(hx + 9, hy + 2, 3.6, 3.6, 'white'), E(hx + 10, hy + 2.5, 1.4, 1.4, 'ink')]
-    if bite:
-        prims.append(E(hx + 3, hy + 11, 5, 3.6, 'ink'))
+def _player_torso(bx, by, view):
+    out = [E(bx, -40 + by, 16, 23, 'tee'), E(5 + bx, -36 + by, 9, 17, 'tee_d', soft=True)]
+    if view == 'f':
+        out.append(L([(-6 + bx, -59 + by), (1 + bx, -56 + by), (8 + bx, -59 + by)], 2.2, 'tee_d'))
     else:
-        prims.append(L([(hx - 4, hy + 11), (hx + 1, hy + 13), (hx + 7, hy + 11)], 2, 'ink'))
-    near_arm, _ = _arm((13, -50 + bob), a_near, K, 0.8)
-    return prims + near_arm
+        out.append(L([(-7 + bx, -58 + by), (8 + bx, -58 + by)], 2.2, 'tee_d', op=0.6))
+    return out
 
 
+# ---- 좀비
+ZOMBIE = dict(skin='zskin', skin_d='zskin_d', shirt='zshirt', shirt_d='zshirt_d', pants='zpants', pants_d='zpants', shoe='ink')
+
+
+def _zombie_head(hx, hy, view, face):
+    tufts = [P([(hx - 13, hy - 12), (hx - 10, hy - 24), (hx - 4, hy - 14)], 'zhair'),
+             P([(hx - 3, hy - 15), (hx + 2, hy - 27), (hx + 7, hy - 14)], 'zhair'),
+             P([(hx + 7, hy - 13), (hx + 14, hy - 22), (hx + 15, hy - 9)], 'zhair')]
+    if view == 'b':
+        return [E(hx, hy, 17, 16.5, 'zskin'), E(hx + 4, hy + 2, 12, 11, 'zskin_d', soft=True), E(hx - 17, hy + 3, 3.6, 4.6, 'zskin_d')] + tufts
+    out = [E(hx, hy, 17, 16.5, 'zskin')] + tufts
+    if face in ('open', 'bite'):
+        out += [E(hx - 5, hy + 1, 5, 5, 'white'), E(hx - 4, hy + 1.5, 1.8, 1.8, 'ink'), E(hx + 9, hy + 2, 3.6, 3.6, 'white'),
+                E(hx + 10, hy + 2.5, 1.4, 1.4, 'ink')]
+    else:
+        out += [E(hx - 5, hy + 1, 5, 5, 'white'), E(hx + 9, hy + 2, 3.6, 3.6, 'white')]
+        out += _eyes(hx, hy, face, ((-5, 1), (9, 2)))
+    out += _mouth(hx, hy, face, 2, 11)
+    return out
+
+
+def _zombie_torso(bx, by, view):
+    out = [E(bx, -40 + by, 16, 23, 'zshirt'), E(5 + bx, -36 + by, 9, 17, 'zshirt_d', soft=True)]
+    if view == 'f':
+        out.append(P([(-9 + bx, -40 + by), (-1 + bx, -40 + by), (-1 + bx, -32 + by), (-9 + bx, -32 + by)], 'zpatch'))
+    else:
+        out.append(P([(1 + bx, -48 + by), (9 + bx, -46 + by), (8 + bx, -39 + by), (0 + bx, -41 + by)], 'zpatch'))
+    return out
+
+
+# ---- 해적(1 선장, 2 선원, 3 총잡이)
 PIRATE = {
     1: dict(skin='pskin', skin_d='pskin', shirt='pcoat', shirt_d='pcoat_d', pants='ppants', pants_d='ppants', shoe='ink'),
     2: dict(skin='pskin', skin_d='pskin', shirt='pwhite', shirt_d='pstripe', pants='ppants', pants_d='ppants', shoe='ink'),
 }
-PPOSES = {'walk1': (1, -2, 40, -20, -70), 'walk2': (2, -2, 52, 16, -62), 'attack': (1, -1, 140, -20, -130)}
+GUNNER = dict(skin='pskin', skin_d='pskin', shirt='pgun', shirt_d='pgun_d', pants='ppants', pants_d='ppants', shoe='ink')
+PIRATE_GUN_LEN = 92
 
 
-def pirate(var=1, pose='walk1'):
-    step, bob, a_near, a_far, sang = PPOSES[pose]
-    K = PIRATE[var]
-    far_arm, _ = _arm((-14, -50 + bob), a_far, K, 1.0 if var == 1 else 0.42, far=True)
-    prims = far_arm + _legs(K, step)
-    hx, hy = 1, -74 + bob
-    if var == 1:      # 선장
-        prims += [E(0, -40 + bob, 17, 23, 'pcoat'), E(5, -36 + bob, 9, 17, 'pcoat_d', soft=True),
-                  L([(-15, -33 + bob), (0, -30 + bob), (16, -33 + bob)], 4, 'gold'),
-                  E(hx, hy, 17, 16.5, 'pskin'),
-                  P([(hx - 14, hy + 6), (hx - 11, hy + 16), (hx, hy + 19), (hx + 11, hy + 16), (hx + 15, hy + 6), (hx + 7, hy + 10),
-                     (hx, hy + 11), (hx - 7, hy + 10)], 'beard'),
-                  E(hx + 8, hy + 2, 2.1, 2.8, 'ink'), E(hx - 5, hy + 2, 3.6, 3.6, 'hat'),
-                  L([(hx - 17, hy - 4), (hx - 5, hy + 2), (hx + 17, hy - 6)], 1.6, 'hat'),
-                  P([(hx - 28, hy - 8), (hx - 14, hy - 24), (hx, hy - 29), (hx + 14, hy - 24), (hx + 28, hy - 8), (hx + 14, hy - 13),
-                     (hx, hy - 15), (hx - 14, hy - 13)], 'hat'),
-                  E(hx, hy - 21, 3.4, 3.4, 'white')]
-    else:             # 선원
-        prims += [E(0, -40 + bob, 16, 23, 'pwhite')]
-        for y in (-54, -44, -34, -24):
-            w = 16 * math.sqrt(max(0.0, 1 - ((y + 40) / 23.0) ** 2)) - 1.5
-            prims.append(L([(-w, y + bob), (w, y + bob)], 4.2, 'pstripe'))
-        prims += [E(hx, hy, 17, 16.5, 'pskin'),
-                  P([(hx - 18, hy - 1), (hx - 17, hy - 12), (hx - 9, hy - 18), (hx + 2, hy - 19), (hx + 12, hy - 16), (hx + 18, hy - 7),
-                     (hx + 18, hy - 2), (hx + 7, hy - 6), (hx - 7, hy - 5)], 'bandana'),
-                  P([(hx - 18, hy - 4), (hx - 28, hy), (hx - 24, hy + 6), (hx - 17, hy)], 'bandana'),
-                  E(hx - 5, hy + 3, 2.1, 2.8, 'ink'), E(hx + 8, hy + 3, 2.1, 2.8, 'ink'),
-                  L([(hx - 3, hy + 11), (hx + 2, hy + 13), (hx + 7, hy + 11)], 2, 'ink')]
-    near_arm, hand = _arm((15, -50 + bob), a_near, K, 1.0 if var == 1 else 0.42)
-    return prims + tool_prims('sword', hand, sang) + near_arm
+def _captain_head(hx, hy, view, face):
+    hat = [P([(hx - 28, hy - 8), (hx - 14, hy - 24), (hx, hy - 29), (hx + 14, hy - 24), (hx + 28, hy - 8), (hx + 14, hy - 13),
+              (hx, hy - 15), (hx - 14, hy - 13)], 'hat')]
+    if view == 'b':
+        return [E(hx, hy, 17, 16.5, 'pskin'), P([(hx - 17, hy - 6), (hx + 17, hy - 6), (hx + 16, hy + 9), (hx + 6, hy + 14), (hx - 7, hy + 14),
+                                                (hx - 16, hy + 9)], 'beard')] + hat
+    out = [E(hx, hy, 17, 16.5, 'pskin'),
+           P([(hx - 14, hy + 6), (hx - 11, hy + 16), (hx, hy + 19), (hx + 11, hy + 16), (hx + 15, hy + 6), (hx + 7, hy + 10),
+              (hx, hy + 11), (hx - 7, hy + 10)], 'beard')]
+    out += _eyes(hx, hy, face, ((8, 2),))
+    out += [E(hx - 5, hy + 2, 3.6, 3.6, 'hat'), L([(hx - 17, hy - 4), (hx - 5, hy + 2), (hx + 17, hy - 6)], 1.6, 'hat')]
+    if face in ('hurt', 'ko'):
+        out += _mouth(hx, hy, face, 3, 10)
+    return out + hat + [E(hx, hy - 21, 3.4, 3.4, 'white')]
+
+
+def _captain_torso(bx, by, view):
+    out = [E(bx, -40 + by, 17, 23, 'pcoat'), E(5 + bx, -36 + by, 9, 17, 'pcoat_d', soft=True)]
+    if view == 'f':
+        out.append(L([(-15 + bx, -33 + by), (bx, -30 + by), (16 + bx, -33 + by)], 4, 'gold'))
+    else:
+        out += [L([(-15 + bx, -33 + by), (16 + bx, -33 + by)], 4, 'gold'), L([(bx + 1, -29 + by), (bx + 2, -18 + by)], 2.2, 'pcoat_d')]
+    return out
+
+
+def _crew_head(hx, hy, view, face):
+    if view == 'b':
+        return [E(hx, hy, 17, 16.5, 'pskin'), E(hx - 17, hy + 3, 3.6, 4.6, 'pskin'),
+                P([(hx - 18, hy + 1), (hx - 17, hy - 12), (hx - 9, hy - 18), (hx + 2, hy - 19), (hx + 12, hy - 16), (hx + 18, hy - 7),
+                   (hx + 18, hy + 1), (hx + 6, hy + 2), (hx - 6, hy + 3)], 'bandana'),
+                P([(hx - 4, hy + 1), (hx - 12, hy + 12), (hx - 5, hy + 14), (hx, hy + 3)], 'bandana'),
+                P([(hx + 1, hy + 1), (hx + 7, hy + 13), (hx + 12, hy + 9), (hx + 5, hy + 1)], 'bandana')]
+    out = [E(hx, hy, 17, 16.5, 'pskin'),
+           P([(hx - 18, hy - 1), (hx - 17, hy - 12), (hx - 9, hy - 18), (hx + 2, hy - 19), (hx + 12, hy - 16), (hx + 18, hy - 7),
+              (hx + 18, hy - 2), (hx + 7, hy - 6), (hx - 7, hy - 5)], 'bandana'),
+           P([(hx - 18, hy - 4), (hx - 28, hy), (hx - 24, hy + 6), (hx - 17, hy)], 'bandana')]
+    out += _eyes(hx, hy, face, ((-5, 3), (8, 3)))
+    return out + _mouth(hx, hy, face, 2, 11)
+
+
+def _crew_torso(bx, by, view):
+    out = [E(bx, -40 + by, 16, 23, 'pwhite')]
+    for y in (-54, -44, -34, -24):
+        w = 16 * math.sqrt(max(0.0, 1 - ((y + 40) / 23.0) ** 2)) - 1.5
+        out.append(L([(-w + bx, y + by), (w + bx, y + by)], 4.2, 'pstripe'))
+    return out
+
+
+def _gunner_head(hx, hy, view, face):
+    hat = [E(hx, hy - 11, 29, 7.5, 'hatb', -5),
+           P([(hx - 15, hy - 12), (hx - 13, hy - 25), (hx - 4, hy - 31), (hx + 8, hy - 30), (hx + 15, hy - 22), (hx + 15, hy - 13)], 'hatb'),
+           L([(hx - 15, hy - 15), (hx + 15, hy - 16)], 3.4, 'rust')]
+    if view == 'b':
+        return [E(hx, hy, 17, 16.5, 'pskin'), P([(hx - 17, hy - 6), (hx + 17, hy - 6), (hx + 15, hy + 10), (hx, hy + 13), (hx - 15, hy + 10)],
+                                                'beard'), L([(hx - 16, hy - 4), (hx + 17, hy - 2)], 1.6, 'patch')] + hat
+    out = [E(hx, hy, 17, 16.5, 'pskin')]
+    out += _eyes(hx, hy, face, ((-5, 3),))
+    out += [E(hx + 8, hy + 2, 4.6, 4.2, 'patch'), L([(hx - 16, hy - 5), (hx + 8, hy + 2), (hx + 17, hy - 3)], 1.6, 'patch')]
+    out += _mouth(hx, hy, face, 3, 11.5)
+    out.append(P([(hx - 15, hy + 6), (hx - 9, hy + 15), (hx + 1, hy + 18), (hx + 11, hy + 15), (hx + 15, hy + 7), (hx + 8, hy + 10),
+                  (hx, hy + 10.5), (hx - 8, hy + 10)], 'beard', op=0.55))
+    return out + hat
+
+
+def _gunner_torso(bx, by, view):
+    out = [E(bx, -40 + by, 17, 23, 'pgun'), E(5 + bx, -36 + by, 9, 17, 'pgun_d', soft=True)]
+    if view == 'f':
+        out += [P([(bx - 6, -61 + by), (bx + 7, -61 + by), (bx + 1, -50 + by)], 'pwhite'),
+                L([(bx - 13, -50 + by), (bx + 14, -26 + by)], 4.2, 'leather')]
+    else:
+        out.append(L([(bx + 13, -50 + by), (bx - 13, -27 + by)], 4.2, 'leather'))
+    out += [L([(bx - 16, -27 + by), (bx + 16, -27 + by)], 4.4, 'ink'),
+            P([(bx + 9, -24 + by), (bx + 19, -20 + by), (bx + 21, -13 + by), (bx + 16, -15 + by), (bx + 9, -19 + by)], 'canvas_l')]
+    if view == 'f':
+        out.append(E(bx + 3, -27 + by, 3.2, 2.6, 'gold'))
+    return out
+
+
+# ---- 손에 든 것
+def _held(p, hand, gun_len):
+    """돌려주는 값: (도형, 그리는 층) 층: under = 몸 뒤(뒷모습), mid = 몸과 머리 사이, over = 머리 위"""
+    t, view = p['tool'], p['view']
+    if not t:
+        return [], 'over'
+    kind = t[0]
+    front_or_under = 'over' if view == 'f' else 'under'
+    if kind in ('dagger', 'axe', 'pickaxe', 'sword'):
+        return tool_prims(kind, hand, t[1]), front_or_under
+    if kind == 'gun':
+        bx, by = t[1]
+        return musket((bx + p['lean'], by + p['bob']), t[2], gun_len)[0], front_or_under
+    if kind == 'sling':                      # 개머리를 손에 쥐고 총신을 어깨에 걸침
+        return musket(hand, t[1], gun_len)[0], 'mid'
+    if kind == 'back':                       # 등에 비스듬히 멘 총(뒷모습)
+        bx, by = t[1]
+        return musket((bx + p['lean'], by + p['bob']), t[2], gun_len)[0], 'over'
+    if kind == 'reload':                     # 총을 세워 들고 꽂을대로 장전
+        bx, by = t[1]
+        prims, tip = musket((bx + p['lean'], by + p['bob']), t[2], gun_len)
+        a = math.radians(t[2])
+        d = (math.cos(a), math.sin(a))
+        prims.append(L([(tip[0] - d[0] * 8, tip[1] - d[1] * 8), (tip[0] + d[0] * t[3], tip[1] + d[1] * t[3])], 2.2, 'metal_l'))
+        return prims, 'over'
+    raise KeyError(kind)
+
+
+def figure(kit, p):
+    K = kit['K']
+    view, bob, lean = p['view'], p['bob'], p['lean']
+    near_sh, far_sh = ((15 + lean, -50 + bob), (-14 + lean, -50 + bob)) if view == 'f' else ((-14 + lean, -50 + bob), (15 + lean, -50 + bob))
+    far_arm, far_hand = _arm(far_sh, p['far'], K, kit['sleeve'], far=True)
+    near_arm, near_hand = _arm(near_sh, p['near'], K, kit['sleeve'])
+    held, layer = _held(p, near_hand if view == 'f' else far_hand, kit.get('gun', 0))
+    body = far_arm + (held if layer == 'under' else []) + _legs(K, p['legs'], view) + kit['torso'](lean * 0.5, bob, view) + \
+        (held if layer == 'mid' else []) + kit['head'](1 + lean, -74 + bob, view, p['face']) + (held if layer == 'over' else []) + near_arm
+    if not p['rot']:
+        return [S(4, 2, 22, 8)] + body
+    body = rotate(body, p['rot'])
+    x0, y0, x1, y1 = bbox(body, 0)
+    body = xform(body, 0, 4 - y1)                       # 쓰러진 몸이 땅에 닿게
+    cx = (x0 + x1) / 2
+    return [S(cx + 6, 3, (x1 - x0) * 0.5 + 6, 9)] + body
+
+
+def muzzle_of(kit, p):
+    """총구 끝(마스터 좌표, 발 기준, 오른쪽을 볼 때)"""
+    bx, by = p['tool'][1]
+    return musket((bx + p['lean'], by + p['bob']), p['tool'][2], kit['gun'])[1]
+
+
+KITS = {
+    'player': dict(K=SURVIVOR, sleeve=0.42, head=_player_head, torso=_player_torso, gun=GUN_LEN),
+    'zombie': dict(K=ZOMBIE, sleeve=0.8, head=_zombie_head, torso=_zombie_torso),
+    'captain': dict(K=PIRATE[1], sleeve=1.0, head=_captain_head, torso=_captain_torso),
+    'crew': dict(K=PIRATE[2], sleeve=0.42, head=_crew_head, torso=_crew_torso),
+    'gunner': dict(K=GUNNER, sleeve=1.0, head=_gunner_head, torso=_gunner_torso, gun=PIRATE_GUN_LEN),
+}
+
+
+def _with_back(poses, names, **override):
+    """앞모습 자세를 뒷모습으로 복사(b + 이름)."""
+    for n in names:
+        q = dict(poses[n])
+        q.update(view='b', **override)
+        poses['b' + n] = q
+
+
+def _swing(tool, up, hit, follow, view='f'):
+    """도구 휘두르기 3장: 들어 올림, 내리침, 따라 내려감. 앞모습은 가까운 팔, 뒷모습은 먼 팔이 도구를 든다."""
+    arm = 'near' if view == 'f' else 'far'
+    other = 'far' if view == 'f' else 'near'
+    (a1, t1), (a2, t2), (a3, t3) = up, hit, follow
+    return [pose(view=view, tool=(tool, t1), **{arm: a1, other: -14 if view == 'f' else -10}),
+            pose(view=view, legs=STEP, bob=-1, lean=3, tool=(tool, t2), **{arm: a2, other: -20 if view == 'f' else -16}),
+            pose(view=view, legs=STEP, bob=1, lean=4, tool=(tool, t3), **{arm: a3, other: -24 if view == 'f' else -18})]
+
+
+# 프레임 순서: 예전부터 있던 이름이 앞(번호가 바뀌지 않게), 새 이름은 뒤에 붙인다.
+POSES = {'idle': pose(), 'walk1': pose(**WALK['walk1']), 'walk2': pose(**WALK['walk2'])}
+d1, d2, d3 = _swing('dagger', (58, -62), (92, 4), (62, 48))
+x1, x2, x3 = _swing('axe', (152, -118), (78, 34), (44, 80))
+k1, k2, k3 = _swing('pickaxe', (152, -118), (78, 34), (44, 80))
+d2.update(bob=-1, lean=3)
+d3.update(bob=0, lean=2)
+POSES.update(dagger1=d1, dagger2=d2, axe1=x1, axe2=x2, pick1=k1, pick2=k2,
+             gun1=pose(near=107, far=95, tool=('gun', (-4, -57), -1)),
+             gun2=pose(legs=(-3, 0, 2, 0), bob=-1, lean=-2, near=113, far=95, tool=('gun', (-8, -56), -10)),
+             idle2=pose(bob=-1, near=11, far=-11), blink=pose(face='blink'),
+             walk3=pose(**WALK['walk3']), walk4=pose(**WALK['walk4']),
+             dagger3=d3, axe3=x3, pick3=k3,
+             hurt=pose(bob=1, lean=-3, near=34, far=-36, face='hurt'),
+             down=pose(near=160, far=150, face='ko', rot=-80))
+_with_back(POSES, ['idle', 'idle2'])
+POSES['bidle'], POSES['bidle2'] = POSES.pop('bidle'), POSES.pop('bidle2')
+for n in ('walk1', 'walk2', 'walk3', 'walk4'):
+    POSES['b' + n] = pose(view='b', **WALK[n])
+for name, tool, key in (('dagger', 'dagger', 'bdagger'), ('axe', 'axe', 'baxe'), ('pick', 'pickaxe', 'bpick')):
+    big = tool != 'dagger'
+    s = _swing(tool, (176 if big else 172, -128 if big else -120), (128 if big else 132, -40 if big else -44),
+               (88 if big else 96, 24 if big else 14), view='b')
+    for i, q in enumerate(s, 1):
+        POSES[f'{key}{i}'] = q
+POSES['bgun1'] = pose(view='b', near=96, far=118, tool=('gun', (0, -60), -34))
+POSES['bgun2'] = pose(view='b', lean=-2, bob=-1, near=100, far=122, tool=('gun', (-3, -59), -42))
+
+
+def survivor(name='idle'):
+    return figure(KITS['player'], POSES[name])
+
+
+def survivor_muzzle(name):
+    return muzzle_of(KITS['player'], POSES[name])
+
+
+# 좀비: 팔을 앞으로 뻗고 다리를 끌며 걷는다
+ZPOSES = {
+    'walk1': pose(legs=(-5, 0, 6, 0), near=86, far=78),
+    'walk2': pose(legs=(6, 0, -7, 0), near=94, far=86),
+    'attack': pose(legs=STEP, lean=5, near=104, far=96, face='bite'),
+    'walk3': pose(legs=(1, 3, -1, 0), bob=-1, near=90, far=82),
+    'walk4': pose(legs=(-1, 0, 1, 3), bob=-1, near=90, far=82),
+    'idle': pose(near=72, far=64),
+    'idle2': pose(bob=1, lean=1, near=78, far=68),
+    'attack0': pose(lean=-3, near=158, far=148),
+    'hurt': pose(bob=1, lean=-3, near=60, far=50, face='hurt'),
+    'die1': pose(lean=-4, near=150, far=138, face='ko'),
+    'die2': pose(near=150, far=138, face='ko', rot=-42),
+    'die3': pose(near=160, far=150, face='ko', rot=-80),
+    'rise1': 60, 'rise2': 34, 'rise3': 10,          # 땅에서 올라오기: 땅 아래로 묻힌 깊이
+}
+for n in ('walk1', 'walk2', 'walk3', 'walk4', 'attack0', 'attack'):
+    ZPOSES['b' + n] = dict(ZPOSES[n], view='b')
+ZPOSES['battack0'], ZPOSES['battack'] = ZPOSES.pop('battack0'), ZPOSES.pop('battack')
+
+
+def _mound(k):
+    outer, inner = (27 * k, 9.5 * k), (20 * k, 6.5 * k)
+    ring = lambda a0, a1, n=14: [(math.cos(math.radians(a0 + (a1 - a0) * i / n)), math.sin(math.radians(a0 + (a1 - a0) * i / n))) for i in range(n + 1)]
+    front = [(outer[0] * c, outer[1] * s) for c, s in ring(0, 180)] + [(inner[0] * c, inner[1] * s) for c, s in ring(180, 0)]
+    under = [E(0, 0, outer[0], outer[1], 'dirt_l'), E(0, 0.5, inner[0], inner[1], 'dirt_dd')]
+    over = [P(front, 'dirt'), E(-25 * k, 4, 6.5, 4.6, 'dirt_d'), E(23 * k, 5, 7, 5, 'dirt'), E(-9 * k, 9 * k + 1, 5, 3.4, 'dirt_l'),
+            E(12 * k, 9 * k + 1, 4, 3, 'dirt_d')]
+    return under, over
+
+
+def zombie(name='walk1'):
+    p = ZPOSES[name]
+    if isinstance(p, (int, float)):               # 땅에서 올라오는 프레임: 층 세 장과 자르는 높이
+        body = [q for q in figure(KITS['zombie'], pose(near=166, far=156)) if q[-1].get('tag') != 'shadow']
+        under, over = _mound({60: 1.0, 34: 0.95, 10: 0.85}[p])
+        return dict(under=under, body=xform(body, 0, p), over=over, clip=1.0)
+    return figure(KITS['zombie'], p)
+
+
+# 해적(선장, 선원): 칼을 든다
+PPOSES = {'walk1': pose(**dict(WALK['walk1'], near=40, far=-20), tool=('sword', -70)),
+          'walk2': pose(**dict(WALK['walk2'], near=52, far=16), tool=('sword', -62))}
+pa0, pa1, pa2 = _swing('sword', (150, -140), (92, 6), (50, 64))
+PPOSES.update(attack=pa1, walk3=pose(**dict(WALK['walk3'], near=46, far=-2), tool=('sword', -66)),
+              walk4=pose(**dict(WALK['walk4'], near=46, far=-2), tool=('sword', -66)),
+              idle=pose(near=30, far=-8, tool=('sword', 64)), idle2=pose(bob=-1, near=34, far=-10, tool=('sword', 60)),
+              attack0=pa0, attack2=pa2,
+              hurt=pose(bob=1, lean=-3, near=40, far=-36, face='hurt', tool=('sword', 70)),
+              die1=pose(lean=-4, near=150, far=140, face='ko'),
+              die2=pose(near=150, far=140, face='ko', rot=-42),
+              die3=pose(near=160, far=150, face='ko', rot=-80))
+for n in ('walk1', 'walk2', 'walk3', 'walk4'):
+    q = dict(PPOSES[n])
+    q.update(view='b', near=q['far'], far=q['near'])
+    PPOSES['b' + n] = q
+pb0, pb1, _ = _swing('sword', (176, -128), (128, -40), (88, 24), view='b')
+PPOSES['battack0'], PPOSES['battack'] = pb0, pb1
+
+
+def pirate(var=1, name='walk1'):
+    return figure(KITS['captain' if var == 1 else 'crew'], PPOSES[name])
+
+
+# 총잡이 해적
+GPOSES = {'walk1': pose(**dict(WALK['walk1'], near=52, far=-24), tool=('sling', -148)),
+          'walk2': pose(**dict(WALK['walk2'], near=62, far=18), tool=('sling', -146)),
+          'aim': pose(near=107, far=95, tool=('gun', (-4, -57), -1)),
+          'shoot': pose(legs=(-3, 0, 2, 0), bob=-1, lean=-2, near=113, far=95, tool=('gun', (-8, -56), -10)),
+          'walk3': pose(**dict(WALK['walk3'], near=56, far=-4), tool=('sling', -147)),
+          'walk4': pose(**dict(WALK['walk4'], near=56, far=-4), tool=('sling', -147)),
+          'idle': pose(near=30, far=-10, tool=('sling', -140)),
+          'idle2': pose(bob=-1, near=33, far=-12, tool=('sling', -140)),
+          'reload1': pose(near=158, far=40, tool=('reload', (-2, -40), -50, 26)),
+          'reload2': pose(bob=1, near=150, far=46, tool=('reload', (-2, -40), -50, 9)),
+          'hurt': pose(bob=1, lean=-3, near=40, far=-36, face='hurt', tool=('sling', -130)),
+          'die1': pose(lean=-4, near=150, far=140, face='ko'),
+          'die2': pose(near=150, far=140, face='ko', rot=-42),
+          'die3': pose(near=160, far=150, face='ko', rot=-80)}
+for n in ('walk1', 'walk2', 'walk3', 'walk4'):
+    q = dict(WALK[n])
+    GPOSES['b' + n] = pose(view='b', tool=('back', (12, -26), -126), **q)
+
+
+def gunner(name='walk1'):
+    return figure(KITS['gunner'], GPOSES[name])
+
+
+def gunner_muzzle(name):
+    return muzzle_of(KITS['gunner'], GPOSES[name])
 
 
 # ------------------------------------------------------------------ 배
@@ -672,64 +981,6 @@ def musket(butt, ang, length=88.0, k=1.0):
     prims.append(L([q(31 * k, 3.2 * k), q(33 * k, 6.8 * k), q(37.5 * k, 6.8 * k), q(38.5 * k, 3.2 * k)], 1.6 * k, 'brass'))
     prims.append(L([q(Lg - 1.5 * k, -2.2 * k), q(Lg, -2.2 * k)], 5 * k, 'metal'))
     return prims, q(Lg + 1.5 * k, -2.2 * k)
-
-
-# ---- 총잡이 해적
-GUNNER = dict(skin='pskin', skin_d='pskin', shirt='pgun', shirt_d='pgun_d', pants='ppants', pants_d='ppants', shoe='ink')
-GPOSES = {
-    #          다리, 들썩임, 가까운 팔, 먼 팔, 개머리 위치(None = 어깨에 멤), 총 방향
-    'walk1': (1, -2, 52, -24, None, -148),
-    'walk2': (2, -2, 62, 18, None, -146),
-    'aim':   (0, 0, 107, 95, (-4, -57), -1),
-    'shoot': (1, -1, 113, 95, (-8, -56), -10),
-}
-PIRATE_GUN_LEN = 92
-
-
-def _gunner_gun(pose, hand=None):
-    step, bob, a_near, a_far, butt, gang = GPOSES[pose]
-    lean = -2 if pose == 'shoot' else 0
-    if butt is None:
-        return musket(hand, gang, PIRATE_GUN_LEN)
-    return musket((butt[0] + lean, butt[1] + bob), gang, PIRATE_GUN_LEN)
-
-
-def gunner(pose='walk1'):
-    """총을 든 해적. 멀리서 총을 쏜다."""
-    step, bob, a_near, a_far, butt, gang = GPOSES[pose]
-    K = GUNNER
-    lean = -2 if pose == 'shoot' else 0
-    far_arm, _ = _arm((-14 + lean, -50 + bob), a_far, K, 1.0, far=True)
-    prims = far_arm + _legs(K, step)
-    bx = lean
-    prims += [E(bx, -40 + bob, 17, 23, 'pgun'), E(5 + bx, -36 + bob, 9, 17, 'pgun_d', soft=True),
-              P([(bx - 6, -61 + bob), (bx + 7, -61 + bob), (bx + 1, -50 + bob)], 'pwhite'),
-              L([(bx - 13, -50 + bob), (bx + 14, -26 + bob)], 4.2, 'leather'),
-              L([(bx - 16, -27 + bob), (bx + 16, -27 + bob)], 4.4, 'ink'), E(bx + 3, -27 + bob, 3.2, 2.6, 'gold'),
-              P([(bx + 9, -24 + bob), (bx + 19, -20 + bob), (bx + 21, -13 + bob), (bx + 16, -15 + bob), (bx + 9, -19 + bob)], 'canvas_l')]
-    near_arm, hand = _arm((15 + lean, -50 + bob), a_near, K, 1.0)
-    gun, _ = _gunner_gun(pose, hand)
-    if butt is None:          # 어깨에 멘 총은 머리 뒤로 지나간다
-        prims += gun
-    hx, hy = 1 + lean, -74 + bob
-    prims += [E(hx, hy, 17, 16.5, 'pskin'),
-              E(hx - 5, hy + 3, 2.1, 2.8, 'ink'), E(hx + 8, hy + 2, 4.6, 4.2, 'patch'),
-              L([(hx - 16, hy - 5), (hx + 8, hy + 2), (hx + 17, hy - 3)], 1.6, 'patch'),
-              L([(hx - 2, hy + 11), (hx + 3, hy + 12.5), (hx + 8, hy + 11)], 2, 'ink'),
-              P([(hx - 15, hy + 6), (hx - 9, hy + 15), (hx + 1, hy + 18), (hx + 11, hy + 15), (hx + 15, hy + 7), (hx + 8, hy + 10),
-                 (hx, hy + 10.5), (hx - 8, hy + 10)], 'beard', op=0.55),
-              E(hx, hy - 11, 29, 7.5, 'hatb', -5),
-              P([(hx - 15, hy - 12), (hx - 13, hy - 25), (hx - 4, hy - 31), (hx + 8, hy - 30), (hx + 15, hy - 22), (hx + 15, hy - 13)], 'hatb'),
-              L([(hx - 15, hy - 15), (hx + 15, hy - 16)], 3.4, 'rust')]
-    if butt is not None:      # 겨눈 총은 얼굴 아래(뺨)에 붙는다
-        prims += gun
-    return prims + near_arm
-
-
-def gunner_muzzle(pose):
-    step, bob, a_near, a_far, butt, gang = GPOSES[pose]
-    hand = _arm((15, -50 + bob), a_near, GUNNER, 1.0)[1]
-    return _gunner_gun(pose, hand)[1]
 
 
 # ---- 3D 도우미
@@ -1144,3 +1395,145 @@ def muzzle_flash():
 def smoke():
     return [E(0, 0, 20, 17, 'smoke'), E(-17, 5, 13, 11, 'smoke'), E(16, 5, 13, 11, 'smoke'), E(-7, -12, 12, 11, 'smoke_l'),
             E(9, -11, 12, 10, 'smoke'), E(5, 10, 16, 8, 'smoke_d', soft=True)]
+
+
+
+# ================================================================== 움직임과 효과(타격감)
+def swing_arc(pivot, r, a0, a1, w, part=(0.0, 1.0), op=1.0):
+    """휘두른 자리에 남는 흰 궤적(초승달). a0 -> a1(도, 화면 기준 0=오른쪽 -90=위)로 휘두른다. 앞쪽 끝이 굵다."""
+    n = 22
+    t0, t1 = part
+    outer, inner = [], []
+    for i in range(n + 1):
+        t = t0 + (t1 - t0) * i / n
+        a = math.radians(a0 + (a1 - a0) * t)
+        th = w * (math.sin(math.pi * min(1.0, t * 1.12)) ** 0.7 if t < 0.89 else (1 - t) / 0.11 * 0.95)
+        outer.append((pivot[0] + r * math.cos(a), pivot[1] + r * math.sin(a)))
+        inner.append((pivot[0] + (r - th) * math.cos(a), pivot[1] + (r - th) * math.sin(a)))
+    kw = {'op': op} if op < 1 else {}
+    edge = [(pivot[0] + (r - 2) * math.cos(math.radians(a0 + (a1 - a0) * (t0 + (t1 - t0) * i / n))),
+             pivot[1] + (r - 2) * math.sin(math.radians(a0 + (a1 - a0) * (t0 + (t1 - t0) * i / n)))) for i in range(n + 1)]
+    return [P(outer + inner[::-1], 'swish', **kw), L(edge[int(n * 0.35):], 1.6, 'swish_d', **kw)]
+
+
+# 캐릭터 발 기준(오른쪽을 볼 때)의 궤적. 이름: (돌리는 중심, 반지름, 시작 각, 끝 각, 굵기)
+SWINGS = {'swing': ((16, -50), 46, -40, 48, 11), 'heavy': ((16, -50), 56, -100, 42, 15),
+          'bswing': ((17, -51), 47, -112, 4, 11), 'bheavy': ((18, -51), 56, -120, 20, 15)}
+
+
+def swing_frames(name):
+    pv, r, a0, a1, w = SWINGS[name]
+    return [swing_arc(pv, r, a0, a1, w * 0.75, (0.0, 0.55)), swing_arc(pv, r, a0, a1, w),
+            swing_arc(pv, r, a0, a1, w * 0.55, (0.35, 1.0), op=0.6)]
+
+
+def impact_frames():
+    ring = lambda r, w, key, op=1.0: L(ell_pts(0, 0, r, r, 0, 30) + [ell_pts(0, 0, r, r, 0, 30)[0]], w, key, **({'op': op} if op < 1 else {}))
+    sparks = [L([(math.cos(math.radians(a)) * 20, math.sin(math.radians(a)) * 20),
+                 (math.cos(math.radians(a)) * 31, math.sin(math.radians(a)) * 31)], 3.4, 'sun') for a in (-135, -45, 45, 135)]
+    return [[P(star(16, 7, 8, -90), 'white'), E(0, 0, 6, 6, 'white')],
+            [P(star(32, 12, 8, -90), 'sun'), P(star(18, 8, 8, -67), 'white')],
+            [ring(30, 4, 'white')] + sparks,
+            [ring(38, 2.6, 'white', 0.55)]]
+
+
+def dust_frames(key='dust', light='dust_l', dark='dust_d'):
+    """땅에서 피어오르는 먼지(기준점 = 바닥 가운데)"""
+    sets = [
+        [(-8, -6, 9, 7, key), (7, -5, 10, 7, key), (0, -11, 9, 8, light)],
+        [(-16, -8, 12, 9, key), (15, -8, 12, 9, key), (0, -16, 13, 11, light), (-6, -4, 10, 6, dark), (8, -4, 9, 6, dark)],
+        [(-24, -12, 14, 11, key), (22, -12, 14, 11, key), (-6, -24, 15, 12, light), (10, -20, 12, 10, key), (0, -6, 16, 7, dark)],
+        [(-30, -16, 13, 10, key), (28, -16, 13, 10, key), (-8, -32, 13, 11, light), (12, -28, 11, 9, key), (0, -10, 14, 6, dark)],
+        [(-34, -20, 10, 8, key), (30, -20, 10, 8, light), (-6, -38, 10, 8, light), (14, -34, 8, 7, key)],
+    ]
+    ops = [1, 1, 1, 0.7, 0.4]
+    return [[E(x, y, rx, ry, k, **({'op': o} if o < 1 else {})) for x, y, rx, ry, k in fs] for fs, o in zip(sets, ops)]
+
+
+def vanish_frames():
+    sets = [
+        [(-10, -6, 12, 8, 'vanish'), (9, -6, 12, 8, 'vanish'), (0, -12, 12, 10, 'vanish_l')],
+        [(-12, -12, 13, 11, 'vanish'), (11, -12, 13, 11, 'vanish'), (0, -26, 14, 13, 'vanish_l'), (0, -6, 16, 6, 'vanish_d')],
+        [(-8, -22, 12, 13, 'vanish'), (9, -30, 11, 12, 'vanish'), (-2, -44, 12, 12, 'vanish_l'), (0, -8, 14, 5, 'vanish_d')],
+        [(-10, -40, 9, 10, 'vanish_l'), (10, -50, 8, 9, 'vanish_l'), (-2, -62, 9, 9, 'vanish')],
+        [(-6, -62, 6, 7, 'vanish_l'), (8, -74, 5, 6, 'vanish_l'), (-1, -84, 5, 5, 'vanish_l')],
+    ]
+    ops = [1, 1, 0.9, 0.7, 0.45]
+    return [[E(x, y, rx, ry, k, **({'op': o} if o < 1 else {})) for x, y, rx, ry, k in fs] for fs, o in zip(sets, ops)]
+
+
+def sparkle_frames():
+    st = lambda x, y, R, r, key, op=1.0: P([(px + x, py + y) for px, py in star(R, r, 4, -90)], key, **({'op': op} if op < 1 else {}))
+    return [[st(0, 0, 10, 3, 'white')],
+            [st(0, 0, 20, 5, 'sun'), st(16, -14, 8, 2.5, 'white'), st(-15, 10, 6, 2, 'sun')],
+            [st(-3, 2, 14, 4, 'sun'), st(18, -18, 12, 3, 'white'), st(-20, 12, 10, 3, 'sun'), st(8, 18, 7, 2, 'white')],
+            [st(22, -24, 7, 2, 'white', 0.6), st(-24, 16, 6, 2, 'sun', 0.6)]]
+
+
+def splash_frames():
+    ring = lambda rx, ry, w, key, op=1.0: L(ell_pts(0, 0, rx, ry, 0, 28) + [ell_pts(0, 0, rx, ry, 0, 28)[0]], w, key, **({'op': op} if op < 1 else {}))
+    return [[E(0, 0, 16, 5, 'foam'), P([(-14, 0), (-10, -12), (-6, -4), (-2, -16), (2, -5), (6, -14), (10, -3), (14, 0)], 'splash')],
+            [E(0, 0, 22, 6, 'foam'), P([(-20, 0), (-16, -22), (-10, -6), (-4, -30), (2, -8), (8, -26), (14, -5), (20, 0)], 'splash'),
+             E(-18, -30, 3, 3, 'splash_d'), E(12, -36, 3, 3, 'splash_d'), E(22, -20, 2.5, 2.5, 'splash_d')],
+            [ring(28, 8, 3, 'foam'), E(-24, -10, 3, 3, 'splash_d'), E(20, -14, 3, 3, 'splash_d'), E(6, -20, 2.5, 2.5, 'splash_d')],
+            [ring(36, 10, 2.5, 'foam', 0.6)]]
+
+
+def smoke_puff_frames():
+    return [[E(0, 0, 10, 9, 'smoke'), E(6, -4, 7, 6, 'smoke_l')],
+            [E(-4, 0, 14, 12, 'smoke'), E(10, -4, 11, 10, 'smoke'), E(2, -10, 10, 9, 'smoke_l'), E(4, 6, 12, 6, 'smoke_d', soft=True)],
+            [E(-8, -4, 17, 14, 'smoke', op=0.85), E(14, -8, 14, 12, 'smoke', op=0.85), E(2, -18, 13, 11, 'smoke_l', op=0.85),
+             E(4, 6, 16, 7, 'smoke_d', soft=True, op=0.8)],
+            [E(-10, -10, 18, 15, 'smoke_l', op=0.45), E(16, -14, 15, 12, 'smoke', op=0.45), E(2, -26, 13, 11, 'smoke_l', op=0.45)]]
+
+
+def _leaf(key, dark, k=1.0):
+    pts = bez2((-11, 0), (0, -9), (11, 0), 6) + bez2((11, 0), (0, 9), (-11, 0), 6)[1:]
+    return [P([(x * k, y * k) for x, y in pts], key), L([(-9 * k, 0), (9 * k, 0)], 1.3, dark)]
+
+
+PARTICLES = ['wood1', 'wood2', 'leaf1', 'leaf2', 'leaf3', 'stone1', 'stone2', 'iron', 'spark', 'ember', 'goo', 'dirt', 'dust', 'heart']
+
+
+def particle(name):
+    """작게 튀는 조각(가운데 기준). 게임에서 여러 개를 흩뿌려 쓴다."""
+    if name == 'wood1':
+        return [P([(-9, -4), (5, -6), (10, 1), (-2, 5), (-8, 3)], 'wood_l'), L([(-7, 1), (6, -2)], 1.4, 'wood_d')]
+    if name == 'wood2':
+        return [P([(-13, -1), (10, -3.5), (13, 0), (-10, 3)], 'wood'), L([(-9, -0.5), (9, -2)], 1.2, 'wood_l')]
+    if name == 'leaf1':
+        return rotate(_leaf('leafA', 'leafA_d'), -25)
+    if name == 'leaf2':
+        return rotate(_leaf('leafB', 'leafB_d', 0.9), 20)
+    if name == 'leaf3':
+        return rotate(_leaf('leafW', 'leafW_d'), -10)
+    if name == 'stone1':
+        return [P([(-8, -5), (4, -8), (10, -1), (5, 6), (-6, 5)], 'rock'), P([(-8, -5), (4, -8), (2, -1), (-5, 0)], 'rock_l', soft=True)]
+    if name == 'stone2':
+        return [P([(-6, 3), (0, -7), (7, 4)], 'rock_d'), P([(-6, 3), (0, -7), (0, 2)], 'rock', soft=True)]
+    if name == 'iron':
+        return [P([(-8, -4), (3, -8), (9, 0), (3, 6), (-7, 4)], 'iron'), E(1, -1, 4, 3, 'rust'), E(-4, 2, 2, 1.8, 'ore')]
+    if name == 'spark':
+        return [P(star(10, 2.6, 4, -90), 'fire_y'), E(0, 0, 2.6, 2.6, 'white')]
+    if name == 'ember':
+        return [E(0, 0, 5, 5, 'ember'), E(0, 0, 2.6, 2.6, 'fire_y')]
+    if name == 'goo':
+        return [P(bez2((0, -9), (8, 2), (0, 7), 6) + bez2((0, 7), (-8, 2), (0, -9), 6)[1:], 'goo'), E(-2, 1, 1.8, 2.4, 'white')]
+    if name == 'dirt':
+        return [E(0, 0, 7, 5.5, 'dirt'), E(2, 2, 5, 3.4, 'dirt_d', soft=True)]
+    if name == 'dust':
+        return [E(0, 0, 9, 7, 'dust_l'), E(3, 2, 6, 4, 'dust')]
+    if name == 'heart':
+        return xform(heart('pink'), 0, 0, 0.3)
+    raise KeyError(name)
+
+
+def footprint():
+    return [E(-7, -2, 5.2, 2.6, 'foot', -18, op=0.75), E(6, 3, 5.2, 2.6, 'foot', -18, op=0.75)]
+
+
+def arrow_stuck():
+    """땅에 꽂힌 화살(오른쪽 아래를 향해 꽂힘). 기준점 = 꽂힌 자리"""
+    return xform([E(1, 1, 6, 2.4, 'dirt_d', op=0.8), L([(0, 0), (-21, -15)], 3.4, 'wood'),
+                  P([(-23, -16), (-30, -24), (-21, -24), (-15, -18)], 'white'), P([(-23, -16), (-31, -15), (-24, -10), (-17, -13)], 'white'),
+                  L([(-14, -10), (-12, -8)], 2.6, 'fletch')], k=1.3)

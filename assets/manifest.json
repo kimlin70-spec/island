@@ -882,13 +882,13 @@
   },
   "char_player": {
    "file": "chars/char_player.png",
-   "w": 1254,
-   "h": 99,
+   "w": 1310,
+   "h": 504,
    "originX": 0.5,
-   "originY": 0.7722,
+   "originY": 0.6485,
    "kind": "char",
-   "frameWidth": 114,
-   "frameHeight": 99,
+   "frameWidth": 131,
+   "frameHeight": 126,
    "frames": [
     "idle",
     "walk1",
@@ -900,8 +900,273 @@
     "pick1",
     "pick2",
     "gun1",
-    "gun2"
+    "gun2",
+    "idle2",
+    "blink",
+    "walk3",
+    "walk4",
+    "dagger3",
+    "axe3",
+    "pick3",
+    "hurt",
+    "down",
+    "bidle",
+    "bidle2",
+    "bwalk1",
+    "bwalk2",
+    "bwalk3",
+    "bwalk4",
+    "bdagger1",
+    "bdagger2",
+    "bdagger3",
+    "baxe1",
+    "baxe2",
+    "baxe3",
+    "bpick1",
+    "bpick2",
+    "bpick3",
+    "bgun1",
+    "bgun2"
    ],
+   "anims": {
+    "idle": {
+     "frames": [
+      [
+       "idle",
+       700
+      ],
+      [
+       "idle2",
+       700
+      ]
+     ],
+     "loop": true
+    },
+    "bidle": {
+     "frames": [
+      [
+       "bidle",
+       700
+      ],
+      [
+       "bidle2",
+       700
+      ]
+     ],
+     "loop": true
+    },
+    "walk": {
+     "frames": [
+      [
+       "walk1",
+       83
+      ],
+      [
+       "walk3",
+       83
+      ],
+      [
+       "walk2",
+       83
+      ],
+      [
+       "walk4",
+       83
+      ]
+     ],
+     "loop": true
+    },
+    "bwalk": {
+     "frames": [
+      [
+       "bwalk1",
+       83
+      ],
+      [
+       "bwalk3",
+       83
+      ],
+      [
+       "bwalk2",
+       83
+      ],
+      [
+       "bwalk4",
+       83
+      ]
+     ],
+     "loop": true
+    },
+    "blink": {
+     "frames": [
+      [
+       "blink",
+       120
+      ]
+     ],
+     "loop": false
+    },
+    "dagger": {
+     "frames": [
+      [
+       "dagger1",
+       140
+      ],
+      [
+       "dagger2",
+       90
+      ],
+      [
+       "dagger3",
+       140
+      ]
+     ],
+     "loop": false,
+     "hit": "dagger2",
+     "swing": "swing"
+    },
+    "axe": {
+     "frames": [
+      [
+       "axe1",
+       190
+      ],
+      [
+       "axe2",
+       90
+      ],
+      [
+       "axe3",
+       150
+      ]
+     ],
+     "loop": false,
+     "hit": "axe2",
+     "swing": "heavy"
+    },
+    "pick": {
+     "frames": [
+      [
+       "pick1",
+       190
+      ],
+      [
+       "pick2",
+       90
+      ],
+      [
+       "pick3",
+       150
+      ]
+     ],
+     "loop": false,
+     "hit": "pick2",
+     "swing": "heavy"
+    },
+    "gun": {
+     "frames": [
+      [
+       "gun1",
+       250
+      ],
+      [
+       "gun2",
+       150
+      ]
+     ],
+     "loop": false,
+     "hit": "gun2"
+    },
+    "bdagger": {
+     "frames": [
+      [
+       "bdagger1",
+       140
+      ],
+      [
+       "bdagger2",
+       90
+      ],
+      [
+       "bdagger3",
+       140
+      ]
+     ],
+     "loop": false,
+     "hit": "bdagger2",
+     "swing": "bswing"
+    },
+    "baxe": {
+     "frames": [
+      [
+       "baxe1",
+       190
+      ],
+      [
+       "baxe2",
+       90
+      ],
+      [
+       "baxe3",
+       150
+      ]
+     ],
+     "loop": false,
+     "hit": "baxe2",
+     "swing": "bheavy"
+    },
+    "bpick": {
+     "frames": [
+      [
+       "bpick1",
+       190
+      ],
+      [
+       "bpick2",
+       90
+      ],
+      [
+       "bpick3",
+       150
+      ]
+     ],
+     "loop": false,
+     "hit": "bpick2",
+     "swing": "bheavy"
+    },
+    "bgun": {
+     "frames": [
+      [
+       "bgun1",
+       250
+      ],
+      [
+       "bgun2",
+       150
+      ]
+     ],
+     "loop": false,
+     "hit": "bgun2"
+    },
+    "hurt": {
+     "frames": [
+      [
+       "hurt",
+       220
+      ]
+     ],
+     "loop": false
+    },
+    "down": {
+     "frames": [
+      [
+       "down",
+       1000
+      ]
+     ],
+     "loop": false
+    }
+   },
    "muzzle": {
     "gun1": [
      47.2,
@@ -910,69 +1175,626 @@
     "gun2": [
      42.4,
      -45.6
+    ],
+    "bgun1": [
+     40.4,
+     -66.4
+    ],
+    "bgun2": [
+     32.9,
+     -71.8
     ]
    }
   },
   "char_zombie": {
    "file": "chars/char_zombie.png",
-   "w": 207,
-   "h": 94,
+   "w": 1390,
+   "h": 360,
    "originX": 0.5,
-   "originY": 0.7616,
+   "originY": 0.5938,
    "kind": "char",
-   "frameWidth": 69,
-   "frameHeight": 94,
+   "frameWidth": 139,
+   "frameHeight": 120,
    "frames": [
     "walk1",
     "walk2",
-    "attack"
-   ]
+    "attack",
+    "walk3",
+    "walk4",
+    "idle",
+    "idle2",
+    "attack0",
+    "hurt",
+    "die1",
+    "die2",
+    "die3",
+    "rise1",
+    "rise2",
+    "rise3",
+    "bwalk1",
+    "bwalk2",
+    "bwalk3",
+    "bwalk4",
+    "battack0",
+    "battack"
+   ],
+   "anims": {
+    "idle": {
+     "frames": [
+      [
+       "idle",
+       500
+      ],
+      [
+       "idle2",
+       500
+      ]
+     ],
+     "loop": true
+    },
+    "walk": {
+     "frames": [
+      [
+       "walk1",
+       160
+      ],
+      [
+       "walk3",
+       160
+      ],
+      [
+       "walk2",
+       160
+      ],
+      [
+       "walk4",
+       160
+      ]
+     ],
+     "loop": true
+    },
+    "bwalk": {
+     "frames": [
+      [
+       "bwalk1",
+       160
+      ],
+      [
+       "bwalk3",
+       160
+      ],
+      [
+       "bwalk2",
+       160
+      ],
+      [
+       "bwalk4",
+       160
+      ]
+     ],
+     "loop": true
+    },
+    "attack": {
+     "frames": [
+      [
+       "attack0",
+       260
+      ],
+      [
+       "attack",
+       220
+      ]
+     ],
+     "loop": false,
+     "hit": "attack"
+    },
+    "battack": {
+     "frames": [
+      [
+       "battack0",
+       260
+      ],
+      [
+       "battack",
+       220
+      ]
+     ],
+     "loop": false,
+     "hit": "battack"
+    },
+    "hurt": {
+     "frames": [
+      [
+       "hurt",
+       200
+      ]
+     ],
+     "loop": false
+    },
+    "die": {
+     "frames": [
+      [
+       "die1",
+       150
+      ],
+      [
+       "die2",
+       140
+      ],
+      [
+       "die3",
+       700
+      ]
+     ],
+     "loop": false
+    },
+    "rise": {
+     "frames": [
+      [
+       "rise1",
+       260
+      ],
+      [
+       "rise2",
+       260
+      ],
+      [
+       "rise3",
+       260
+      ]
+     ],
+     "loop": false
+    }
+   }
   },
   "char_pirate_1": {
    "file": "chars/char_pirate_1.png",
-   "w": 237,
-   "h": 96,
+   "w": 1420,
+   "h": 242,
    "originX": 0.5,
-   "originY": 0.7647,
+   "originY": 0.6062,
    "kind": "char",
-   "frameWidth": 79,
-   "frameHeight": 96,
+   "frameWidth": 142,
+   "frameHeight": 121,
    "frames": [
     "walk1",
     "walk2",
-    "attack"
-   ]
+    "attack",
+    "walk3",
+    "walk4",
+    "idle",
+    "idle2",
+    "attack0",
+    "attack2",
+    "hurt",
+    "die1",
+    "die2",
+    "die3",
+    "bwalk1",
+    "bwalk2",
+    "bwalk3",
+    "bwalk4",
+    "battack0",
+    "battack"
+   ],
+   "anims": {
+    "idle": {
+     "frames": [
+      [
+       "idle",
+       600
+      ],
+      [
+       "idle2",
+       600
+      ]
+     ],
+     "loop": true
+    },
+    "walk": {
+     "frames": [
+      [
+       "walk1",
+       125
+      ],
+      [
+       "walk3",
+       125
+      ],
+      [
+       "walk2",
+       125
+      ],
+      [
+       "walk4",
+       125
+      ]
+     ],
+     "loop": true
+    },
+    "bwalk": {
+     "frames": [
+      [
+       "bwalk1",
+       125
+      ],
+      [
+       "bwalk3",
+       125
+      ],
+      [
+       "bwalk2",
+       125
+      ],
+      [
+       "bwalk4",
+       125
+      ]
+     ],
+     "loop": true
+    },
+    "attack": {
+     "frames": [
+      [
+       "attack0",
+       220
+      ],
+      [
+       "attack",
+       90
+      ],
+      [
+       "attack2",
+       160
+      ]
+     ],
+     "loop": false,
+     "hit": "attack",
+     "swing": "heavy"
+    },
+    "battack": {
+     "frames": [
+      [
+       "battack0",
+       220
+      ],
+      [
+       "battack",
+       160
+      ]
+     ],
+     "loop": false,
+     "hit": "battack",
+     "swing": "bheavy"
+    },
+    "hurt": {
+     "frames": [
+      [
+       "hurt",
+       200
+      ]
+     ],
+     "loop": false
+    },
+    "die": {
+     "frames": [
+      [
+       "die1",
+       150
+      ],
+      [
+       "die2",
+       140
+      ],
+      [
+       "die3",
+       700
+      ]
+     ],
+     "loop": false
+    }
+   }
   },
   "char_pirate_2": {
    "file": "chars/char_pirate_2.png",
-   "w": 237,
-   "h": 91,
+   "w": 1300,
+   "h": 232,
    "originX": 0.5,
-   "originY": 0.7517,
+   "originY": 0.6162,
    "kind": "char",
-   "frameWidth": 79,
-   "frameHeight": 91,
+   "frameWidth": 130,
+   "frameHeight": 116,
    "frames": [
     "walk1",
     "walk2",
-    "attack"
-   ]
+    "attack",
+    "walk3",
+    "walk4",
+    "idle",
+    "idle2",
+    "attack0",
+    "attack2",
+    "hurt",
+    "die1",
+    "die2",
+    "die3",
+    "bwalk1",
+    "bwalk2",
+    "bwalk3",
+    "bwalk4",
+    "battack0",
+    "battack"
+   ],
+   "anims": {
+    "idle": {
+     "frames": [
+      [
+       "idle",
+       600
+      ],
+      [
+       "idle2",
+       600
+      ]
+     ],
+     "loop": true
+    },
+    "walk": {
+     "frames": [
+      [
+       "walk1",
+       125
+      ],
+      [
+       "walk3",
+       125
+      ],
+      [
+       "walk2",
+       125
+      ],
+      [
+       "walk4",
+       125
+      ]
+     ],
+     "loop": true
+    },
+    "bwalk": {
+     "frames": [
+      [
+       "bwalk1",
+       125
+      ],
+      [
+       "bwalk3",
+       125
+      ],
+      [
+       "bwalk2",
+       125
+      ],
+      [
+       "bwalk4",
+       125
+      ]
+     ],
+     "loop": true
+    },
+    "attack": {
+     "frames": [
+      [
+       "attack0",
+       220
+      ],
+      [
+       "attack",
+       90
+      ],
+      [
+       "attack2",
+       160
+      ]
+     ],
+     "loop": false,
+     "hit": "attack",
+     "swing": "heavy"
+    },
+    "battack": {
+     "frames": [
+      [
+       "battack0",
+       220
+      ],
+      [
+       "battack",
+       160
+      ]
+     ],
+     "loop": false,
+     "hit": "battack",
+     "swing": "bheavy"
+    },
+    "hurt": {
+     "frames": [
+      [
+       "hurt",
+       200
+      ]
+     ],
+     "loop": false
+    },
+    "die": {
+     "frames": [
+      [
+       "die1",
+       150
+      ],
+      [
+       "die2",
+       140
+      ],
+      [
+       "die3",
+       700
+      ]
+     ],
+     "loop": false
+    }
+   }
   },
   "char_pirate_3": {
    "file": "chars/char_pirate_3.png",
-   "w": 524,
-   "h": 102,
+   "w": 1560,
+   "h": 286,
    "originX": 0.5,
-   "originY": 0.7805,
+   "originY": 0.6463,
    "kind": "char",
-   "frameWidth": 131,
-   "frameHeight": 102,
+   "frameWidth": 156,
+   "frameHeight": 143,
    "frames": [
     "walk1",
     "walk2",
     "aim",
-    "shoot"
+    "shoot",
+    "walk3",
+    "walk4",
+    "idle",
+    "idle2",
+    "reload1",
+    "reload2",
+    "hurt",
+    "die1",
+    "die2",
+    "die3",
+    "bwalk1",
+    "bwalk2",
+    "bwalk3",
+    "bwalk4"
    ],
+   "anims": {
+    "idle": {
+     "frames": [
+      [
+       "idle",
+       600
+      ],
+      [
+       "idle2",
+       600
+      ]
+     ],
+     "loop": true
+    },
+    "walk": {
+     "frames": [
+      [
+       "walk1",
+       125
+      ],
+      [
+       "walk3",
+       125
+      ],
+      [
+       "walk2",
+       125
+      ],
+      [
+       "walk4",
+       125
+      ]
+     ],
+     "loop": true
+    },
+    "bwalk": {
+     "frames": [
+      [
+       "bwalk1",
+       125
+      ],
+      [
+       "bwalk3",
+       125
+      ],
+      [
+       "bwalk2",
+       125
+      ],
+      [
+       "bwalk4",
+       125
+      ]
+     ],
+     "loop": true
+    },
+    "aim": {
+     "frames": [
+      [
+       "aim",
+       600
+      ]
+     ],
+     "loop": false
+    },
+    "shoot": {
+     "frames": [
+      [
+       "shoot",
+       200
+      ]
+     ],
+     "loop": false,
+     "hit": "shoot"
+    },
+    "reload": {
+     "frames": [
+      [
+       "reload1",
+       400
+      ],
+      [
+       "reload2",
+       400
+      ],
+      [
+       "reload1",
+       400
+      ],
+      [
+       "reload2",
+       400
+      ]
+     ],
+     "loop": false
+    },
+    "hurt": {
+     "frames": [
+      [
+       "hurt",
+       200
+      ]
+     ],
+     "loop": false
+    },
+    "die": {
+     "frames": [
+      [
+       "die1",
+       150
+      ],
+      [
+       "die2",
+       140
+      ],
+      [
+       "die3",
+       700
+      ]
+     ],
+     "loop": false
+    }
+   },
    "muzzle": {
     "aim": [
      55.9,
@@ -1247,6 +2069,387 @@
    "originX": 0.5,
    "originY": 0.5,
    "kind": "light"
+  },
+  "fx_swing": {
+   "file": "fx/fx_swing.png",
+   "w": 648,
+   "h": 148,
+   "originX": 0.5,
+   "originY": 1.0,
+   "kind": "fx",
+   "frameWidth": 108,
+   "frameHeight": 74,
+   "frames": [
+    "swing1",
+    "swing2",
+    "swing3",
+    "heavy1",
+    "heavy2",
+    "heavy3",
+    "bswing1",
+    "bswing2",
+    "bswing3",
+    "bheavy1",
+    "bheavy2",
+    "bheavy3"
+   ],
+   "anims": {
+    "swing": {
+     "frames": [
+      [
+       "swing1",
+       40
+      ],
+      [
+       "swing2",
+       60
+      ],
+      [
+       "swing3",
+       70
+      ]
+     ],
+     "loop": false
+    },
+    "heavy": {
+     "frames": [
+      [
+       "heavy1",
+       40
+      ],
+      [
+       "heavy2",
+       60
+      ],
+      [
+       "heavy3",
+       70
+      ]
+     ],
+     "loop": false
+    },
+    "bswing": {
+     "frames": [
+      [
+       "bswing1",
+       40
+      ],
+      [
+       "bswing2",
+       60
+      ],
+      [
+       "bswing3",
+       70
+      ]
+     ],
+     "loop": false
+    },
+    "bheavy": {
+     "frames": [
+      [
+       "bheavy1",
+       40
+      ],
+      [
+       "bheavy2",
+       60
+      ],
+      [
+       "bheavy3",
+       70
+      ]
+     ],
+     "loop": false
+    }
+   },
+   "note": "기준점 = 캐릭터의 발. 캐릭터와 같은 자리, 같은 좌우 뒤집기로 놓는다."
+  },
+  "fx_impact": {
+   "file": "fx/fx_impact.png",
+   "w": 264,
+   "h": 66,
+   "originX": 0.5,
+   "originY": 0.5,
+   "kind": "fx",
+   "frameWidth": 66,
+   "frameHeight": 66,
+   "frames": [
+    "impact1",
+    "impact2",
+    "impact3",
+    "impact4"
+   ],
+   "anims": {
+    "play": {
+     "frames": [
+      [
+       "impact1",
+       40
+      ],
+      [
+       "impact2",
+       50
+      ],
+      [
+       "impact3",
+       60
+      ],
+      [
+       "impact4",
+       70
+      ]
+     ],
+     "loop": false
+    }
+   }
+  },
+  "fx_dust": {
+   "file": "fx/fx_dust.png",
+   "w": 350,
+   "h": 51,
+   "originX": 0.5,
+   "originY": 0.7317,
+   "kind": "fx",
+   "frameWidth": 70,
+   "frameHeight": 51,
+   "frames": [
+    "dust1",
+    "dust2",
+    "dust3",
+    "dust4",
+    "dust5"
+   ],
+   "anims": {
+    "play": {
+     "frames": [
+      [
+       "dust1",
+       70
+      ],
+      [
+       "dust2",
+       70
+      ],
+      [
+       "dust3",
+       70
+      ],
+      [
+       "dust4",
+       70
+      ],
+      [
+       "dust5",
+       70
+      ]
+     ],
+     "loop": false
+    }
+   }
+  },
+  "fx_sparkle": {
+   "file": "fx/fx_sparkle.png",
+   "w": 208,
+   "h": 50,
+   "originX": 0.5,
+   "originY": 0.5375,
+   "kind": "fx",
+   "frameWidth": 52,
+   "frameHeight": 50,
+   "frames": [
+    "sparkle1",
+    "sparkle2",
+    "sparkle3",
+    "sparkle4"
+   ],
+   "anims": {
+    "play": {
+     "frames": [
+      [
+       "sparkle1",
+       80
+      ],
+      [
+       "sparkle2",
+       80
+      ],
+      [
+       "sparkle3",
+       80
+      ],
+      [
+       "sparkle4",
+       80
+      ]
+     ],
+     "loop": false
+    }
+   }
+  },
+  "fx_vanish": {
+   "file": "fx/fx_vanish.png",
+   "w": 230,
+   "h": 77,
+   "originX": 0.5,
+   "originY": 0.8211,
+   "kind": "fx",
+   "frameWidth": 46,
+   "frameHeight": 77,
+   "frames": [
+    "vanish1",
+    "vanish2",
+    "vanish3",
+    "vanish4",
+    "vanish5"
+   ],
+   "anims": {
+    "play": {
+     "frames": [
+      [
+       "vanish1",
+       100
+      ],
+      [
+       "vanish2",
+       100
+      ],
+      [
+       "vanish3",
+       100
+      ],
+      [
+       "vanish4",
+       100
+      ],
+      [
+       "vanish5",
+       100
+      ]
+     ],
+     "loop": false
+    }
+   }
+  },
+  "fx_splash": {
+   "file": "fx/fx_splash.png",
+   "w": 256,
+   "h": 53,
+   "originX": 0.5,
+   "originY": 0.6,
+   "kind": "fx",
+   "frameWidth": 64,
+   "frameHeight": 53,
+   "frames": [
+    "splash1",
+    "splash2",
+    "splash3",
+    "splash4"
+   ],
+   "anims": {
+    "play": {
+     "frames": [
+      [
+       "splash1",
+       80
+      ],
+      [
+       "splash2",
+       80
+      ],
+      [
+       "splash3",
+       80
+      ],
+      [
+       "splash4",
+       80
+      ]
+     ],
+     "loop": false
+    }
+   }
+  },
+  "fx_smoke_puff": {
+   "file": "fx/fx_smoke_puff.png",
+   "w": 216,
+   "h": 53,
+   "originX": 0.5,
+   "originY": 0.6,
+   "kind": "fx",
+   "frameWidth": 54,
+   "frameHeight": 53,
+   "frames": [
+    "puff1",
+    "puff2",
+    "puff3",
+    "puff4"
+   ],
+   "anims": {
+    "play": {
+     "frames": [
+      [
+       "puff1",
+       120
+      ],
+      [
+       "puff2",
+       120
+      ],
+      [
+       "puff3",
+       120
+      ],
+      [
+       "puff4",
+       120
+      ]
+     ],
+     "loop": false
+    }
+   }
+  },
+  "fx_particles": {
+   "file": "fx/fx_particles.png",
+   "w": 532,
+   "h": 32,
+   "originX": 0.5,
+   "originY": 0.5,
+   "kind": "particle",
+   "frameWidth": 38,
+   "frameHeight": 32,
+   "frames": [
+    "wood1",
+    "wood2",
+    "leaf1",
+    "leaf2",
+    "leaf3",
+    "stone1",
+    "stone2",
+    "iron",
+    "spark",
+    "ember",
+    "goo",
+    "dirt",
+    "dust",
+    "heart"
+   ]
+  },
+  "fx_footprint": {
+   "file": "fx/fx_footprint.png",
+   "w": 20,
+   "h": 12,
+   "originX": 0.5408,
+   "originY": 0.4736,
+   "kind": "decal"
+  },
+  "proj_arrow_stuck": {
+   "file": "fx/proj_arrow_stuck.png",
+   "w": 38,
+   "h": 29,
+   "originX": 0.7688,
+   "originY": 0.7701,
+   "kind": "projectile"
   }
  }
 }

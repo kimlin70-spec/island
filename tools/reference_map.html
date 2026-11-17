@@ -13,6 +13,7 @@
 // DEMO_SPEC.md 3장(그림과 좌표 규칙)만으로 화면을 그려 보는 확인용 페이지. 게임이 아니다.
 // 여는 법: 프로젝트 폴더에서 서버를 켜고  http://localhost:8000/tools/reference_map.html?mode=day
 //          mode = day(낮 화면 예시) | night(밤 화면 예시) | full(섬 전체) | defense(2단계: 탑, 철조망, 화살과 총알)
+//                 | motion(움직임과 효과: manifest 의 anims 를 모두 만들어 틀고, 조각 효과를 흩뿌린다)
 // 바닥 그림 깔기, 좌표 변환, 겹침 순서, 울타리 연결, 밤의 '빛 지도'를 어떻게 하는지 보여 준다.
 // 게임 코드는 이 파일을 늘려 가지 말고 DEMO_SPEC.md 2장의 구성대로 새로 짠다.
 const HW = 40, HH = 20;
@@ -26,7 +27,7 @@ function fenceMask(col, row, has) {
 }
 const Q = new URLSearchParams(location.search);
 const MODE = Q.get('mode') || 'day';
-const DEF = MODE === 'defense';
+const DEF = MODE === 'defense', MOTION = MODE === 'motion';
 const NIGHT = MODE === 'night' || DEF, FULL = MODE === 'full';
 // 포탑 방향 번호: 땅 위의 방향 = 화면 방향에서 세로를 2배로 편 각도. 16등분해서 가장 가까운 번호.
 function turretIndex(x, y, tx, ty, n) {
@@ -55,11 +56,33 @@ class Boot extends Phaser.Scene {
   }
 }
 
+// manifest 의 anims 를 Phaser 애니메이션으로 만든다. 이름 = '그림이름:애니메이션이름' (예: 'char_player:walk')
+// 프레임마다 duration(ms)을 준다. Phaser 3.90 은 frame.duration 을 그 프레임의 표시 시간으로 그대로 쓴다.
+function buildAnims(scene, A) {
+  const missing = [];
+  let made = 0;
+  for (const [key, v] of Object.entries(A)) {
+    if (!v.anims) continue;
+    for (const [name, a] of Object.entries(v.anims)) {
+      const frames = a.frames.map(([f, ms]) => {
+        const i = v.frames.indexOf(f);
+        if (i < 0) missing.push(key + ':' + f);
+        return { key, frame: i, duration: ms };
+      });
+      scene.anims.create({ key: key + ':' + name, frames, repeat: a.loop ? -1 : 0 });
+      made++;
+    }
+  }
+  return { made, missing };
+}
+
 class Game extends Phaser.Scene {
   constructor() { super('game'); }
   create() {
     const man = this.cache.json.get('manifest'), map = this.cache.json.get('map');
     const A = man.assets, G = man.meta.ground;
+    window.__anims = buildAnims(this, A);
+    if (MOTION) { this.setupMotion(A, G); return; }
 
     // 1) 바닥: 큰 그림 한 장을 조각으로 나눈 것. 각 조각의 왼쪽 위를 월드 좌표 (x, y)에 놓고,
     //    가장자리 여유분 1px을 뺀 안쪽 1022x1022만 그린다. setCrop을 빼면 카메라가 움직일 때 조각 사이에 가는 줄이 보인다.
@@ -155,6 +178,52 @@ class Game extends Phaser.Scene {
     this.time.delayedCall(400, () => { window.__ready = true; });
   }
 
+  // ---------------------------------------------------------------- 움직임과 효과 확인
+  setupMotion(A, G) {
+    const m = G.chunkMargin, step = G.chunkStep;
+    for (const ch of G.chunks) this.add.image(ch.x, ch.y, ch.key).setOrigin(0, 0).setCrop(m, m, step, step).setDepth(0);
+    const cam = this.cameras.main, c = tileToWorld(37, 39);
+    cam.setBounds(G.x, G.y, G.width, G.height);
+    cam.centerOn(c.x, c.y);
+    const x0 = c.x - 860, y0 = c.y - 440;
+    const style = { fontFamily: 'sans-serif', fontSize: '15px', color: '#3a2f2a', backgroundColor: '#fbf6eacc', padding: { x: 4, y: 2 } };
+    let row = 0;
+    window.__played = [];
+    for (const key of ['char_player', 'char_zombie', 'char_pirate_1', 'char_pirate_2', 'char_pirate_3', 'fx_swing']) {
+      const v = A[key];
+      let col = 0;
+      for (const name of Object.keys(v.anims)) {
+        const x = x0 + col * 104, y = y0 + row * 150;
+        const s = this.add.sprite(x, y, key, 0).setOrigin(v.originX, v.originY).setDepth(10 + y);
+        const play = () => { s.play(key + ':' + name); window.__played.push(key + ':' + name); };
+        play();
+        if (!v.anims[name].loop) this.time.addEvent({ delay: 1300, loop: true, callback: play });
+        this.add.text(x - 44, y + 22, name, style).setDepth(9999);
+        col++;
+      }
+      row++;
+    }
+    // 작은 효과들(재생 시트)
+    let col = 0;
+    for (const key of ['fx_impact', 'fx_dust', 'fx_sparkle', 'fx_vanish', 'fx_splash', 'fx_smoke_puff']) {
+      const v = A[key], x = x0 + 900 + col * 110, y = y0 + 6 * 150 - 60;
+      const s = this.add.sprite(x, y, key, 0).setOrigin(v.originX, v.originY).setDepth(9000);
+      const play = () => s.play(key + ':play');
+      play();
+      this.time.addEvent({ delay: 1000, loop: true, callback: play });
+      this.add.text(x - 40, y + 26, key.replace('fx_', ''), style).setDepth(9999);
+      col++;
+    }
+    // 조각 효과: fx_particles 의 프레임 번호로 Phaser 파티클을 만든다
+    const P = A.fx_particles, idx = (n) => P.frames.indexOf(n);
+    const bursts = [['wood1', 'wood2', 'leaf1', 'leaf2'], ['stone1', 'stone2', 'dust'], ['iron', 'spark'], ['goo'], ['dirt', 'dust'], ['heart']];
+    this.emitters = bursts.map((names, i) => this.add.particles(x0 + 900 + i * 110, y0 + 6 * 150 - 200, 'fx_particles', {
+      frame: names.map(idx), lifespan: 700, speed: { min: 120, max: 260 }, angle: { min: 200, max: 340 }, gravityY: 600,
+      rotate: { min: 0, max: 360 }, alpha: { start: 1, end: 0 }, scale: { min: 0.8, max: 1.3 }, emitting: false }).setDepth(9500));
+    this.time.addEvent({ delay: 800, loop: true, callback: () => this.emitters.forEach(e => e.explode(8)) });
+    this.time.delayedCall(400, () => { window.__ready = true; });
+  }
+
   // ---------------------------------------------------------------- 2단계 확인: 탑, 포탑, 철조망, 날아가는 것
   setupDefense(A, map, c0, r0, WT, GT, put) {
     const occupied = new Set(map.objects.map(o => o.col + ',' + o.row));
@@ -244,7 +313,7 @@ class UI extends Phaser.Scene {
   constructor() { super('ui'); }
   create() {
     const W = this.scale.width, H = this.scale.height;
-    if (NIGHT) {
+    if (NIGHT && !MOTION) {
       // 빛 지도: 화면 크기의 그림판. 매 프레임 밤 색으로 채우고 빛을 그린 뒤, 화면에 곱한다(MULTIPLY).
       // UI 씬에서 가장 먼저 만들어야 월드 위, 다른 UI 아래에 그려진다.
       this.lightmap = this.add.renderTexture(0, 0, W, H).setOrigin(0, 0).setBlendMode(Phaser.BlendModes.MULTIPLY);
