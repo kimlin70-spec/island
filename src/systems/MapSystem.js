@@ -116,18 +116,20 @@ export class MapSystem {
   // 월드 좌표 (x, y)를 눌렀을 때 고르는 사물이나 시설: 그림의 투명하지 않은 부분이 그 점에 놓인 것.
   // 누른 점이 그림 사각형 안에 있는 것들을 depth가 큰(앞에 있는) 것부터 본다. (3.5)
   // list 를 주면 그 안에서만 고른다(치우기는 시설만).
+  // 탑은 받침과 포탑 두 그림을 모두 본다(포탑을 눌러도 그 탑).
   pickObject(x, y, list = [...this.objects, ...this.structures]) {
     const hits = [];
     for (const o of list) {
       if (!o.pickable) continue;
-      const s = o.sprite;
-      const lx = Math.floor(x - (s.x - s.displayWidth * s.originX));
-      const ly = Math.floor(y - (s.y - s.displayHeight * s.originY));
-      if (lx >= 0 && ly >= 0 && lx < s.width && ly < s.height) hits.push({ o, lx, ly });
+      for (const s of o.turret ? [o.sprite, o.turret] : [o.sprite]) {
+        const lx = Math.floor(x - (s.x - s.displayWidth * s.originX));
+        const ly = Math.floor(y - (s.y - s.displayHeight * s.originY));
+        if (lx >= 0 && ly >= 0 && lx < s.width && ly < s.height) hits.push({ o, s, lx, ly });
+      }
     }
-    hits.sort((a, b) => b.o.sprite.depth - a.o.sprite.depth);
+    hits.sort((a, b) => b.s.depth - a.s.depth);
     for (const h of hits) {
-      const s = h.o.sprite;
+      const s = h.s;
       const alpha = this.scene.textures.getPixelAlpha(h.lx, h.ly, s.texture.key, s.frame.name);
       const min = h.o.type === 'fence' || h.o.type === 'wire' ? CONFIG.input.pickAlphaFence : CONFIG.input.pickAlpha;
       if (alpha !== null && alpha > min) return h.o;

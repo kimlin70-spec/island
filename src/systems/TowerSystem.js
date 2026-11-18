@@ -30,6 +30,7 @@ export class TowerSystem {
     s.target = null;
     s.cooldown = 0;
     s.shotLeft = 0;           // 망루: shot 그림이 남은 시간
+    s.recoil = { x: 0, y: 0 }; // 총 타워: 쏠 때 포탑이 밀린 만큼
     this.setTurretFrame(s);
   }
 
@@ -71,17 +72,27 @@ export class TowerSystem {
   }
 
   update(dt) {
+    // 총구 빛은 먼저 줄인다(이번 프레임에 쏜 빛은 적어도 한 번 그려지게)
+    for (let i = this.flashes.length - 1; i >= 0; i--) {
+      if ((this.flashes[i].left -= dt) <= 0) this.flashes.splice(i, 1);
+    }
     for (const s of this.towers) {
-      s.cooldown = Math.max(0, s.cooldown - dt);
+      s.cooldown -= dt;                              // 쏘는 간격은 남은 시간을 이어서 센다(긴 프레임에도 1.1초, 1.6초마다)
       if (s.shotLeft > 0) s.shotLeft = Math.max(0, s.shotLeft - dt);
       s.target = this.pickTarget(s);
       if (s.target) s.dir = this.dirTo(this.foot(s), s.target.foot());   // 목표가 없으면 마지막 방향 그대로
-      if (s.target && s.cooldown <= 0) this.fire(s);
+      if (!s.target) s.cooldown = Math.max(0, s.cooldown);
+      else if (s.cooldown <= 0) this.fire(s);
       this.setTurretFrame(s);
     }
     this.moveShots(dt);
-    for (let i = this.flashes.length - 1; i >= 0; i--) {
-      if ((this.flashes[i].left -= dt) <= 0) this.flashes.splice(i, 1);
+  }
+
+  // 포탑을 받침 위에 놓는다: 받침 기준점 + mount × 받침의 크기(지을 때 튀어나오는 동안에도 붙어 있게) + 반동
+  syncTurrets() {
+    for (const s of this.towers) {
+      const b = s.sprite, m = this.scene.map.assets[b.texture.key].mount, k = b.scaleX;
+      s.turret.setPosition(b.x + m[0] * k + s.recoil.x, b.y + m[1] * k + s.recoil.y).setScale(k);
     }
   }
 
@@ -93,7 +104,7 @@ export class TowerSystem {
 
   fire(s) {
     const T = CONFIG.tower, fx = this.scene.effects, A = this.scene.map.assets;
-    s.cooldown = s.cfg.interval;
+    s.cooldown += s.cfg.interval;
     const from = this.muzzle(s), target = s.target;
     const aim = this.aimPoint(target);
     const dist = Math.hypot(aim.x - from.x, aim.y - from.y);
@@ -101,7 +112,7 @@ export class TowerSystem {
       s.shotLeft = T.shotTime;
       const a = A.proj_arrow;
       const sprite = this.scene.add.image(from.x, from.y, 'proj_arrow').setOrigin(a.originX, a.originY).setDepth(CONFIG.depth.fx);
-      this.shots.push({ kind: 'arrow', sprite, tower: s, from, target, last: aim, lastFoot: target.foot(), t: 0,
+      this.shots.push({ kind: 'arrow', sprite, tower: s, from, target, last: aim, lastFoot: target.foot(), t: 0, speed: s.cfg.arrowSpeed,
         time: Math.max(dist / s.cfg.arrowSpeed, 0.01), h: Math.min(s.cfg.arcMax, dist * s.cfg.arcRatio) });
     } else {
       // 총 타워: 총구 불꽃(0.07초) 뒤 연기, 짧은 빛, 포탑 반동 (11.5, 12.8)
@@ -110,12 +121,11 @@ export class TowerSystem {
         .setRotation(ang).setDepth(CONFIG.depth.fx);
       fx.run(T.muzzleTime, () => {}, () => { fl.destroy(); fx.play('fx_smoke_puff', from.x, from.y); });
       this.flashes.push({ x: from.x, y: from.y, left: CONFIG.flashLight.time });
-      const ux = Math.cos(ang), uy = Math.sin(ang), tur = s.turret, bx = s.mountAt.x, by = s.mountAt.y;
-      fx.run(T.recoilTime, (k) => { if (tur.active) tur.setPosition(bx - ux * T.recoil * (1 - k), by - uy * T.recoil * (1 - k)); },
-        () => { if (tur.active) tur.setPosition(bx, by); });
+      const ux = Math.cos(ang), uy = Math.sin(ang), r = s.recoil;
+      fx.run(T.recoilTime, (k) => { r.x = -ux * T.recoil * (1 - k); r.y = -uy * T.recoil * (1 - k); }, () => { r.x = 0; r.y = 0; });
       const b = A.proj_bullet;
       const sprite = this.scene.add.image(from.x, from.y, 'proj_bullet').setOrigin(b.originX, b.originY).setDepth(CONFIG.depth.fx);
-      this.shots.push({ kind: 'bullet', sprite, tower: s, from, target, last: aim, lastFoot: target.foot(), t: 0,
+      this.shots.push({ kind: 'bullet', sprite, tower: s, from, target, last: aim, lastFoot: target.foot(), t: 0, speed: s.cfg.bulletSpeed,
         time: Math.max(dist / s.cfg.bulletSpeed, 0.01), h: 0 });
     }
   }
@@ -130,12 +140,19 @@ export class TowerSystem {
   moveShots(dt) {
     for (let i = this.shots.length - 1; i >= 0; i--) {
       const p = this.shots[i];
-      p.t = Math.min(1, p.t + dt / p.time);
       const alive = p.target.alive;
       if (alive) {
         p.last = this.aimPoint(p.target);
         p.lastFoot = p.target.foot();
+      } else if (!p.lost) {
+        // 목표를 방금 잃었다: 지금 자리에서 그 발밑으로 같은 빠르기로 곧게 떨어진다(한 번에 튀지 않게)
+        p.lost = true;
+        p.from = { x: p.sprite.x, y: p.sprite.y };
+        p.time = Math.max(Math.hypot(p.lastFoot.x - p.from.x, p.lastFoot.y - p.from.y) / p.speed, 0.01);
+        p.t = 0;
+        p.h = 0;
       }
+      p.t = Math.min(1, p.t + dt / p.time);
       const end = alive ? p.last : p.lastFoot;
       const x0 = p.from.x, y0 = p.from.y, t = p.t;
       const x = x0 + (end.x - x0) * t;

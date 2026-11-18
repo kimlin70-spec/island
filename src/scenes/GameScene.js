@@ -399,6 +399,7 @@ export class GameScene extends Phaser.Scene {
       if (e) this.pressEnemy(e);
     }
     this.effects.update(dt);
+    this.towers.syncTurrets();                        // 포탑은 받침의 크기(튀어나오기)와 반동을 따라 놓는다
     this.build.updateGlow(this.clock.ambient().strength);
     // 짓기 표시는 포인터를 따라간다. 주인공이 걸으면 카메라가 움직이므로 프레임마다 다시 잡는다.
     if (this.hovering && this.build.building) {

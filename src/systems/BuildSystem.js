@@ -10,7 +10,7 @@ const TALL = { tent: true, watchtower: true, guntower: true };   // 캐릭터를
 const BROKEN = { wire: ['iron'], guntower: ['stone1', 'stone2'] };   // 부서질 때의 조각(12.6). 그 밖은 나무
 const OPEN = { wire: true };            // 길을 막지 않는 시설(누구나 지나간다, 11.4)
 const LINKED = { fence: 'build_fence_', wire: 'build_wire_' };   // 이웃한 같은 시설끼리 이어지는 그림(3.6, 11.4)
-const ICON = { wood: 'icon_wood', stone: 'icon_stone' };
+const ICON = { wood: 'icon_wood', stone: 'icon_stone', iron: 'icon_iron' };
 
 export class BuildSystem {
   constructor(scene) {
@@ -30,6 +30,7 @@ export class BuildSystem {
   setMode(mode) {
     if (this.mode === mode) return;
     this.mode = mode;
+    this.rangeLeft = 0;                              // 눌러서 띄운 사거리 원도 짓기 상태가 바뀌면 숨긴다
     this.hideMarks();
     this.scene.events.emit('build-changed');
   }
@@ -150,8 +151,7 @@ export class BuildSystem {
   // 지었을 때 (12.7, 12.6): 튀어나오듯 커지고, 먼지(작게)와 반짝임, 먼지 조각
   popUp(s) {
     const F = CONFIG.fx, fx = this.scene.effects, sp = s.sprite;
-    fx.pop(sp);
-    if (s.turret) fx.pop(s.turret);
+    fx.pop(sp);                                      // 포탑은 TowerSystem 이 받침의 크기를 따라 놓는다
     fx.dust(sp.x, sp.y, F.buildDustScale);
     fx.play('fx_sparkle', sp.x, sp.y - sp.displayHeight * sp.originY * 0.5);
     fx.burst(['dust'], F.chips.build, sp.x, sp.y);
