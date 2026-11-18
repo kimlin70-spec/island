@@ -1,10 +1,13 @@
 import { CONFIG } from '../config.js';
 import { tileToWorld, worldToTile, worldToTileFloat } from '../iso.js';
+import { isTower } from './TowerSystem.js';
 
-// 짓기와 치우기 (5.4). 시설: 울타리, 모닥불, 텐트, (2단계) 철조망.
+// 짓기와 치우기 (5.4). 시설: 울타리, 모닥불, 텐트, (2단계) 철조망, 망루, 총 타워.
 export const REMOVE = 'remove';
-const SPRITE = { fence: 'build_fence_0', campfire: 'build_campfire', tent: 'build_tent', wire: 'build_wire_0' };
-const TALL = { tent: true };            // 캐릭터를 가릴 수 있는 키 큰 시설
+const SPRITE = { fence: 'build_fence_0', campfire: 'build_campfire', tent: 'build_tent', wire: 'build_wire_0',
+                 watchtower: 'build_watchtower', guntower: 'build_guntower' };
+const TALL = { tent: true, watchtower: true, guntower: true };   // 캐릭터를 가릴 수 있는 키 큰 시설(3.4)
+const BROKEN = { wire: ['iron'], guntower: ['stone1', 'stone2'] };   // 부서질 때의 조각(12.6). 그 밖은 나무
 const OPEN = { wire: true };            // 길을 막지 않는 시설(누구나 지나간다, 11.4)
 const LINKED = { fence: 'build_fence_', wire: 'build_wire_' };   // 이웃한 같은 시설끼리 이어지는 그림(3.6, 11.4)
 const ICON = { wood: 'icon_wood', stone: 'icon_stone' };
@@ -17,6 +20,9 @@ export class BuildSystem {
     this.spot = null;        // 포인터가 있는 자리 { tiles, ok }
     // 바닥 표시: 지을 수 있음 / 없음. 텐트는 네 칸에 보여 준다.
     this.marks = [0, 1, 2, 3].map(() => scene.add.image(0, 0, 'overlay_ok').setDepth(CONFIG.depth.floor).setVisible(false));
+    // (2단계) 탑의 사거리 원(11.5, 11.10): 지을 칸 둘레와, 지은 탑을 눌렀을 때 rangeShowTime 초
+    this.range = scene.add.image(0, 0, 'overlay_range').setDepth(CONFIG.depth.floor).setVisible(false);
+    this.rangeLeft = 0;
   }
 
   get building() { return this.mode !== null && this.mode !== REMOVE; }   // 시설을 짓는 상태인가
@@ -66,12 +72,21 @@ export class BuildSystem {
       mark.setTexture(ok ? 'overlay_ok' : 'overlay_no').setPosition(w.x, w.y).setVisible(true);
       all = all && ok;
     });
+    if (isTower(this.mode)) this.showRange(tiles[0], this.mode, 0);
     this.spot = { tiles, ok: all };   // 네 칸 모두 지을 수 있어야 한다
   }
 
   hideMarks() {
     for (const mark of this.marks) mark.setVisible(false);
+    if (this.rangeLeft <= 0) this.range.setVisible(false);
     this.spot = null;
+  }
+
+  // 사거리 원: 칸 t 를 가운데로, type 의 사거리만큼. time 초 뒤에 숨는다(0 이면 짓기 표시처럼 포인터를 따라간다)
+  showRange(t, type, time) {
+    const R = CONFIG.build[type].range, S = CONFIG.tower.rangeSize, w = tileToWorld(t.col, t.row);
+    this.range.setPosition(w.x, w.y).setDisplaySize(S[0] * R, S[1] * R).setVisible(true);
+    this.rangeLeft = time;
   }
 
   // 클릭하거나 손을 뗐을 때: 표시가 overlay_ok 였으면 그 칸에 바로 짓는다. 치우기를 골랐으면 누른 시설을 없앤다.
@@ -117,6 +132,7 @@ export class BuildSystem {
       tall: !!TALL[type], pickable: true,
       blocks: !OPEN[type],                           // 철조망만 false
     };
+    if (isTower(type)) scene.towers.attach(s);           // 포탑(11.10)
     if (type === 'campfire') {
       // 불꽃 애니메이션과 빛무리(월드에 ADD로 올린다. 모닥불 바로 위)
       sprite.play(SPRITE[type] + '_burn');
@@ -135,6 +151,7 @@ export class BuildSystem {
   popUp(s) {
     const F = CONFIG.fx, fx = this.scene.effects, sp = s.sprite;
     fx.pop(sp);
+    if (s.turret) fx.pop(s.turret);
     fx.dust(sp.x, sp.y, F.buildDustScale);
     fx.play('fx_sparkle', sp.x, sp.y - sp.displayHeight * sp.originY * 0.5);
     fx.burst(['dust'], F.chips.build, sp.x, sp.y);
@@ -159,7 +176,7 @@ export class BuildSystem {
     if (this.scene.rest.tent === s) this.scene.rest.exit();
     const fx = this.scene.effects, sp = s.sprite;
     if (broken) {
-      fx.burst(s.type === 'wire' ? ['iron'] : ['wood1', 'wood2'], CONFIG.fx.chips.broken, sp.x, sp.y - CONFIG.fx.impactHeight.object);
+      fx.burst(BROKEN[s.type] || ['wood1', 'wood2'], CONFIG.fx.chips.broken, sp.x, sp.y - CONFIG.fx.impactHeight.object);
       fx.dust(sp.x, sp.y);
     } else {
       fx.poof(sp.x, sp.y);
@@ -168,6 +185,7 @@ export class BuildSystem {
     this.map.removeStructure(s);
     s.sprite.destroy();
     if (s.glow) s.glow.destroy();
+    if (s.turret) this.scene.towers.detach(s);
     if (LINKED[s.type]) this.refreshLinks(s.type, s.col, s.row);
     this.scene.onMapChanged();
     this.scene.events.emit('structures-changed');
@@ -194,8 +212,9 @@ export class BuildSystem {
     }
   }
 
-  // 밤에는 모닥불마다 불꽃에서 불티가 emberEvery 초마다 하나씩 오른다 (12.6)
+  // 밤에는 모닥불마다 불꽃에서 불티가 emberEvery 초마다 하나씩 오른다 (12.6). 지은 탑을 눌러 띄운 사거리 원을 시간이 되면 숨긴다.
   update(dt) {
+    if (this.rangeLeft > 0 && (this.rangeLeft -= dt) <= 0 && !isTower(this.mode)) this.range.setVisible(false);
     if (!this.scene.clock.isNight) return;
     const F = CONFIG.fx, flame = this.map.assets.build_campfire.flame;
     for (const s of this.map.structures) {

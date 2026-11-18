@@ -160,6 +160,7 @@ export class MapSystem {
       if (s.alpha !== target) {
         s.alpha = s.alpha < target ? Math.min(target, s.alpha + step) : Math.max(target, s.alpha - step);
       }
+      if (o.turret) o.turret.alpha = s.alpha;          // 탑은 받침과 포탑을 함께(3.4)
     }
   }
 }

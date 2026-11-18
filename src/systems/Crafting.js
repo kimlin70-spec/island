@@ -7,11 +7,13 @@ const FENCE    = { id: 'fence',    type: 'build',  icon: 'icon_fence' };
 const WIRE     = { id: 'wire',     type: 'build',  icon: 'icon_wire' };
 const CAMPFIRE = { id: 'campfire', type: 'build',  icon: 'icon_campfire' };
 const TENT     = { id: 'tent',     type: 'build',  icon: 'icon_tent' };
+const WATCH    = { id: 'watchtower', type: 'build', icon: 'icon_watchtower' };
+const GUNTOWER = { id: 'guntower',   type: 'build', icon: 'icon_guntower' };
 const REMOVE   = { id: 'remove',   type: 'remove', icon: 'icon_remove', name: '치우기', note: '절반 돌려받음' };
 // 1단계: 6장 한 줄
 export const CARDS = [AXE, PICKAXE, FENCE, CAMPFIRE, TENT, REMOVE];
-// 2단계: 10장 두 줄(11.3). null 은 아직 만들지 않은 Phase 의 카드 자리(총은 Phase 9, 망루·총 타워는 Phase 8)
-export const CARDS2 = [AXE, PICKAXE, null, FENCE, WIRE, CAMPFIRE, TENT, null, null, REMOVE];
+// 2단계: 10장 두 줄(11.3). null 은 아직 만들지 않은 Phase 의 카드 자리(총은 Phase 9)
+export const CARDS2 = [AXE, PICKAXE, null, FENCE, WIRE, CAMPFIRE, TENT, WATCH, GUNTOWER, REMOVE];
 export function cardsFor(stage) { return stage >= 2 ? CARDS2 : CARDS; }
 
 function source(card) {

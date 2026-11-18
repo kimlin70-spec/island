@@ -12,6 +12,7 @@ import { Hearts } from '../systems/Hearts.js';
 import { RestSystem } from '../systems/RestSystem.js';
 import { EnemySystem } from '../systems/EnemySystem.js';
 import { PirateSystem } from '../systems/PirateSystem.js';
+import { TowerSystem, isTower } from '../systems/TowerSystem.js';
 import { bestTool, cardCost, cardName, objectParticle } from '../systems/Crafting.js';
 
 // 월드: 섬, 사물, 주인공, 적, 카메라, 누르기, 시간. 화면 UI(UIScene)에는 events 로 바뀐 것을 알린다.
@@ -46,6 +47,7 @@ export class GameScene extends Phaser.Scene {
 
     const st = this.mapData.playerStart;
     this.player = new Player(this, this.map, st.col, st.row);
+    this.towers = new TowerSystem(this);              // (2단계) 망루와 총 타워 (11.5)
     this.build = new BuildSystem(this);
     this.rest = new RestSystem(this);
     this.enemies = new EnemySystem(this);
@@ -120,6 +122,7 @@ export class GameScene extends Phaser.Scene {
     else if (o && o.kind === 'iron' && this.stage < 2) this.notice('아직 캘 수 없습니다');   // 철광석은 2단계부터 캔다 (4장, 11.2)
     else if (o && o.node) this.pressNode(o);               // 나무, 돌, 철광석, 그루터기, 돌 부스러기
     else if (o && o.type === 'tent') this.pressTent(o);
+    else if (o && isTower(o.type)) this.build.showRange(o, o.type, CONFIG.tower.rangeShowTime);   // 지은 탑: 사거리 원 2초 (11.5)
     else if (o && (o.type === 'fence' || o.type === 'wire')) this.walkTo(o.col, o.row);   // 울타리·철조망을 누른 것은 그 칸(땅)을 누른 것과 같다(철조망 칸은 걸어갈 수 있다).
     else if (!o) this.walkTo(t.col, t.row);           // 땅
     // 덤불, 모닥불은 눌러도 아무 일이 없다. 울타리 칸은 지나갈 수 없는 칸이라 아무 일이 없다.
@@ -313,6 +316,7 @@ export class GameScene extends Phaser.Scene {
   // 시설을 하나 지었다: 할 일 목록 (5.11)
   onBuilt(s) {
     if (s.type === 'campfire' || s.type === 'tent') this.todo.check(s.type);
+    if (isTower(s.type)) this.todo.check(s.type);    // (2단계) 할 일 3번 망루 세우기, 4번 총 타워 세우기
     if (this.build.count('fence') >= CONFIG.todo.fenceCount) this.todo.check('fence');
     this.checkStage2();
   }
@@ -353,6 +357,7 @@ export class GameScene extends Phaser.Scene {
       out.push({ x: sp.x, y: sp.y - L.lift, radius: L.radius, color: L.color, alpha: L.alpha });
     }
     out.push(...this.pirates.lights());               // 해적선 등불
+    out.push(...this.towers.lights());                // (2단계) 탑 등불, 총을 쏜 순간의 빛
     return out;
   }
 
@@ -383,6 +388,7 @@ export class GameScene extends Phaser.Scene {
     this.player.update(dt);
     this.enemies.update(dt);
     this.pirates.update(dt);
+    this.towers.update(dt);
     this.build.update(dt);
     const pl = this.player;
     // 쓰러진 뒤 downDelay 초가 지나면 "쓰러졌습니다" 창 (12.3)

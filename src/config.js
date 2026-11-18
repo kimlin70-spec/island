@@ -41,6 +41,23 @@ export const CONFIG = {
     // (2단계) 철조망 11.4: 길을 막지 않는다. 위에 있는 적은 slow 배로 느려지고 damageInterval 초마다 damage. 그때마다 철조망 체력 1 줄어듦.
     // 적의 길찾기에서 이 칸의 비용은 pathCost(보통 칸 1)
     wire:     { name: '철조망', cost: { iron: 1 }, hp: 10, slow: 0.4, damage: 1, damageInterval: 1.0, pathCost: 3 },
+    // (2단계) 탑 11.5, 11.9: 사거리(칸), 쏘는 간격(초), 피해. 화살은 포물선(높이 = 거리 × arcRatio, 최대 arcMax px), 총알은 직선. 속도는 초당 px.
+    watchtower: { name: '망루', cost: { wood: 8, stone: 2 }, hp: 14, range: 5, interval: 1.1, damage: 1,
+                  arrowSpeed: 650, arcRatio: 0.25, arcMax: 60, light: { radius: 120, color: 0xffedc7, alpha: 0.85 } },
+    guntower:   { name: '총 타워', cost: { stone: 6, iron: 4 }, hp: 22, range: 6.5, interval: 1.6, damage: 3,
+                  bulletSpeed: 1400, light: { radius: 120, color: 0xffedc7, alpha: 0.85 } },
+  },
+  flashLight: { radius: 110, color: 0xffedc7, alpha: 0.9, time: 0.1 },   // (2단계) 총을 쏜 순간 총구의 빛(3.7, 11.9)
+  // (2단계) 탑의 화면에 쓰는 숫자(11.5, 11.10, 12.8)
+  tower: {
+    rangeShowTime: 2,        // 지은 탑을 누르면 사거리 원을 보여 주는 시간(초)
+    rangeSize: [113.1, 56.6],   // 사거리 원 overlay_range 의 크기 = 이 값 × 사거리(칸)
+    shotTime: 0.25,          // 망루: 쏜 뒤 shot 그림을 보여 주는 시간(초)
+    muzzleTime: 0.07,        // 총 타워: 총구 불꽃이 보이는 시간(초). 그 뒤 연기(fx_smoke_puff) (12.8)
+    recoil: 3, recoilTime: 0.08,   // 총 타워: 쏠 때 포탑을 겨눈 반대로 미는 거리(px)와 되돌리는 시간(초)
+    hitHeight: 40,           // 화살·총알이 맞는 곳: 적의 발에서 위로(px. 12.4의 캐릭터 맞은 곳과 같다)
+    arrowStuckFade: 0.5,     // 목표를 잃고 땅에 꽂힌 화살이 사라지는 데 걸리는 시간(초). 남는 시간은 fx.arrowStuckLife
+    missDustScale: 0.4,      // 목표를 잃은 총알이 떨어진 곳의 먼지 크기(배)
   },
   zombie: { hp: 3, speed: 1.2, hitInterval: 2.0, firstHitDelay: 1.5, hitDamage: 1,   // hitDamage: 한 번 때릴 때 깎는 하트
             structureDamage: 1, structureInterval: 1.5, breakCost: 8, spawnMinDistance: 12,
