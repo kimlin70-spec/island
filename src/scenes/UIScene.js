@@ -35,7 +35,7 @@ export class UIScene extends Phaser.Scene {
       this.events.once('shutdown', () => this.world.events.off(name, fn, this));
     };
     listen('inventory-changed', () => { this.refreshBag(); this.refreshCards(); });
-    listen('tools-changed', () => { this.refreshEquipment(); this.refreshCards(); });
+    listen('tools-changed', () => { this.refreshEquipment(); this.refreshCards(); this.makeRest(); });
     listen('todo-changed', () => this.refreshTodo());
     listen('build-changed', () => { this.refreshCards(); this.refreshHint(); });
     listen('structures-changed', () => this.refreshCards());
@@ -287,6 +287,7 @@ export class UIScene extends Phaser.Scene {
     this.makeTodo();
     this.makeBag();
     this.refreshEquipment();
+    this.makeRest();
     this.makeCraftWindow();
     this.refreshDebug();
   }
@@ -298,11 +299,11 @@ export class UIScene extends Phaser.Scene {
   }
 
   // 만들기 버튼: 누르면 창이 열리고, 다시 누르면 닫히면서 짓기 상태도 끝난다
-  // 2단계의 두 줄 창은 시험용 창과 겹치므로 하나를 열면 다른 하나는 닫는다.
+  // 2단계의 두 줄 창은 시험용 창과 겹치므로, 2단계에서는 하나를 열면 다른 하나는 닫는다.
   toggleCraft() {
     this.craftOpen = !this.craftOpen;
     this.craftWin.setVisible(this.craftOpen);
-    if (this.craftOpen && this.debugWin) this.debugWin.setVisible(false);
+    if (this.craftOpen && this.debugWin && this.world.stage >= 2) this.debugWin.setVisible(false);
     this.drawCraftButton();
     if (!this.craftOpen) this.world.build.setMode(null);
   }
@@ -353,7 +354,12 @@ export class UIScene extends Phaser.Scene {
     const btn = this.panel(this.add.graphics(), bx, by, D.buttonW, D.buttonH, D.radius);
     btn.on('pointerdown', () => {
       this.debugWin.setVisible(!this.debugWin.visible);
-      if (this.debugWin.visible && this.craftOpen) this.toggleCraft();
+      // 2단계: 만들기 창만 숨긴다. 짓기 상태는 그대로(만들기 버튼을 다시 누르거나 다른 카드를 고를 때까지, 5.4)
+      if (this.debugWin.visible && this.craftOpen && this.world.stage >= 2) {
+        this.craftOpen = false;
+        this.craftWin.setVisible(false);
+        this.drawCraftButton();
+      }
     });
     this.label(bx + D.buttonW / 2, by + D.buttonH / 2, '시험', D.font, { originX: 0.5 });
 
@@ -388,18 +394,23 @@ export class UIScene extends Phaser.Scene {
 
   // ── 아래 가운데: 텐트에서 쉬는 동안의 버튼 (5.6). 누르면 텐트에서 나온다. ──
 
+  // 가운데에 둔다. 다만 장비 칸이 길어지면(2단계는 가방이 넓다) 장비 칸의 오른쪽으로 비켜 둔다(겹치지 않게).
+  // 도구가 늘거나 단계가 바뀌면 다시 만든다.
   makeRest() {
-    const R = U.rest;
+    const R = U.rest, E = U.equip;
+    const visible = this.restBox ? this.restBox.visible : false;
+    if (this.restBox) this.restBox.destroy();
     const bg = this.add.graphics();
     const icon = this.add.image(0, 0, 'icon_sleep').setDisplaySize(R.icon, R.icon);
     const text = this.label(0, 0, '쉬는 중 · 누르면 나옵니다', R.font);
     const w = R.padX * 2 + R.icon + R.gap + text.width;
-    const x = this.W / 2 - w / 2, y = this.H - U.margin - R.h;
+    const equipRight = U.margin + this.bagLayout().w + E.gap + E.pad * 2 + this.world.equipment().length * E.slot;
+    const x = Math.max(this.W / 2 - w / 2, equipRight + E.gap), y = this.H - U.margin - R.h;
     this.panel(bg, x, y, w, R.h);
     bg.on('pointerdown', () => this.world.rest.exit());
     icon.setPosition(x + R.padX + R.icon / 2, y + R.h / 2);
     text.setPosition(x + R.padX + R.icon + R.gap, y + R.h / 2);
-    this.restBox = this.add.container(0, 0, [bg, icon, text]).setVisible(false);
+    this.restBox = this.add.container(0, 0, [bg, icon, text]).setVisible(visible);
   }
 
   // ── 화면 가운데: "쓰러졌습니다" 창, 첫 아침의 결과 창 (5.9, 5.10) ──

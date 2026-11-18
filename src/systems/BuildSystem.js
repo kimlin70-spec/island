@@ -243,7 +243,8 @@ export class BuildSystem {
       this.destroy(s, true);
       return;
     }
+    // 철조망 위에는 적이 서 있으므로 막대는 철조망 아래쪽(칸의 앞 끝)에 둔다(적의 얼굴에 걸리지 않게)
     const sp = s.sprite;
-    this.scene.effects.showBar(s, s.hp / s.maxHp, sp.x, sp.y - sp.displayHeight * sp.originY - CONFIG.fx.barGap, Infinity);
+    this.scene.effects.showBar(s, s.hp / s.maxHp, sp.x, sp.y + CONFIG.fx.wireBarDrop, Infinity);
   }
 }

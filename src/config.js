@@ -123,6 +123,7 @@ export const CONFIG = {
     popupTime: 0.9, popupRise: 60, popupIcon: 44, popupFont: 30,   // 떠오르는 "+4": 시간(초), 높이(px), 아이콘과 글자 크기
     barWidth: 56, barHeight: 8, barGap: 10,      // 체력 막대 크기, 그림 위쪽과의 간격(px)
     barLinger: 0.9,                  // 마지막으로 친 뒤 막대가 남아 있는 시간(초)
+    wireBarDrop: 24,                 // (2단계) 철조망의 체력 막대: 기준점에서 아래로(px). 위에 선 적의 얼굴에 걸리지 않게
     barBorder: 0x4a3d38, barTrack: 0xc4b8a8, barFill: 0x8fbb78,
   },
   // 캐릭터가 키 큰 사물 뒤에 가려지면 그 사물을 반투명하게 한다
