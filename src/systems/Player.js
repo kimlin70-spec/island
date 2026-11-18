@@ -99,7 +99,7 @@ export class Player extends Walker {
     // 하던 행동이 막 끝났으면(나무가 방금 그루터기가 되었으면) 새 행동으로 받는다.
     const end = this.path[this.path.length - 1] || this.tile;
     const a = this.action;
-    if (a && a.target === action.target && a.isValid() && this.reaches(action, end)) return true;
+    if (a && a.target === action.target && !!a.chase === !!action.chase && a.isValid() && this.reaches(action, end)) return true;
     const onTop = !this.moving && tiles.some((t) => t.col === this.tile.col && t.row === this.tile.row);
     const here = !this.moving && this.reaches(action) && !(action.stepOff && onTop);
     // 비켜설 칸이 없으면 그 자리에서 한다

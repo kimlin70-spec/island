@@ -171,11 +171,12 @@ export class GameScene extends Phaser.Scene {
   // 적을 눌렀다(또는 가만히 서 있는데 적이 붙었다): 붙은 칸으로 가서 단검으로 친다 (5.9)
   // (2단계) 총이 있으면 사거리 안이면 그 자리에서, 밖이면 사거리 안까지 걸어가서 쏜다 (11.6)
   // 땅에서 올라오는 중인 좀비는 다 올라올 때까지 옆(총이면 사거리 안)에서 기다린다(그동안은 맞지 않는다, 12.3).
-  pressEnemy(e) {
+  // auto: 가만히 서 있다가 저절로 쏘는 것. 그 적이 사거리를 벗어나도 쫓아가지 않는다(다음 프레임에 사거리 안의 다른 적을 고른다).
+  pressEnemy(e, auto = false) {
     const G = CONFIG.tools.gun;
     this.player.act({
       target: e,
-      chase: true,                                    // 적이 움직이면 쫓아간다
+      chase: !(auto && this.hasGun),                  // 적이 움직이면 쫓아간다(총으로 저절로 쏘는 것은 그 자리에서만)
       ranged: this.hasGun ? G.range : 0,
       tool: () => (this.hasGun ? 'gun' : bestTool(this.tools, 'enemy')),
       isValid: () => e.alive,
@@ -421,7 +422,7 @@ export class GameScene extends Phaser.Scene {
     // 가만히 서 있을 때 붙은 칸에 적이 오면 자동으로 공격한다 (5.9). 총이 있으면 사거리 안에서 가장 가까운 적을 쏜다 (11.6)
     if (!this.rest.resting && !pl.downed && !pl.moving && !pl.action && !pl.swing) {
       const e = this.hasGun ? this.enemies.nearestTo(pl.tile, CONFIG.tools.gun.range) : this.enemies.nextTo(pl.tile);
-      if (e) this.pressEnemy(e);
+      if (e) this.pressEnemy(e, true);
     }
     this.effects.update(dt);
     this.towers.syncTurrets();                        // 포탑은 받침의 크기(튀어나오기)와 반동을 따라 놓는다

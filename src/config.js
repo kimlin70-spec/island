@@ -31,7 +31,7 @@ export const CONFIG = {
   },
   build: {
     reach: 7, refundRate: 0.5,
-    reachCircle: { tint: 0xfff3c4, alpha: 0.9 },   // (사용자 요청) 짓는 동안 주인공 둘레에 지을 수 있는 거리(reach)를 원으로 보여 준다. 그림은 overlay_range
+    reachCircle: { tint: 0x7fd858, alpha: 0.9 },   // 초록: 탑의 사거리 원(색 없음)과 구별되게   // (사용자 요청) 짓는 동안 주인공 둘레에 지을 수 있는 거리(reach)를 원으로 보여 준다. 그림은 overlay_range
     fence:    { name: '울타리', cost: { wood: 1 }, hp: 6 },
     campfire: { name: '모닥불', cost: { wood: 3, stone: 3 }, hp: 10, slowRange: 3, slow: 0.5,
                 light: { radius: 300, color: 0xffedc7, alpha: 1,

@@ -21,7 +21,8 @@ export class Shots {
   // angle: 불꽃을 돌릴 화면 각도(라디안, 탑). flip: 불꽃을 좌우로 뒤집는다(왼쪽을 보는 캐릭터, 11.10).
   muzzle(x, y, { angle = 0, flip = false } = {}) {
     const T = CONFIG.tower, fx = this.scene.effects, a = this.scene.map.assets.fx_muzzle;
-    const fl = this.scene.add.image(x, y, 'fx_muzzle').setOrigin(a.originX, a.originY)
+    // 뒤집으면 그림이 제 자리(틀) 안에서 좌우로 바뀌므로 기준점도 뒤집는다(총구 쪽 끝이 그대로 총구에 오게)
+    const fl = this.scene.add.image(x, y, 'fx_muzzle').setOrigin(flip ? 1 - a.originX : a.originX, a.originY)
       .setRotation(angle).setFlipX(flip).setDepth(CONFIG.depth.fx);
     fx.run(T.muzzleTime, () => {}, () => { fl.destroy(); fx.play('fx_smoke_puff', x, y); });
     this.flashes.push({ x, y, left: CONFIG.flashLight.time, frame: this.scene.frame });
@@ -96,7 +97,7 @@ export class Shots {
       return;
     }
     const a = this.scene.map.assets.proj_arrow_stuck;
-    const img = this.scene.add.image(at.x, at.y, 'proj_arrow_stuck').setOrigin(a.originX, a.originY)
+    const img = this.scene.add.image(at.x, at.y, 'proj_arrow_stuck').setOrigin(p.left ? 1 - a.originX : a.originX, a.originY)
       .setFlipX(p.left).setDepth(CONFIG.depth.objectBase + at.y);
     fx.run(F.arrowStuckLife + T.arrowStuckFade, (k) => {
       const t = k * (F.arrowStuckLife + T.arrowStuckFade);
