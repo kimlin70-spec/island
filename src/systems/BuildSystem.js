@@ -23,6 +23,9 @@ export class BuildSystem {
     // (2단계) 탑의 사거리 원(11.5, 11.10): 지을 칸 둘레와, 지은 탑을 눌렀을 때 rangeShowTime 초
     this.range = scene.add.image(0, 0, 'overlay_range').setDepth(CONFIG.depth.floor).setVisible(false);
     this.rangeLeft = 0;
+    // (사용자 요청) 지을 수 있는 거리: 짓는 동안 주인공 둘레에 reach 칸의 원. 탑의 사거리 원과 같은 그림, 다른 색.
+    const RC = CONFIG.build.reachCircle;
+    this.reachRing = scene.add.image(0, 0, 'overlay_range').setDepth(CONFIG.depth.floor).setTint(RC.tint).setAlpha(RC.alpha).setVisible(false);
   }
 
   get building() { return this.mode !== null && this.mode !== REMOVE; }   // 시설을 짓는 상태인가
@@ -212,8 +215,18 @@ export class BuildSystem {
     }
   }
 
+  // 지을 수 있는 거리의 원: 짓는 상태(치우기 제외)에서 주인공의 발을 가운데로. canBuildAt 의 reach 와 같은 원이다.
+  syncReach() {
+    const p = this.scene.player, on = this.building && !p.downed;
+    this.reachRing.setVisible(on);
+    if (!on) return;
+    const R = CONFIG.build.reach, S = CONFIG.tower.rangeSize, w = tileToWorld(p.col, p.row);
+    this.reachRing.setPosition(w.x, w.y).setDisplaySize(S[0] * R, S[1] * R);
+  }
+
   // 밤에는 모닥불마다 불꽃에서 불티가 emberEvery 초마다 하나씩 오른다 (12.6). 지은 탑을 눌러 띄운 사거리 원을 시간이 되면 숨긴다.
   update(dt) {
+    this.syncReach();
     if (this.rangeLeft > 0 && (this.rangeLeft -= dt) <= 0 && !isTower(this.mode)) this.range.setVisible(false);
     if (!this.scene.clock.isNight) return;
     const F = CONFIG.fx, flame = this.map.assets.build_campfire.flame;

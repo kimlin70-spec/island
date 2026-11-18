@@ -13,6 +13,7 @@ import { RestSystem } from '../systems/RestSystem.js';
 import { EnemySystem } from '../systems/EnemySystem.js';
 import { PirateSystem } from '../systems/PirateSystem.js';
 import { TowerSystem, isTower } from '../systems/TowerSystem.js';
+import { Shots } from '../systems/Shots.js';
 import { bestTool, cardCost, cardName, objectParticle } from '../systems/Crafting.js';
 
 // 월드: 섬, 사물, 주인공, 적, 카메라, 누르기, 시간. 화면 UI(UIScene)에는 events 로 바뀐 것을 알린다.
@@ -47,6 +48,7 @@ export class GameScene extends Phaser.Scene {
 
     const st = this.mapData.playerStart;
     this.player = new Player(this, this.map, st.col, st.row);
+    this.shots = new Shots(this);                     // (2단계) 날아가는 화살·총알, 총구 불꽃과 빛
     this.towers = new TowerSystem(this);              // (2단계) 망루와 총 타워 (11.5)
     this.build = new BuildSystem(this);
     this.rest = new RestSystem(this);
@@ -118,7 +120,7 @@ export class GameScene extends Phaser.Scene {
       return;
     }
     const e = this.enemies.pickAt(p.worldX, p.worldY);
-    if (e) this.pressEnemy(e);                        // 적: 다가가서 단검으로 친다 (5.9)
+    if (e) this.pressEnemy(e);                        // 적: 다가가서 단검으로 친다 (5.9). 총이 있으면 멀리서 쏜다 (11.6)
     else if (o && o.kind === 'iron' && this.stage < 2) this.notice('아직 캘 수 없습니다');   // 철광석은 2단계부터 캔다 (4장, 11.2)
     else if (o && o.node) this.pressNode(o);               // 나무, 돌, 철광석, 그루터기, 돌 부스러기
     else if (o && o.type === 'tent') this.pressTent(o);
@@ -164,21 +166,39 @@ export class GameScene extends Phaser.Scene {
     this.enemies.onMapChanged();
   }
 
+  get hasGun() { return this.tools.includes('gun'); }
+
   // 적을 눌렀다(또는 가만히 서 있는데 적이 붙었다): 붙은 칸으로 가서 단검으로 친다 (5.9)
-  // 땅에서 올라오는 중인 좀비는 다 올라올 때까지 옆에서 기다린다(그동안은 맞지 않는다, 12.3).
+  // (2단계) 총이 있으면 사거리 안이면 그 자리에서, 밖이면 사거리 안까지 걸어가서 쏜다 (11.6)
+  // 땅에서 올라오는 중인 좀비는 다 올라올 때까지 옆(총이면 사거리 안)에서 기다린다(그동안은 맞지 않는다, 12.3).
   pressEnemy(e) {
+    const G = CONFIG.tools.gun;
     this.player.act({
       target: e,
       chase: true,                                    // 적이 움직이면 쫓아간다
-      tool: () => bestTool(this.tools, 'enemy'),
+      ranged: this.hasGun ? G.range : 0,
+      tool: () => (this.hasGun ? 'gun' : bestTool(this.tools, 'enemy')),
       isValid: () => e.alive,
       wait: () => e.rising,
       strike: (tool) => {
-        if (!e.alive || e.rising || !this.player.isNextTo(e.tiles)) return false;
+        if (!e.alive || e.rising) return false;
+        if (tool === 'gun') {
+          if (!this.player.inRange(e, G.range)) return false;
+          this.shootEnemy(e);
+          return true;
+        }
+        if (!this.player.isNextTo(e.tiles)) return false;
         e.hurt(CONFIG.tools[tool].power.enemy, this.player);
         return true;
       },
     });
+  }
+
+  // 주인공이 총을 쐈다 (11.6, 12.8): 총구 불꽃과 연기, 빛, 총알. 총알은 적을 따라가 반드시 맞는다(피해 damage).
+  shootEnemy(e) {
+    const G = CONFIG.tools.gun, m = this.player.muzzle(), pl = this.player;
+    this.shots.muzzle(m.x, m.y, { flip: m.flip });
+    this.shots.homing('bullet', { x: m.x, y: m.y }, e, G.bulletSpeed, () => e.hurt(G.damage, pl));
   }
 
   // 적(from)에게 맞았다: 하트가 줄고 타격감(12.4). 0이 되면 쓰러진다(down 을 보여 주고 downDelay 초 뒤에 창).
@@ -327,6 +347,7 @@ export class GameScene extends Phaser.Scene {
   // 첫 밤을 넘긴 아침에는 화면이 다 밝아진 뒤 결과 창을 띄운다. 그 뒤의 아침에는 알림만.
   onMorning(day) {
     this.enemies.clearAll();
+    this.shots.clearHostile();                        // 총잡이가 쏘고 날던 총알도
     this.nightEndHearts = this.hearts.value;          // 결과 창의 "남은 하트": 밤을 넘긴 때의 하트(아침에 차기 전)
     if (this.hearts.heal(CONFIG.player.morningHeal)) this.heartsUp();
     this.build.repairAll();
@@ -357,7 +378,8 @@ export class GameScene extends Phaser.Scene {
       out.push({ x: sp.x, y: sp.y - L.lift, radius: L.radius, color: L.color, alpha: L.alpha });
     }
     out.push(...this.pirates.lights());               // 해적선 등불
-    out.push(...this.towers.lights());                // (2단계) 탑 등불, 총을 쏜 순간의 빛
+    out.push(...this.towers.lights());                // (2단계) 탑 등불
+    out.push(...this.shots.lights());                 // (2단계) 총을 쏜 순간의 빛
     return out;
   }
 
@@ -373,6 +395,8 @@ export class GameScene extends Phaser.Scene {
   debugNight() { if (!this.clock.isNight && !this.resultPending && !this.player.downed) this.clock.startNight(); }
   debugMorning() { if (this.clock.isNight && !this.player.downed) this.clock.startMorning(); }
   debugZombie() { this.enemies.spawn(); }
+  // (2단계) 해적 부르기: 밤에만. 해적선과 해적이 바로 나온다 (11.8)
+  debugPirates() { if (this.clock.isNight && !this.player.downed) this.pirates.callNow(); }
 
   debugToggleSpeed() {
     this.debugSpeed = this.debugSpeed === 1 ? CONFIG.ui.debug.fastSpeed : 1;
@@ -389,13 +413,14 @@ export class GameScene extends Phaser.Scene {
     this.enemies.update(dt);
     this.pirates.update(dt);
     this.towers.update(dt);
+    this.shots.update(dt);
     this.build.update(dt);
     const pl = this.player;
     // 쓰러진 뒤 downDelay 초가 지나면 "쓰러졌습니다" 창 (12.3)
     if (pl.downed && pl.downLeft <= 0 && this.scene.isActive()) this.stopGame('down');
-    // 가만히 서 있을 때 붙은 칸에 적이 오면 자동으로 공격한다 (5.9)
+    // 가만히 서 있을 때 붙은 칸에 적이 오면 자동으로 공격한다 (5.9). 총이 있으면 사거리 안에서 가장 가까운 적을 쏜다 (11.6)
     if (!this.rest.resting && !pl.downed && !pl.moving && !pl.action && !pl.swing) {
-      const e = this.enemies.nextTo(pl.tile);
+      const e = this.hasGun ? this.enemies.nearestTo(pl.tile, CONFIG.tools.gun.range) : this.enemies.nextTo(pl.tile);
       if (e) this.pressEnemy(e);
     }
     this.effects.update(dt);

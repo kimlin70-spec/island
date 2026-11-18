@@ -289,7 +289,7 @@ export class UIScene extends Phaser.Scene {
     this.refreshEquipment();
     this.makeRest();
     this.makeCraftWindow();
-    this.refreshDebug();
+    this.makeDebugWindow();
   }
 
   drawCraftButton() {
@@ -362,18 +362,26 @@ export class UIScene extends Phaser.Scene {
       }
     });
     this.label(bx + D.buttonW / 2, by + D.buttonH / 2, '시험', D.font, { originX: 0.5 });
+    this.debugAt = { x: this.W - U.margin - D.w, y: by + D.buttonH + D.gap };
+    this.makeDebugWindow();
+  }
 
+  // 시험용 창. 단계가 바뀌면 다시 만든다(2단계에는 "해적 부르기"가 더해진다, 11.8)
+  makeDebugWindow() {
+    const D = U.debug, open = !!(this.debugWin && this.debugWin.visible);
+    if (this.debugWin) this.debugWin.destroy();
     // [글(또는 글을 돌려주는 함수), 누르면 할 일]
     const items = [
       [() => (this.world.stage >= 2 ? `나무, 돌, 철광석 +${D.giveAmount}` : `나무, 돌 +${D.giveAmount}`), () => this.world.debugGive()],
       ['밤으로 넘기기', () => this.world.debugNight()],
       ['아침으로 넘기기', () => this.world.debugMorning()],
       ['좀비 1마리 부르기', () => this.world.debugZombie()],
+      ...(this.world.stage >= 2 ? [['해적 부르기', () => this.world.debugPirates()]] : []),
       [() => `속도 ×${this.world.debugSpeed}`, () => this.world.debugToggleSpeed()],
       ['닫기', () => this.debugWin.setVisible(false)],
     ];
     const h = D.pad * 2 + items.length * D.itemH + (items.length - 1) * D.itemGap;
-    this.debugWin = this.add.container(this.W - U.margin - D.w, by + D.buttonH + D.gap).setDepth(10).setVisible(false);
+    this.debugWin = this.add.container(this.debugAt.x, this.debugAt.y).setDepth(10).setVisible(open);
     this.debugWin.add(this.panel(this.add.graphics(), 0, 0, D.w, h));
     this.debugLabels = [];
     items.forEach(([text, onPress], i) => {

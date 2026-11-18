@@ -8,6 +8,7 @@ import { tileToWorld } from '../iso.js';
 // 아침: 배와 보트는 leaveTime 초에 걸쳐 사라진다.
 // 배와 보트는 바다 위의 그림일 뿐이다. 칸을 막지 않고, 누를 수 없다.
 const KINDS = ['pirate_1', 'pirate_2'];   // 해적 그림 두 가지를 번갈아
+const GUNNER = 'pirate_3';                // (2단계) 총잡이 해적 (11.7)
 
 export class PirateSystem {
   constructor(scene) {
@@ -77,11 +78,21 @@ export class PirateSystem {
   // 상륙 칸에서 배 쪽으로 splashDistance 떨어진 물가에 물보라 (12.9)
   land() {
     this.fadeTo(this.boat, 1, 0);
-    this.landingTiles(CONFIG.pirate.count).forEach((t, i) => this.scene.enemies.add(KINDS[i % KINDS.length], t));
+    // 2단계에서는 총잡이 gunners 명이 함께 내린다 (11.7)
+    const P = CONFIG.pirate, n = P.count + (this.scene.stage >= 2 ? P.gunners : 0);
+    this.landingTiles(n).forEach((t, i) => this.scene.enemies.add(i < P.count ? KINDS[i % KINDS.length] : GUNNER, t));
     const L = this.landing, w = tileToWorld(L.col, L.row), dx = this.ship.x - w.x, dy = this.ship.y - w.y;
     const d = CONFIG.fx.splashDistance / (Math.hypot(dx, dy) || 1);
     this.scene.effects.play('fx_splash', w.x + dx * d, w.y + dy * d);
     this.scene.notice('해적이 상륙했습니다');
+  }
+
+  // (2단계) 시험용 도구 "해적 부르기": 해적선과 해적이 바로 나온다(배는 바로 보이고, 바로 상륙). 이번 밤의 예정은 취소한다.
+  callNow() {
+    this.shipDue = false;
+    this.landDue = false;
+    this.fadeTo(this.ship, 1, 0);
+    this.land();
   }
 
   // 해적이 나올 칸 n 개: 상륙 칸에서 가까운 빈 땅 칸(걸을 수 있고, 캐릭터의 몸이 걸쳐 있지 않은 칸).

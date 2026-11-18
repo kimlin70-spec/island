@@ -94,13 +94,18 @@ export class EnemySystem {
 
   // 적이 시설을 쳤다. 텐트가 공격받기 시작하면(attackNotice 초 동안 안 맞다가 맞으면) 알린다. (5.6)
   hitStructure(e, s) {
+    this.damageStructure(e, s, e.cfg.structureDamage);
+    e.body.strike();
+  }
+
+  // 시설에 피해 n. 텐트가 공격받기 시작하면 알린다(총잡이의 총알도 이것을 쓴다)
+  damageStructure(e, s, n) {
     const scene = this.scene;
     if (s.type === 'tent') {
       if (scene.elapsed - this.tentHitAt >= CONFIG.build.tent.attackNotice) scene.notice('텐트가 공격받고 있습니다');
       this.tentHitAt = scene.elapsed;
     }
-    scene.build.damage(s, e.cfg.structureDamage, e);
-    e.body.strike();
+    scene.build.damage(s, n, e);
   }
 
   // 주인공이 적을 물리쳤다: 바로 목록에서 빠진다(길, 칸, 짓기, 목표는 이제 이 적을 보지 않는다).
@@ -149,6 +154,17 @@ export class EnemySystem {
       if (Math.max(Math.abs(h.col - tile.col), Math.abs(h.row - tile.row)) > 1) continue;
       const d = Math.hypot(e.col - tile.col, e.row - tile.row);
       if (d < bestD) { best = e; bestD = d; }
+    }
+    return best;
+  }
+
+  // (2단계) tile 에서 range 칸(직선거리) 안의 적 중 가장 가까운 것. 땅에서 올라오는 중인 좀비는 빼고. (11.6)
+  nearestTo(tile, range) {
+    let best = null, bestD = Infinity;
+    for (const e of this.list) {
+      if (e.rising) continue;
+      const d = Math.hypot(e.col - tile.col, e.row - tile.row);
+      if (d <= range && d < bestD) { best = e; bestD = d; }
     }
     return best;
   }

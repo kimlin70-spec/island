@@ -11,6 +11,8 @@ export const ENEMY_KINDS = {
   zombie:   { key: 'char_zombie',   cfg: () => CONFIG.zombie, slowByFire: true },
   pirate_1: { key: 'char_pirate_1', cfg: () => CONFIG.pirate, slowByFire: false },   // 해적은 모닥불에 느려지지 않는다 (5.7)
   pirate_2: { key: 'char_pirate_2', cfg: () => CONFIG.pirate, slowByFire: false },
+  // (2단계) 총잡이 해적 (11.7): 사거리 안에 들어오면 멈춰 서서 겨누고 쏜다. 걸어오는 것과 시설을 부수는 것은 다른 해적과 같다.
+  pirate_3: { key: 'char_pirate_3', cfg: () => CONFIG.gunner, slowByFire: false, ranged: true },
 };
 
 export class Enemy extends Walker {
@@ -23,9 +25,11 @@ export class Enemy extends Walker {
     this.key = K.key;
     this.cfg = K.cfg();
     this.slowByFire = K.slowByFire;
+    this.ranged = !!K.ranged;
     this.asset = this.map.assets[this.key];
-    this.hp = this.cfg.hp;
-    this.maxHp = this.cfg.hp;
+    // 체력. 2단계부터는 stage2.enemyHpScale 배(사용자 요청: 난이도)
+    this.hp = this.cfg.hp * (this.scene.stage >= 2 ? CONFIG.stage2.enemyHpScale : 1);
+    this.maxHp = this.hp;
     this.alive = true;
 
     this.repathLeft = 0;     // 다음에 길을 다시 찾을 수 있을 때까지 남은 시간(초)
@@ -38,6 +42,8 @@ export class Enemy extends Walker {
     this.smashLeft = 0;      // 그 시설을 치기까지 남은 시간(초)
     this.swingFor = null;    // 휘두르기 시작한 대상: 'player' 또는 시설
     this.wireLeft = null;    // (2단계) 철조망 위에서 다음 피해까지 남은 시간(초). 철조망 위가 아니면 null
+    this.gun = null;         // (2단계, 총잡이) 쏘는 중 { t: 이번 한 번의 겨누기 시작부터 흐른 시간, shot: 이번에 쐈는가, fresh }
+    this.gunCool = 0;        // (2단계, 총잡이) 쏘다가 그만뒀을 때, 다시 겨누기를 시작할 수 있을 때까지 남은 시간(초)
 
     this.sprite = this.scene.add.sprite(0, 0, this.key).setOrigin(this.asset.originX, this.asset.originY);
     this.body = new Body(this.scene, this.sprite, this.key);
@@ -86,11 +92,18 @@ export class Enemy extends Walker {
   // 칸 t(기본: 서 있는 칸)가 목표 칸 중 하나인가(주인공과 같은 칸)
   onTarget(target, t = this.tile) { return target.tiles.some((g) => g.col === t.col && g.row === t.row); }
 
-  // 여기 서서 목표를 치면 되는가: 목표에 붙은 칸이고, 목표 칸 위가 아니고(주인공과 한 칸에 겹쳐 서지 않게),
+  // (총잡이) 칸 t(기본: 서 있는 칸)에서 목표(주인공의 칸, 텐트면 네 칸의 한가운데)까지가 사거리 안인가 (11.7)
+  inRange(target, t = this.tile) {
+    const n = target.tiles.length;
+    const c = target.tiles.reduce((a, g) => a + g.col, 0) / n, r = target.tiles.reduce((a, g) => a + g.row, 0) / n;
+    return Math.hypot(c - t.col, r - t.row) <= this.cfg.range;
+  }
+
+  // 여기 서서 목표를 치면 되는가: 목표에 붙은 칸이고(총잡이는 사거리 안), 목표 칸 위가 아니고(주인공과 한 칸에 겹쳐 서지 않게),
   // 다른 적이 서 있거나 가고 있는 칸이 아니다(두 마리가 한 칸에 겹쳐 서서 한 마리처럼 보이지 않게).
   inPlace(target) {
     const t = this.tile;
-    if (!this.nextTo(target) || this.onTarget(target)) return false;
+    if (!(this.ranged ? this.inRange(target) : this.nextTo(target)) || this.onTarget(target)) return false;
     return !this.system.takenTiles(this).has(t.col + ',' + t.row);
   }
 
@@ -213,6 +226,7 @@ export class Enemy extends Walker {
       return;
     }
     this.repathLeft -= dt;
+    this.gunCool = Math.max(0, this.gunCool - dt);
 
     // 길을 다시 찾을 때: 목표의 칸이 바뀌었다(주인공이 움직였다, 텐트에 들어가거나 나왔다), 시설이 생기거나 없어졌다,
     // 서 있는데 목표 옆의 제자리가 아니다. 다만 시설을 부수는 중이면 주인공이 움직였다는 것만으로는 바꾸지 않는다(하던 것을 마저 부순다).
@@ -241,7 +255,17 @@ export class Enemy extends Walker {
     const blocker = atCentre && next && (next.col !== this.tile.col || next.row !== this.tile.row)
       ? this.map.structureAt(next.col, next.row) : null;
     const standing = atCentre && (!this.moving || blocker || swinging);
-    if (standing && this.nextTo(target) && !this.onTarget(target)) {   // 주인공의 칸 위에서는 때리지 않는다(비켜선 뒤에)
+    if (this.ranged) {                               // 총잡이: 사거리 안에 서 있으면 쏜다. 시설에 막혔으면 부순다.
+      if (standing && this.inRange(target) && !this.onTarget(target)) {
+        this.hitLeft = null;
+        this.smashing = null;
+        this.gunCycle(target, dt);
+      } else {
+        this.gunStop();
+        if (blocker) this.smash(blocker, dt);
+        else this.smashing = null;
+      }
+    } else if (standing && this.nextTo(target) && !this.onTarget(target)) {   // 주인공의 칸 위에서는 때리지 않는다(비켜선 뒤에)
       if (target.structure) this.smash(target.structure, dt);
       else this.attackPlayer(dt);
     } else if (blocker) {
@@ -251,6 +275,81 @@ export class Enemy extends Walker {
       this.smashing = null;
     }
     this.syncSprite(standing);
+  }
+
+  // (총잡이) 쏘는 한 번 (11.7, 12.3): aim(aimTime) -> shoot(그 순간 총구 불꽃과 총알) -> reload -> 쉼. 한 번에 interval 초.
+  // 겨누는 동안은 목표 쪽을 보고, 쏘는 순간의 목표 자리로 총알이 곧게 간다(그 사이에 움직이면 피할 수 있다).
+  // 그림은 이 시간에 맞춰 튼다. 맞아서 hurt 를 보여 준 뒤에는 그 시간의 그림으로 돌아간다.
+  gunCycle(target, dt) {
+    const G = this.cfg;
+    if (!this.gun) {
+      if (this.gunCool > 0) {                        // 쏘고 비켜섰다 돌아왔다: 지난번에 쏜 뒤 아직 interval 이 지나지 않았다
+        this.faceGoal(target);
+        return;
+      }
+      this.gun = { t: 0, shot: false, fresh: true };
+    }
+    const g = this.gun;
+    if (g.fresh) g.fresh = false;
+    else g.t += dt;
+    if (g.t >= G.interval) {                         // 한 번 끝: 남은 시간을 이어서 바로 다음 겨누기(긴 프레임에도 interval 마다)
+      g.t -= G.interval;
+      g.shot = false;
+    }
+    if (!g.shot) this.faceGoal(target);
+    if (!g.shot && g.t >= G.aimTime) {
+      g.shot = true;
+      this.gunFire(target);
+    }
+    const shootEnd = G.aimTime + this.body.ms('shoot'), reloadEnd = shootEnd + this.body.ms('reload');
+    const [name, at] = g.t < G.aimTime ? ['aim', g.t] : g.t < shootEnd ? ['shoot', g.t - G.aimTime]
+      : g.t < reloadEnd ? ['reload', g.t - shootEnd] : [null, 0];
+    const b = this.body;
+    if (name && !(b.act && b.act.name === name) && b.hurtLeft <= 0) {
+      b.play(name, at);
+      if (name === 'shoot') b.pass();                // 쏘는 그림은 첫 장이 hit. 멈칫 없이 그대로 간다
+    }
+  }
+
+  // 쏘던 것을 그만둔다(사거리를 벗어났다, 비켜서야 한다). 겨누기만 하고 못 쐈으면 다음에는 바로 다시 겨눌 수 있다.
+  gunStop() {
+    const g = this.gun;
+    if (!g) return;
+    this.gunCool = g.shot ? this.cfg.interval - g.t : 0;   // 쏜 뒤면 그 한 번의 남은 시간(장전)이 지나야 다시 겨눈다
+    this.gun = null;
+    const a = this.body.act;
+    if (a && (a.name === 'aim' || a.name === 'shoot' || a.name === 'reload')) this.body.cancel();
+  }
+
+  // 목표 쪽을 본다(텐트면 네 칸의 한가운데)
+  faceGoal(target) {
+    const n = target.tiles.length;
+    this.faceTile({ col: target.tiles.reduce((a, t) => a + t.col, 0) / n, row: target.tiles.reduce((a, t) => a + t.row, 0) / n });
+  }
+
+  // 쏜다: 총구(shoot 그림, 왼쪽을 보면 x 를 뒤집는다)에서 불꽃과 연기, 빛. 총알은 지금의 목표 자리로 곧게 bulletSpeed 로 간다.
+  // 주인공을 쐈으면 도착했을 때 주인공이 그 점에서 dodgeRadius 칸 안에 있어야 맞는다(하트 damage). 아니면 땅에 먼지.
+  // 텐트를 쐈으면(주인공이 텐트 안) 반드시 맞는다(피해 tentDamage).
+  gunFire(target) {
+    const G = this.cfg, scene = this.scene, shots = scene.shots, sp = this.sprite;
+    const m = this.asset.muzzle.shoot, flip = sp.flipX;
+    const from = { x: sp.x + (flip ? -m[0] : m[0]), y: sp.y + m[1] };
+    shots.muzzle(from.x, from.y, { flip });
+    const H = CONFIG.tower.hitHeight;
+    const tent = target.structure;
+    if (tent) {
+      const n = tent.tiles.length, w = tileToWorld(tent.tiles.reduce((a, t) => a + t.col, 0) / n, tent.tiles.reduce((a, t) => a + t.row, 0) / n);
+      shots.straight(from, { x: w.x, y: w.y - H }, G.bulletSpeed, () => {
+        if (scene.map.structures.includes(tent)) this.system.damageStructure(this, tent, G.tentDamage);
+        else shots.dust(w);
+      });
+      return;
+    }
+    const pl = scene.player, at = { col: pl.col, row: pl.row }, w = tileToWorld(at.col, at.row);
+    shots.straight(from, { x: w.x, y: w.y - H }, G.bulletSpeed, () => {
+      const hit = !scene.rest.resting && Math.hypot(pl.col - at.col, pl.row - at.row) <= G.dodgeRadius;
+      if (!hit || !scene.hurtPlayer(G.damage, this)) shots.dust(w);
+    });
   }
 
   // 주인공 옆: 붙은 뒤 firstHitDelay 초 뒤에 처음 때리고, 그다음부터 hitInterval 초마다 하트 1

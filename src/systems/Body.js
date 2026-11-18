@@ -119,8 +119,9 @@ export class Body {
   // 맞아도 hurt 로 끊지 않는 때: 휘두르기 시작과, 맞힌 순간의 멈칫(hit 프레임이 보이는 동안)
   guarded() { return this.attacking() && (!this.act.struck || this.act.t <= this.act.hitAt); }
 
-  // 피해를 준 순간 (12.4, 12.5): 그림을 hit 프레임에 맞추고, 휘두른 궤적을 남기고, 잠깐 멈춘다
-  strike() {
+  // 피해를 준 순간 (12.4, 12.5): 그림을 hit 프레임에 맞추고, 휘두른 궤적을 남기고, 잠깐 멈춘다.
+  // pause 가 false 면 멈추지 않는다(총을 쏜 순간: 맞는 것은 총알이 닿을 때다)
+  strike(pause = true) {
     const a = this.act;
     if (a && a.hitAt !== null) {
       a.t = a.hitAt;
@@ -130,7 +131,7 @@ export class Body {
       const sw = this.A[a.name].swing;
       if (sw) this.scene.effects.swingTrail(this.sprite, sw, a.back);
     }
-    this.freeze();
+    if (pause) this.freeze();
   }
 
   // 피해 없이 hit 시각을 지났다(빗나감, 텐트 안의 주인공을 친 것 등): 멈칫 없이 따라 내려가는 동작을 마저 한다

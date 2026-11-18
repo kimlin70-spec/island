@@ -4,7 +4,7 @@ import { Walker } from './Walker.js';
 import { Body } from './Body.js';
 
 // 도구 -> 주인공의 애니메이션 이름 (12.3)
-const TOOL_ANIM = { dagger: 'dagger', axe: 'axe', pickaxe: 'pick' };
+const TOOL_ANIM = { dagger: 'dagger', axe: 'axe', pickaxe: 'pick', gun: 'gun' };
 
 // 주인공: 눌러서 이동, 옆 칸의 대상에게 도구 쓰기, 쓰러지기.
 // 위치와 길, 걷기, 몸이 걸친 칸은 Walker 에, 그림의 움직임(애니메이션, 앞뒤, 맞기, 멈칫)은 Body 에 있다.
@@ -61,6 +61,28 @@ export class Player extends Walker {
     return tiles.some((t) => Math.max(Math.abs(t.col - at.col), Math.abs(t.row - at.row)) <= 1);
   }
 
+  // (2단계) at 칸(주지 않으면 서 있는 칸)에서 적(e)까지가 range 칸 안인가(칸 좌표의 직선 거리, 11.6)
+  inRange(e, range, at = this.tile) { return Math.hypot(e.col - at.col, e.row - at.row) <= range; }
+
+  // 총으로 쏠 수 있는 자리들: 적에게서 range 칸 안의 걸을 수 있는 칸(울타리 너머의 적도 가까이 가서 쏠 수 있게)
+  rangeTiles(e, range) {
+    const out = [], R = Math.floor(range), c0 = Math.round(e.col), r0 = Math.round(e.row);
+    for (let r = r0 - R - 1; r <= r0 + R + 1; r++) for (let c = c0 - R - 1; c <= c0 + R + 1; c++) {
+      if (Math.hypot(e.col - c, e.row - r) <= range && this.map.isWalkable(c, r)) out.push({ col: c, row: r });
+    }
+    return out;
+  }
+
+  // 행동하러 갈 곳: 총이면 사거리 안의 칸, 그 밖에는 대상에 붙은 칸
+  goalsFor(action) {
+    return action.ranged ? this.rangeTiles(action.target, action.ranged) : this.neighborsOf(action.target.tiles);
+  }
+
+  // 행동할 수 있는 자리인가: 총(ranged)이면 사거리 안, 그 밖에는 대상에 붙은 칸
+  reaches(action, at = this.tile) {
+    return action.ranged ? this.inRange(action.target, action.ranged, at) : this.isNextTo(action.target.tiles, at);
+  }
+
   // 대상에 붙은 칸 중 가장 가까운 곳까지 걸어가서 행동한다. (5.1, 5.2)
   //   target: { tiles, sprite }   isValid(): 계속해도 되는가
   //   도구 쓰기:   tool(): 지금 쓸 도구, strike(tool): 내려치는 순간에 부른다(피해가 들어갔으면 true). actionInterval 마다 되풀이한다.
@@ -68,6 +90,7 @@ export class Player extends Walker {
   //   한 번 하기:  arrive(): 도착하면 한 번 부른다(텐트에 들어가기).
   //   stepOff:    대상 칸 위에 서 있으면 옆 칸으로 비켜서서 한다(밟고 지나갈 수 있는 그루터기 등).
   //   chase:      대상이 움직인다(적). 대상이 다른 칸으로 가면 길을 다시 찾아 쫓아간다.
+  //   ranged:     (2단계, 총) 사거리(칸). 사거리 안이면 그 자리에서 하고, 밖이면 사거리 안에 들어설 때까지 다가간다(11.6).
   // 갈 수 없으면 아무 일도 하지 않고 false.
   act(action) {
     if (this.downed) return false;                    // 쓰러진 뒤에는 아무것도 하지 않는다
@@ -76,11 +99,11 @@ export class Player extends Walker {
     // 하던 행동이 막 끝났으면(나무가 방금 그루터기가 되었으면) 새 행동으로 받는다.
     const end = this.path[this.path.length - 1] || this.tile;
     const a = this.action;
-    if (a && a.target === action.target && a.isValid() && this.isNextTo(tiles, end)) return true;
+    if (a && a.target === action.target && a.isValid() && this.reaches(action, end)) return true;
     const onTop = !this.moving && tiles.some((t) => t.col === this.tile.col && t.row === this.tile.row);
-    const here = !this.moving && this.isNextTo(tiles) && !(action.stepOff && onTop);
+    const here = !this.moving && this.reaches(action) && !(action.stepOff && onTop);
     // 비켜설 칸이 없으면 그 자리에서 한다
-    if (!here && !this.routeTo(this.neighborsOf(tiles)) && !onTop) return false;
+    if (!here && !this.routeTo(this.goalsFor(action)) && !onTop) return false;
     this.stopAction();
     this.action = action;
     return true;
@@ -91,10 +114,9 @@ export class Player extends Walker {
   chase(a, dt) {
     this.chaseLeft -= dt;
     if (!a.isValid() || this.chaseLeft > 0) return;
-    const tiles = a.target.tiles;
-    if (this.isNextTo(tiles, this.path[this.path.length - 1] || this.tile)) return;
+    if (this.reaches(a, this.path[this.path.length - 1] || this.tile)) return;
     this.chaseLeft = CONFIG.player.chaseInterval;
-    if (!this.routeOn(this.neighborsOf(tiles)) && !this.moving) this.action = null;
+    if (!this.routeOn(this.goalsFor(a)) && !this.moving) this.action = null;
   }
 
   // 하던 행동을 멈춘다. 들어 올린 도구는 내려치지 않는다.
@@ -105,6 +127,18 @@ export class Player extends Walker {
   }
 
   face(dx, dy) { this.body.face(dx, dy); }
+
+  // 한 칸에 도착했다: 총으로 쏘러 가는 중이면 사거리 안에 들어선 곳에서 멈춘다(11.6)
+  onArrive() {
+    const a = this.action;
+    if (a && a.ranged && a.isValid() && this.inRange(a.target, a.ranged)) this.path.length = 0;
+  }
+
+  // 총구(쏘는 순간의 gun2, 뒷모습은 bgun2): 발 기준, 오른쪽을 볼 때의 값. 왼쪽을 보면 x 를 뒤집는다(11.10)
+  muzzle() {
+    const back = !!(this.body.act && this.body.act.back), m = this.asset.muzzle[back ? 'bgun2' : 'gun2'], flip = this.sprite.flipX;
+    return { x: this.sprite.x + (flip ? -m[0] : m[0]), y: this.sprite.y + m[1], flip };
+  }
 
   // 대상 쪽을 본다(칸으로 잰다. 여러 칸이면 그 한가운데)
   faceTarget(target) {
@@ -130,7 +164,7 @@ export class Player extends Walker {
     if (this.action && this.action.chase) this.chase(this.action, dt);
     const a = this.action;
     if (a && !this.moving) {
-      const near = this.isNextTo(a.target.tiles);
+      const near = this.reaches(a);
       if (!a.isValid() || (!near && !a.chase)) {
         this.action = null;
       } else if (!near) {
@@ -145,10 +179,11 @@ export class Player extends Walker {
           this.action = null;
         } else {
           this.faceTarget(a.target);
-          const n = TOOL_ANIM[tool], b = this.body;
+          const n = TOOL_ANIM[tool], b = this.body, gun = tool === 'gun';
           b.play(n, dt);                              // 든 프레임의 시간도 센다(아래). 그림도 그만큼 지난 곳부터.
-          this.swing = { t: 0, hitAt: b.hitAt(n) || 0, total: b.ms(n), struck: false, tool };
-          this.cooldown = CONFIG.player.actionInterval;
+          // 총: gun1(겨누기) aimTime 뒤에 gun2(쏘기). interval 마다 한 번 (11.6)
+          this.swing = { t: 0, hitAt: gun ? CONFIG.tools.gun.aimTime : b.hitAt(n) || 0, total: b.ms(n), struck: false, tool };
+          this.cooldown = gun ? CONFIG.tools.gun.interval : CONFIG.player.actionInterval;
         }
       }
     }
@@ -159,8 +194,9 @@ export class Player extends Walker {
       s.t += dt;
       if (!s.struck && s.t >= s.hitAt) {
         s.struck = true;
-        if (this.action && this.action.strike(s.tool)) this.body.strike();   // 맞혔으면 멈칫과 휘두른 궤적 (12.4)
-        else this.body.pass();                                                // 빗나갔으면 그대로 따라 내려간다
+        const hit = !!(this.action && this.action.strike(s.tool));
+        if (hit) this.body.strike(s.tool !== 'gun');       // 맞혔으면 멈칫과 휘두른 궤적 (12.4). 총은 쏘는 그림(gun2)만, 멈칫 없이
+        else this.body.pass();                             // 빗나갔으면 그대로 따라 내려간다
       }
       if (s.t >= s.total) this.swing = null;
     }

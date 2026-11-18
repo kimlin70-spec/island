@@ -16,6 +16,8 @@ export const CONFIG = {
     dagger:  { name: '단검',        power: { tree: 1, enemy: 1 } },
     axe:     { name: '나무 도끼',   cost: { wood: 3 }, power: { tree: 3 } },
     pickaxe: { name: '나무 곡괭이', cost: { wood: 3 }, power: { rock: 3, ground: 3, iron: 3 } },   // ground: 그루터기·돌 부스러기 파내기(사용자 요청), iron: 철광석(11.2)
+    // (2단계) 총 (11.6, 11.9): 가지면 적과는 단검 대신 총으로 싸운다. 캐기에는 쓰지 않는다(power 없음).
+    gun:     { name: '총', cost: { iron: 3, wood: 2 }, damage: 2, range: 5, interval: 1.4, aimTime: 0.25, bulletSpeed: 1400, power: {} },
   },
   nodes: {
     tree: { hp: 9, give: 'wood', amount: 4 },
@@ -29,6 +31,7 @@ export const CONFIG = {
   },
   build: {
     reach: 7, refundRate: 0.5,
+    reachCircle: { tint: 0xfff3c4, alpha: 0.9 },   // (사용자 요청) 짓는 동안 주인공 둘레에 지을 수 있는 거리(reach)를 원으로 보여 준다. 그림은 overlay_range
     fence:    { name: '울타리', cost: { wood: 1 }, hp: 6 },
     campfire: { name: '모닥불', cost: { wood: 3, stone: 3 }, hp: 10, slowRange: 3, slow: 0.5,
                 light: { radius: 300, color: 0xffedc7, alpha: 1,
@@ -44,7 +47,7 @@ export const CONFIG = {
     // (2단계) 탑 11.5, 11.9: 사거리(칸), 쏘는 간격(초), 피해. 화살은 포물선(높이 = 거리 × arcRatio, 최대 arcMax px), 총알은 직선. 속도는 초당 px.
     watchtower: { name: '망루', cost: { wood: 8, stone: 2 }, hp: 14, range: 5, interval: 1.1, damage: 1,
                   arrowSpeed: 650, arcRatio: 0.25, arcMax: 60, light: { radius: 120, color: 0xffedc7, alpha: 0.85 } },
-    guntower:   { name: '총 타워', cost: { stone: 6, iron: 4 }, hp: 22, range: 6.5, interval: 1.6, damage: 3,
+    guntower:   { name: '총 타워', cost: { stone: 6, iron: 4 }, hp: 22, range: 6.5, interval: 1.6, damage: 2,   // damage: 11.9 는 3. 사용자 요청(너무 세다)으로 2
                   bulletSpeed: 1400, light: { radius: 120, color: 0xffedc7, alpha: 0.85 } },
   },
   flashLight: { radius: 110, color: 0xffedc7, alpha: 0.9, time: 0.1 },   // (2단계) 총을 쏜 순간 총구의 빛(3.7, 11.9)
@@ -69,7 +72,14 @@ export const CONFIG = {
             lampLight: { radius: 130, color: 0xffedc7, alpha: 0.9 },
             hitDamage: 1, repathInterval: 0.5,   // 좀비와 같은 값(5.12: 다른 점은 위의 숫자뿐이다)
             appearTime: 2,           // 해적선이 나타나는 데 걸리는 시간(초)
-            leaveTime: 2 },          // 아침에 배와 보트가 사라지는 데 걸리는 시간(초)
+            leaveTime: 2,            // 아침에 배와 보트가 사라지는 데 걸리는 시간(초)
+            gunners: 1 },            // (2단계) 함께 상륙하는 총잡이 해적 수 (11.7)
+  // (2단계) 총잡이 해적 (11.7, 11.9). 아래 줄은 11.9 에 없는, 걸어오다 시설에 막혔을 때의 값(다른 해적과 같다, 5.12)
+  gunner: { hp: 3, speed: 1.6, range: 4.5, aimTime: 0.6, interval: 2.6, damage: 1, tentDamage: 2, dodgeRadius: 0.6, bulletSpeed: 900,
+            structureDamage: 1, structureInterval: 1.0, breakCost: 8, repathInterval: 0.5 },
+  // (사용자 요청, 문서에 없음) 난이도: 2단계부터 나오는 좀비·해적·총잡이의 체력을 이 배수로(zombie, pirate, gunner 의 hp × 이 값).
+  // 1단계는 그대로(단검으로 싸우는 첫 밤이 너무 어려워지지 않게). 1 로 두면 문서의 값.
+  stage2: { enemyHpScale: 2 },
   todo:   { fenceCount: 8 },
   todo2:  { iron: 5, wire: 6 },        // (2단계) 할 일: 캔 철광석 수, 깐 철조망 수 (11.1)
 
