@@ -6,10 +6,11 @@ import { bestTool } from './Crafting.js';
 // 다 캐면 그루터기·돌 부스러기가 남고, 이것은 곡괭이로 파내면 사라진다(사용자 요청: 땅을 고르게 하기).
 // 칠 때와 다 캤을 때의 움직임은 12.6, 12.7.
 // 도구의 세기를 고를 때 쓰는 묶음
-const GROUP = { tree: 'tree', pine: 'tree', palm: 'tree', rock: 'rock', stump: 'ground', rubble: 'ground' };
-const LEFTOVER = { tree: { key: 'obj_stump', kind: 'stump' }, rock: { key: 'obj_rubble', kind: 'rubble' } };   // 다 캐면 남는 장식
-const NEED = { rock: '곡괭이가 필요합니다', ground: '곡괭이가 필요합니다' };   // 쓸 도구가 없을 때의 알림
-const ICON = { wood: 'icon_wood', stone: 'icon_stone' };
+const GROUP = { tree: 'tree', pine: 'tree', palm: 'tree', rock: 'rock', stump: 'ground', rubble: 'ground', iron: 'iron' };
+// 다 캐면 남는 장식. 철광석도 돌 부스러기가 된다(11.2)
+const LEFTOVER = { tree: { key: 'obj_stump', kind: 'stump' }, rock: { key: 'obj_rubble', kind: 'rubble' }, iron: { key: 'obj_rubble', kind: 'rubble' } };
+const NEED = { rock: '곡괭이가 필요합니다', ground: '곡괭이가 필요합니다', iron: '곡괭이가 필요합니다' };   // 쓸 도구가 없을 때의 알림
+const ICON = { wood: 'icon_wood', stone: 'icon_stone', iron: 'icon_iron' };
 // 조각 (12.6). 잎은 단풍나무(obj_tree_w1)만 leaf3
 const WOOD = ['wood1', 'wood2'], STONE = ['stone1', 'stone2'];
 const leavesOf = (key) => (key === 'obj_tree_w1' ? ['leaf3'] : ['leaf1', 'leaf2']);
@@ -47,6 +48,9 @@ export class NodeSystem {
     } else if (n.group === 'rock') {
       fx.burst(STONE, C.rockHit[0], p.x, p.y);
       fx.burst(['dust'], C.rockHit[1], p.x, p.y);
+    } else if (n.group === 'iron') {                           // 철광석: iron 2 + spark 3
+      fx.burst(['iron'], C.ironHit[0], p.x, p.y);
+      fx.burst(['spark'], C.ironHit[1], p.x, p.y);
     }
     if (n.hp > 0) {
       fx.shake(s);
@@ -71,14 +75,15 @@ export class NodeSystem {
       const pl = scene.player, dx = x - pl.foot().x;
       const dir = dx > 0 ? 1 : dx < 0 ? -1 : (pl.sprite.flipX ? -1 : 1);
       fx.fall(o.key, x, y, s.depth, dir, leavesOf(o.key), s.alpha);
-    } else {
+    } else {                                                   // 돌·철광석: 바로 돌 부스러기, 먼지와 조각 (12.7)
       fx.dust(x, y);
-      fx.burst(STONE, C.rockBreak, x, y - lift);
+      fx.burst(n.group === 'iron' ? ['iron'] : STONE, n.group === 'iron' ? C.ironBreak : C.rockBreak, x, y - lift);
     }
     const left = LEFTOVER[n.group];
     scene.map.toDecor(o, left.key, left.kind);
     this.attach(o);
     scene.inventory.add(n.cfg.give, amount);
+    if (n.cfg.give === 'iron') scene.onIronMined(amount);   // 할 일 "철광석 5개 모으기"는 캔 개수를 센다(11.1)
     return true;
   }
 }

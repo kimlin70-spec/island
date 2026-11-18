@@ -30,6 +30,8 @@ export class GameScene extends Phaser.Scene {
     this.frame = 0;                                   // 프레임 번호(효과와 그림의 시간을 언제부터 셀지 정할 때 쓴다)
     this.updating = false;                            // 프레임을 돌리는 중인가(아니면 프레임 사이: 누르기 등)
     this.elapsed = 0;                                 // 흐른 게임 시간(초). 모닥불 빛이 일렁이는 데 쓴다.
+    this.stage = 1;                                   // 1단계, 2단계(첫 밤의 결과 창에서 "계속하기" 뒤, 11.1)
+    this.ironMined = 0;                               // (2단계) 캔 철광석 수(할 일 1번)
 
     this.inventory = new Inventory(this);
     this.tools = ['dagger'];                          // 가진 도구(만든 순서). 단검을 가지고 시작한다.
@@ -115,12 +117,12 @@ export class GameScene extends Phaser.Scene {
     }
     const e = this.enemies.pickAt(p.worldX, p.worldY);
     if (e) this.pressEnemy(e);                        // 적: 다가가서 단검으로 친다 (5.9)
-    else if (o && o.node) this.pressNode(o);               // 나무, 돌, 그루터기, 돌 부스러기
-    else if (o && o.kind === 'iron') this.notice('아직 캘 수 없습니다');   // 철광석은 2단계(Phase 7)부터 캔다 (4장)
+    else if (o && o.kind === 'iron' && this.stage < 2) this.notice('아직 캘 수 없습니다');   // 철광석은 2단계부터 캔다 (4장, 11.2)
+    else if (o && o.node) this.pressNode(o);               // 나무, 돌, 철광석, 그루터기, 돌 부스러기
     else if (o && o.type === 'tent') this.pressTent(o);
-    else if (o && o.type === 'fence') this.walkTo(o.col, o.row);   // 울타리를 누른 것은 그 울타리 칸(땅)을 누른 것과 같다.
+    else if (o && (o.type === 'fence' || o.type === 'wire')) this.walkTo(o.col, o.row);   // 울타리·철조망을 누른 것은 그 칸(땅)을 누른 것과 같다(철조망 칸은 걸어갈 수 있다).
     else if (!o) this.walkTo(t.col, t.row);           // 땅
-    // 덤불, 모닥불은 눌러도 아무 일이 없다. 울타리 칸도 지금은 지나갈 수 없는 칸이라 아무 일이 없다.
+    // 덤불, 모닥불은 눌러도 아무 일이 없다. 울타리 칸은 지나갈 수 없는 칸이라 아무 일이 없다.
   }
 
   // 마우스를 움직일 때(터치는 누르고 있는 동안)의 위치는 짓기 표시에만 쓴다
@@ -215,7 +217,30 @@ export class GameScene extends Phaser.Scene {
   }
 
   // 결과 창의 "계속하기"
-  resumeGame() { this.scene.resume(); }
+  // 첫 아침의 결과 창에서 "계속하기"를 누르면 2단계가 시작된다(11.1)
+  resumeGame() {
+    if (this.stage < 2) this.startStage2();
+    this.scene.resume();
+  }
+
+  // 2단계: 할 일 목록이 바뀌고, 가방에 철광석, 만들기 창이 두 줄이 되고, 철광석을 캘 수 있다
+  startStage2() {
+    this.stage = 2;
+    this.events.emit('stage-changed');
+    this.checkStage2();
+  }
+
+  // 2단계의 할 일 중 지금 상태로 정해지는 것(철광석 수, 철조망 수)
+  checkStage2() {
+    if (this.stage < 2) return;
+    if (this.ironMined >= CONFIG.todo2.iron) this.todo.check('iron');
+    if (this.build.count('wire') >= CONFIG.todo2.wire) this.todo.check('wire');
+  }
+
+  onIronMined(n) {
+    this.ironMined += n;
+    this.checkStage2();
+  }
 
   // 나무, 돌, 그루터기, 돌 부스러기를 눌렀다: 붙은 칸까지 걸어가서 도구로 친다 (5.2)
   pressNode(o) {
@@ -289,6 +314,7 @@ export class GameScene extends Phaser.Scene {
   onBuilt(s) {
     if (s.type === 'campfire' || s.type === 'tent') this.todo.check(s.type);
     if (this.build.count('fence') >= CONFIG.todo.fenceCount) this.todo.check('fence');
+    this.checkStage2();
   }
 
   // ── 낮과 밤 ──
@@ -300,7 +326,7 @@ export class GameScene extends Phaser.Scene {
     this.nightEndHearts = this.hearts.value;          // 결과 창의 "남은 하트": 밤을 넘긴 때의 하트(아침에 차기 전)
     if (this.hearts.heal(CONFIG.player.morningHeal)) this.heartsUp();
     this.build.repairAll();
-    this.todo.check('morning');
+    this.todo.check(this.stage >= 2 ? 'night' : 'morning');   // 2단계는 "밤을 넘기기"
     if (day === 2) this.resultPending = true;
     else this.notice(`${day}일째 아침입니다`);
   }
@@ -331,9 +357,11 @@ export class GameScene extends Phaser.Scene {
   }
 
   // ── 시험용 도구 (8장) ──
+  // 나무, 돌 +20. 2단계에서는 철광석도(11.8)
   debugGive() {
     this.inventory.add('wood', CONFIG.ui.debug.giveAmount);
     this.inventory.add('stone', CONFIG.ui.debug.giveAmount);
+    if (this.stage >= 2) this.inventory.add('iron', CONFIG.ui.debug.giveAmount);
   }
 
   // 결과 창을 기다리는 동안과 쓰러진 뒤에는 넘기지 않는다

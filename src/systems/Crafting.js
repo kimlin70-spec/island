@@ -1,14 +1,18 @@
 import { CONFIG } from '../config.js';
 
-// 만들기 창의 카드 6장 (5.3). 이름과 재료는 config.js 의 tools, build 에서 읽는다.
-export const CARDS = [
-  { id: 'axe',      type: 'tool',   icon: 'icon_axe' },
-  { id: 'pickaxe',  type: 'tool',   icon: 'icon_pickaxe' },
-  { id: 'fence',    type: 'build',  icon: 'icon_fence' },
-  { id: 'campfire', type: 'build',  icon: 'icon_campfire' },
-  { id: 'tent',     type: 'build',  icon: 'icon_tent' },
-  { id: 'remove',   type: 'remove', icon: 'icon_remove', name: '치우기', note: '절반 돌려받음' },
-];
+// 만들기 창의 카드 (5.3). 이름과 재료는 config.js 의 tools, build 에서 읽는다.
+const AXE      = { id: 'axe',      type: 'tool',   icon: 'icon_axe' };
+const PICKAXE  = { id: 'pickaxe',  type: 'tool',   icon: 'icon_pickaxe' };
+const FENCE    = { id: 'fence',    type: 'build',  icon: 'icon_fence' };
+const WIRE     = { id: 'wire',     type: 'build',  icon: 'icon_wire' };
+const CAMPFIRE = { id: 'campfire', type: 'build',  icon: 'icon_campfire' };
+const TENT     = { id: 'tent',     type: 'build',  icon: 'icon_tent' };
+const REMOVE   = { id: 'remove',   type: 'remove', icon: 'icon_remove', name: '치우기', note: '절반 돌려받음' };
+// 1단계: 6장 한 줄
+export const CARDS = [AXE, PICKAXE, FENCE, CAMPFIRE, TENT, REMOVE];
+// 2단계: 10장 두 줄(11.3). null 은 아직 만들지 않은 Phase 의 카드 자리(총은 Phase 9, 망루·총 타워는 Phase 8)
+export const CARDS2 = [AXE, PICKAXE, null, FENCE, WIRE, CAMPFIRE, TENT, null, null, REMOVE];
+export function cardsFor(stage) { return stage >= 2 ? CARDS2 : CARDS; }
 
 function source(card) {
   return card.type === 'tool' ? CONFIG.tools[card.id] : card.type === 'build' ? CONFIG.build[card.id] : card;
@@ -16,8 +20,8 @@ function source(card) {
 export function cardName(card) { return source(card).name; }
 export function cardCost(card) { return source(card).cost || null; }
 
-// 가진 도구(owned) 가운데 대상(group: 'tree' | 'rock' | 'enemy')에 가장 센 것. 쓸 수 있는 도구가 없으면 null.
-// 나무는 도끼가 있으면 도끼, 없으면 단검. 돌은 곡괭이만. 적은 단검. (5.2)
+// 가진 도구(owned) 가운데 대상(group: 'tree' | 'rock' | 'ground' | 'iron' | 'enemy')에 가장 센 것. 쓸 수 있는 도구가 없으면 null.
+// 나무는 도끼가 있으면 도끼, 없으면 단검. 돌과 철광석은 곡괭이만. 적은 단검. (5.2, 11.2)
 export function bestTool(owned, group) {
   let best = null;
   for (const id of owned) {

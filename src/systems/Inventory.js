@@ -1,8 +1,8 @@
-// 가방: 나무와 돌의 개수
+// 가방: 나무, 돌, (2단계) 철광석의 개수
 export class Inventory {
   constructor(scene) {
     this.scene = scene;
-    this.items = { wood: 0, stone: 0 };
+    this.items = { wood: 0, stone: 0, iron: 0 };
   }
 
   count(item) { return this.items[item] || 0; }

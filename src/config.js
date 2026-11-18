@@ -15,7 +15,7 @@ export const CONFIG = {
   tools: {
     dagger:  { name: '단검',        power: { tree: 1, enemy: 1 } },
     axe:     { name: '나무 도끼',   cost: { wood: 3 }, power: { tree: 3 } },
-    pickaxe: { name: '나무 곡괭이', cost: { wood: 3 }, power: { rock: 3, ground: 3 } },   // ground: 그루터기·돌 부스러기 파내기(사용자 요청)
+    pickaxe: { name: '나무 곡괭이', cost: { wood: 3 }, power: { rock: 3, ground: 3, iron: 3 } },   // ground: 그루터기·돌 부스러기 파내기(사용자 요청), iron: 철광석(11.2)
   },
   nodes: {
     tree: { hp: 9, give: 'wood', amount: 4 },
@@ -25,6 +25,7 @@ export const CONFIG = {
     // 사용자 요청(문서에 없음): 곡괭이로 그루터기·돌 부스러기를 파내면 사라져서 땅이 고르게 된다. 얻는 재료는 없다.
     stump:  { hp: 3 },
     rubble: { hp: 3 },
+    iron:   { hp: 15, give: 'iron', amountBySprite: { obj_iron_1: 2, obj_iron_2: 3 } },   // (2단계) 11.9. 1단계에서는 캘 수 없다
   },
   build: {
     reach: 7, refundRate: 0.5,
@@ -37,6 +38,9 @@ export const CONFIG = {
                 healInterval: 8, sleepTimeScale: 4, wakeRange: 6,
                 attackNotice: 5,     // 텐트가 이만큼(초) 안 맞다가 맞으면 "텐트가 공격받고 있습니다"를 띄운다(5초에 한 번 이하) (5.6)
                 light: { radius: 110, color: 0xffedc7, alpha: 0.8 } },
+    // (2단계) 철조망 11.4: 길을 막지 않는다. 위에 있는 적은 slow 배로 느려지고 damageInterval 초마다 damage. 그때마다 철조망 체력 1 줄어듦.
+    // 적의 길찾기에서 이 칸의 비용은 pathCost(보통 칸 1)
+    wire:     { name: '철조망', cost: { iron: 1 }, hp: 10, slow: 0.4, damage: 1, damageInterval: 1.0, pathCost: 3 },
   },
   zombie: { hp: 3, speed: 1.2, hitInterval: 2.0, firstHitDelay: 1.5, hitDamage: 1,   // hitDamage: 한 번 때릴 때 깎는 하트
             structureDamage: 1, structureInterval: 1.5, breakCost: 8, spawnMinDistance: 12,
@@ -50,6 +54,7 @@ export const CONFIG = {
             appearTime: 2,           // 해적선이 나타나는 데 걸리는 시간(초)
             leaveTime: 2 },          // 아침에 배와 보트가 사라지는 데 걸리는 시간(초)
   todo:   { fenceCount: 8 },
+  todo2:  { iron: 5, wire: 6 },        // (2단계) 할 일: 캔 철광석 수, 깐 철조망 수 (11.1)
 
   // ── 아래는 6장에 없는, 화면과 조작에 쓰는 숫자 ──
   screen: {
@@ -65,7 +70,7 @@ export const CONFIG = {
   input: {
     cursorTime: 0.4,         // 누른 칸 표시가 보이는 시간(초)
     pickAlpha: 110,          // 그림에서 이 값보다 진한 부분을 눌러야 그 사물을 고른다(0~255). 옅은 그림자는 빼려고.
-    pickAlphaFence: 30,      // 울타리는 이 값으로 고른다. 그림자가 없어서, 기둥과 가로대의 옅은 가장자리까지 울타리로 본다.
+    pickAlphaFence: 30,      // 울타리와 철조망은 이 값으로 고른다. 그림자가 없어서, 기둥과 가로대·철사의 옅은 가장자리까지 그 시설로 본다.
     enemyPad: 12,            // 적은 그림 사각형을 사방으로 이만큼(px) 넓힌 곳을 눌러도 고른다 (3.5)
   },
   // 효과와 체력 막대. 12.10 의 이름은 그대로 두었다(hitStop ~ particleCount).
@@ -102,7 +107,8 @@ export const CONFIG = {
     buildPopPeak: 0.6,       // 지을 때 가장 커지는 때(buildPop 시간에 대한 비율)
     corpseShift: 30,         // 쓰러진 적의 몸 한가운데: 발에서 보는 쪽의 뒤로(px). 연기가 여기서 난다
     // 조각의 수 (12.6 표). [a, b]는 앞의 조각 a개 + 뒤의 조각 b개
-    chips: { treeHit: [3, 2], treeFall: 8, rockHit: [3, 1], rockBreak: 6, enemyHit: 3, rise: [6, 2], build: 4, broken: 6, hearts: 2, ember: 1 },
+    chips: { treeHit: [3, 2], treeFall: 8, rockHit: [3, 1], rockBreak: 6, enemyHit: 3, rise: [6, 2], build: 4, broken: 6, hearts: 2, ember: 1,
+             ironHit: [2, 3], ironBreak: 6 },   // ironBreak: 다 캔 철광석의 조각(12.7은 수를 적지 않았다. 돌과 같게)
     // 조각이 흩어지는 모양: 보통(12.6 예시), 천천히 지는 잎, 위로 오르는 하트, 모닥불 불티.
     // 적지 않은 값(speed, gravityY, lifespan)은 particles 의 값을 쓴다.
     burst: {
@@ -141,6 +147,7 @@ export const CONFIG = {
             boxX: 22, boxY: 4, boxSize: 22, boxRadius: 5, boxBorder: 2, textX: 56, textY: 16, font: 23 },
     // 왼쪽 아래: 가방(나무, 돌)과 장비
     bag: { w: 300, h: 88, icon: 72, font: 34, iconX: [46, 188], countX: [84, 226], countY: 51 },
+    bag2: { w: 438, iconX: [46, 188, 330], countX: [84, 226, 368] },   // (2단계) 나무, 돌, 철광석 (preview_defense_day.png)
     equip: { gap: 20, pad: 10, slot: 76, icon: 72 },
     // 오른쪽 아래: 만들기 버튼
     craftButton: { size: 136, edge: 28, border: 4, borderOpen: 6, icon: 80, iconY: -20, font: 22, textY: 34 },
@@ -150,6 +157,9 @@ export const CONFIG = {
              icon: 96, iconY: 56, nameY: 124, nameFont: 24,
              costY: 164, costIcon: 40, costFont: 24, costStep: 66, costTrim: 6, costTextX: 42,   // 재료 아이콘과 숫자 한 묶음의 폭이 costStep
              statusFont: 22 },                   // "보유", "절반 돌려받음" 글자
+    // (2단계) 만들기 창: 카드 10장 두 줄(11.3, preview_defense_day.png). 적지 않은 값은 craft 의 값
+    craft2: { perRow: 5, rowGap: 12, cardW: 150, cardH: 170, icon: 70, iconY: 40, nameY: 98, nameFont: 22,
+              costY: 138, costIcon: 32, costFont: 22, costStep: 58, costTrim: 6, costTextX: 36, statusFont: 20 },
     // 왼쪽 위: 하트(56px). 빈 칸은 icon_heart_empty
     hearts: { h: 72, padX: 13, step: 58, icon: 56 },
     // 가운데 위: 해/달 아이콘, "1일째 낮", 진행 막대(낮 노랑, 밤 파랑). x 는 화면 가운데 기준, y 는 패널 위쪽 기준

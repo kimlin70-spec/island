@@ -1,10 +1,12 @@
 import { CONFIG } from '../config.js';
 import { tileToWorld, worldToTile, worldToTileFloat } from '../iso.js';
 
-// 짓기와 치우기 (5.4). 시설: 울타리, 모닥불, 텐트.
+// 짓기와 치우기 (5.4). 시설: 울타리, 모닥불, 텐트, (2단계) 철조망.
 export const REMOVE = 'remove';
-const SPRITE = { fence: 'build_fence_0', campfire: 'build_campfire', tent: 'build_tent' };
+const SPRITE = { fence: 'build_fence_0', campfire: 'build_campfire', tent: 'build_tent', wire: 'build_wire_0' };
 const TALL = { tent: true };            // 캐릭터를 가릴 수 있는 키 큰 시설
+const OPEN = { wire: true };            // 길을 막지 않는 시설(누구나 지나간다, 11.4)
+const LINKED = { fence: 'build_fence_', wire: 'build_wire_' };   // 이웃한 같은 시설끼리 이어지는 그림(3.6, 11.4)
 const ICON = { wood: 'icon_wood', stone: 'icon_stone' };
 
 export class BuildSystem {
@@ -42,11 +44,11 @@ export class BuildSystem {
     return tiles;
   }
 
-  // 지을 수 있는 칸: 땅이고, 나무·돌·덤불·다른 시설이 없고, 캐릭터가 서 있지 않고, 주인공에게서 reach 칸 안.
+  // 지을 수 있는 칸: 땅이고, 나무·돌·덤불·다른 시설(철조망 포함)이 없고, 캐릭터가 서 있지 않고, 주인공에게서 reach 칸 안.
   // 그루터기와 돌 부스러기 위에는 지을 수 있다.
   canBuildAt(col, row) {
     const m = this.map, p = this.scene.player;
-    if (!m.isOpen(col, row) || m.structureAt(col, row)) return false;
+    if (!m.isOpen(col, row) || m.anyStructureAt(col, row)) return false;
     if (this.scene.characterTiles().some((t) => t.col === col && t.row === row)) return false;
     return Math.hypot(col - p.col, row - p.row) <= CONFIG.build.reach;
   }
@@ -76,7 +78,7 @@ export class BuildSystem {
   commit(wx, wy) {
     if (this.mode === REMOVE) {
       const t = worldToTile(wx, wy);
-      const s = this.map.pickObject(wx, wy, this.map.structures) || this.map.structureAt(t.col, t.row);
+      const s = this.map.pickObject(wx, wy, this.map.structures) || this.map.anyStructureAt(t.col, t.row);
       if (s) this.remove(s);
       return;
     }
@@ -113,6 +115,7 @@ export class BuildSystem {
       col: tiles[0].col, row: tiles[0].row,
       hp: cfg.hp, maxHp: cfg.hp,
       tall: !!TALL[type], pickable: true,
+      blocks: !OPEN[type],                           // 철조망만 false
     };
     if (type === 'campfire') {
       // 불꽃 애니메이션과 빛무리(월드에 ADD로 올린다. 모닥불 바로 위)
@@ -122,7 +125,7 @@ export class BuildSystem {
         .setAlpha(cfg.glow.day).setDepth(sprite.depth + 1);
     }
     this.map.addStructure(s);
-    if (type === 'fence') this.refreshFences(s.col, s.row);
+    if (LINKED[type]) this.refreshLinks(type, s.col, s.row);
     scene.onMapChanged();
     scene.events.emit('structures-changed');
     return s;
@@ -156,7 +159,7 @@ export class BuildSystem {
     if (this.scene.rest.tent === s) this.scene.rest.exit();
     const fx = this.scene.effects, sp = s.sprite;
     if (broken) {
-      fx.burst(['wood1', 'wood2'], CONFIG.fx.chips.broken, sp.x, sp.y - CONFIG.fx.impactHeight.object);
+      fx.burst(s.type === 'wire' ? ['iron'] : ['wood1', 'wood2'], CONFIG.fx.chips.broken, sp.x, sp.y - CONFIG.fx.impactHeight.object);
       fx.dust(sp.x, sp.y);
     } else {
       fx.poof(sp.x, sp.y);
@@ -165,7 +168,7 @@ export class BuildSystem {
     this.map.removeStructure(s);
     s.sprite.destroy();
     if (s.glow) s.glow.destroy();
-    if (s.type === 'fence') this.refreshFences(s.col, s.row);
+    if (LINKED[s.type]) this.refreshLinks(s.type, s.col, s.row);
     this.scene.onMapChanged();
     this.scene.events.emit('structures-changed');
   }
@@ -212,17 +215,35 @@ export class BuildSystem {
     }
   }
 
-  // 울타리 연결 (3.6): 이웃 칸에 울타리가 있는 방향으로 가로대가 이어진다. build_fence_0 ~ build_fence_15
-  fenceMask(col, row) {
-    const has = (c, r) => { const s = this.map.structureAt(c, r); return !!s && s.type === 'fence'; };
+  // 울타리·철조망 연결 (3.6, 11.4): 이웃 칸에 같은 시설이 있는 방향으로 이어진다. build_fence_0~15, build_wire_0~15.
+  // 울타리와 철조망은 서로 이어지지 않는다.
+  sameAt(type, col, row) {
+    const s = this.map.anyStructureAt(col, row);
+    return !!s && s.type === type;
+  }
+
+  linkMask(type, col, row) {
+    const has = (c, r) => this.sameAt(type, c, r);
     return (has(col + 1, row) ? 1 : 0) | (has(col - 1, row) ? 2 : 0) | (has(col, row + 1) ? 4 : 0) | (has(col, row - 1) ? 8 : 0);
   }
 
-  // 그 칸과 이웃 네 칸의 울타리 그림을 다시 고른다
-  refreshFences(col, row) {
+  // 그 칸과 이웃 네 칸의 type 그림을 다시 고른다
+  refreshLinks(type, col, row) {
     for (const [dc, dr] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) {
-      const s = this.map.structureAt(col + dc, row + dr);
-      if (s && s.type === 'fence') s.sprite.setTexture('build_fence_' + this.fenceMask(s.col, s.row));
+      if (!this.sameAt(type, col + dc, row + dr)) continue;
+      const s = this.map.anyStructureAt(col + dc, row + dr);
+      s.sprite.setTexture(LINKED[type] + this.linkMask(type, s.col, s.row));
     }
+  }
+
+  // (2단계) 철조망이 적을 다치게 할 때마다 체력이 1 준다. 0이 되면 사라진다(11.4, 12.7: 조각과 먼지).
+  wear(s) {
+    s.hp -= 1;
+    if (s.hp <= 0) {
+      this.destroy(s, true);
+      return;
+    }
+    const sp = s.sprite;
+    this.scene.effects.showBar(s, s.hp / s.maxHp, sp.x, sp.y - sp.displayHeight * sp.originY - CONFIG.fx.barGap, Infinity);
   }
 }

@@ -1,6 +1,6 @@
 import { CONFIG } from '../config.js';
-import { CARDS, cardCost, cardName } from '../systems/Crafting.js';
-import { TODO_ITEMS } from '../systems/Todo.js';
+import { cardsFor, cardCost, cardName } from '../systems/Crafting.js';
+import { todoFor } from '../systems/Todo.js';
 
 const U = CONFIG.ui;
 const INK = Phaser.Display.Color.HexStringToColor(U.ink).color;
@@ -42,6 +42,7 @@ export class UIScene extends Phaser.Scene {
     listen('hearts-changed', () => this.refreshHearts());
     listen('rest-changed', () => this.restBox.setVisible(this.world.rest.resting));
     listen('speed-changed', () => this.refreshDebug());
+    listen('stage-changed', () => this.onStage());
     listen('notice', (text) => this.notice(text));
     listen('down', () => this.showModal('쓰러졌습니다', [], [['다시 시작', () => this.restart(), true]]));
     listen('result', (r) => this.showModal('첫 밤을 넘겼습니다',
@@ -167,21 +168,25 @@ export class UIScene extends Phaser.Scene {
 
   // ── 오른쪽 위: 할 일 (5.11) ──
 
+  // 1단계와 2단계(11.1)의 목록. 2단계가 되면 다시 만든다(줄 수는 둘 다 6줄).
   makeTodo() {
-    const T = U.todo;
+    const T = U.todo, items = todoFor(this.world.stage);
     const x = this.W - U.margin - T.w, y = U.margin;
-    this.todoPos = { x, y, h: T.padTop + TODO_ITEMS.length * T.lineHeight + T.padBottom };
-    this.panel(this.add.graphics(), x, y, T.w, this.todoPos.h);
-    this.label(x + T.titleX, y + T.titleY, '할 일', T.titleFont);
+    if (this.todoObjs) for (const o of this.todoObjs) o.destroy();
+    this.todoItems = items;
+    this.todoPos = { x, y, h: T.padTop + items.length * T.lineHeight + T.padBottom };
+    const bg = this.panel(this.add.graphics(), x, y, T.w, this.todoPos.h);
+    const title = this.label(x + T.titleX, y + T.titleY, '할 일', T.titleFont);
     this.todoBoxes = this.add.graphics();
-    this.todoLabels = TODO_ITEMS.map((item, i) =>
+    this.todoLabels = items.map((item, i) =>
       this.label(x + T.textX, y + T.padTop + i * T.lineHeight + T.textY, item.label, T.font, { regular: true }));
+    this.todoObjs = [bg, title, this.todoBoxes, ...this.todoLabels];
     this.refreshTodo();
   }
 
   refreshTodo() {
     const T = U.todo, g = this.todoBoxes.clear(), k = T.boxSize / 22;
-    TODO_ITEMS.forEach((item, i) => {
+    this.todoItems.forEach((item, i) => {
       const done = this.world.todo.isDone(item.id);
       const bx = this.todoPos.x + T.boxX, by = this.todoPos.y + T.padTop + i * T.lineHeight + T.boxY;
       this.roundRect(g, bx, by, T.boxSize, T.boxSize, T.boxRadius, done ? U.green : U.cardColor, 1, INK, T.boxBorder);
@@ -196,14 +201,20 @@ export class UIScene extends Phaser.Scene {
 
   // ── 왼쪽 아래: 가방과 장비 ──
 
+  // 가방의 칸 수와 크기: 1단계는 나무와 돌, 2단계는 철광석까지(11.3)
+  bagLayout() { return this.world.stage >= 2 ? { ...U.bag, ...U.bag2 } : U.bag; }
+
   makeBag() {
-    const B = U.bag;
+    const B = this.bagLayout();
     const x = U.margin, y = this.H - U.margin - B.h;
-    this.panel(this.add.graphics(), x, y, B.w, B.h);
+    if (this.bagObjs) for (const o of this.bagObjs) o.destroy();
+    this.bagObjs = [this.panel(this.add.graphics(), x, y, B.w, B.h)];
     this.bagCounts = {};
-    ['wood', 'stone'].forEach((item, i) => {
-      this.add.image(x + B.iconX[i], y + B.h / 2, 'icon_' + item).setDisplaySize(B.icon, B.icon);
+    const items = this.world.stage >= 2 ? ['wood', 'stone', 'iron'] : ['wood', 'stone'];
+    items.forEach((item, i) => {
+      this.bagObjs.push(this.add.image(x + B.iconX[i], y + B.h / 2, 'icon_' + item).setDisplaySize(B.icon, B.icon));
       this.bagCounts[item] = this.label(x + B.countX[i], y + B.countY, '0', B.font);
+      this.bagObjs.push(this.bagCounts[item]);
     });
     this.refreshBag();
   }
@@ -220,7 +231,7 @@ export class UIScene extends Phaser.Scene {
 
   // 단검, 티셔츠, 만든 도구. 도구가 늘면 칸이 옆으로 늘어난다.
   refreshEquipment() {
-    const E = U.equip, B = U.bag;
+    const E = U.equip, B = this.bagLayout();
     const list = this.world.equipment();
     const x = U.margin + B.w + E.gap, y = this.H - U.margin - B.h;
     this.panel(this.equipBg, x, y, E.pad * 2 + list.length * E.slot, B.h);
@@ -243,17 +254,41 @@ export class UIScene extends Phaser.Scene {
     this.drawCraftButton();
     this.add.image(cx, cy + C.iconY, 'icon_craft').setDisplaySize(C.icon, C.icon);
     this.label(cx, cy + C.textY, '만들기', C.font, { originX: 0.5 });
+    this.makeCraftWindow();
+  }
 
-    // 창: 버튼 위로 열린다. 카드 6장.
-    const n = CARDS.length;
-    const w = K.pad * 2 + n * K.cardW + (n - 1) * K.cardGap;
-    const h = K.pad * 2 + K.titleHeight + K.cardH;
-    this.craftWin = this.add.container(this.W - U.margin - w, cy - r - K.gapToButton - h).setDepth(10).setVisible(false);
+  // 창: 버튼 위로 열린다. 1단계는 카드 6장 한 줄, 2단계는 10장 두 줄(11.3. 아직 만들지 않은 Phase 의 카드 자리는 비워 둔다).
+  makeCraftWindow() {
+    const { cy, r } = this.craftPos;
+    const stage2 = this.world.stage >= 2;
+    const K = stage2 ? { ...U.craft, ...U.craft2 } : U.craft;
+    const list = cardsFor(this.world.stage), perRow = stage2 ? K.perRow : list.length;
+    const rows = Math.ceil(list.length / perRow), rowGap = K.rowGap || 0;
+    const w = K.pad * 2 + perRow * K.cardW + (perRow - 1) * K.cardGap;
+    const h = K.pad * 2 + K.titleHeight + rows * K.cardH + (rows - 1) * rowGap;
+    const visible = this.craftWin ? this.craftWin.visible : false;
+    if (this.craftWin) this.craftWin.destroy();
+    this.craftK = K;
+    this.craftWin = this.add.container(this.W - U.margin - w, cy - r - K.gapToButton - h).setDepth(10).setVisible(visible);
     this.craftWin.add(this.panel(this.add.graphics(), 0, 0, w, h));
     this.craftWin.add(this.label(K.pad, K.titleY, '만들기', K.titleFont));
     this.craftWin.add(this.label(w - K.pad, K.titleY, '재료가 모자라면 흐리게 보입니다', K.noteFont, { originX: 1, regular: true, color: U.dimInk }));
-    this.cards = CARDS.map((card, i) => this.makeCard(card, K.pad + i * (K.cardW + K.cardGap), K.pad + K.titleHeight));
+    this.cards = [];
+    list.forEach((card, i) => {
+      if (!card) return;
+      const col = i % perRow, row = Math.floor(i / perRow);
+      this.cards.push(this.makeCard(card, K.pad + col * (K.cardW + K.cardGap), K.pad + K.titleHeight + row * (K.cardH + rowGap)));
+    });
     this.refreshCards();
+  }
+
+  // 2단계가 되었다: 할 일, 가방, 만들기 창, 시험용 도구를 다시 만든다
+  onStage() {
+    this.makeTodo();
+    this.makeBag();
+    this.refreshEquipment();
+    this.makeCraftWindow();
+    this.refreshDebug();
   }
 
   drawCraftButton() {
@@ -263,16 +298,18 @@ export class UIScene extends Phaser.Scene {
   }
 
   // 만들기 버튼: 누르면 창이 열리고, 다시 누르면 닫히면서 짓기 상태도 끝난다
+  // 2단계의 두 줄 창은 시험용 창과 겹치므로 하나를 열면 다른 하나는 닫는다.
   toggleCraft() {
     this.craftOpen = !this.craftOpen;
     this.craftWin.setVisible(this.craftOpen);
+    if (this.craftOpen && this.debugWin) this.debugWin.setVisible(false);
     this.drawCraftButton();
     if (!this.craftOpen) this.world.build.setMode(null);
   }
 
   // 카드 한 장: 아이콘, 이름, 재료(아이콘과 숫자) 또는 글자("보유", "절반 돌려받음")
   makeCard(card, x, y) {
-    const K = U.craft;
+    const K = this.craftK;
     const box = this.add.container(x, y);
     const bg = this.hitRect(this.add.graphics(), 0, 0, K.cardW, K.cardH);
     bg.on('pointerdown', () => this.world.pressCard(card));
@@ -294,7 +331,7 @@ export class UIScene extends Phaser.Scene {
 
   // 재료가 모자란 카드와 이미 가진 것의 카드는 흐리게 보인다. 고른 카드는 노란 굵은 테두리.
   refreshCards() {
-    const K = U.craft;
+    const K = this.craftK;
     for (const c of this.cards) {
       const state = this.world.cardState(c.card);
       const selected = this.world.build.mode === c.card.id;
@@ -314,12 +351,15 @@ export class UIScene extends Phaser.Scene {
     const D = U.debug;
     const bx = this.W - U.margin - D.buttonW, by = this.todoPos.y + this.todoPos.h + D.gap;
     const btn = this.panel(this.add.graphics(), bx, by, D.buttonW, D.buttonH, D.radius);
-    btn.on('pointerdown', () => this.debugWin.setVisible(!this.debugWin.visible));
+    btn.on('pointerdown', () => {
+      this.debugWin.setVisible(!this.debugWin.visible);
+      if (this.debugWin.visible && this.craftOpen) this.toggleCraft();
+    });
     this.label(bx + D.buttonW / 2, by + D.buttonH / 2, '시험', D.font, { originX: 0.5 });
 
     // [글(또는 글을 돌려주는 함수), 누르면 할 일]
     const items = [
-      [`나무, 돌 +${D.giveAmount}`, () => this.world.debugGive()],
+      [() => (this.world.stage >= 2 ? `나무, 돌, 철광석 +${D.giveAmount}` : `나무, 돌 +${D.giveAmount}`), () => this.world.debugGive()],
       ['밤으로 넘기기', () => this.world.debugNight()],
       ['아침으로 넘기기', () => this.world.debugMorning()],
       ['좀비 1마리 부르기', () => this.world.debugZombie()],
@@ -434,7 +474,7 @@ export class UIScene extends Phaser.Scene {
   // 짓기 상태의 안내는 계속 떠 있다: "울타리: 지을 칸을 누르세요"
   refreshHint() {
     const mode = this.world.build.mode;
-    const card = CARDS.find((c) => c.id === mode);
+    const card = cardsFor(this.world.stage).find((c) => c && c.id === mode);
     this.hint = !card ? null : card.type === 'remove' ? '치우기: 없앨 시설을 누르세요' : `${cardName(card)}: 지을 칸을 누르세요`;
     if (this.hint) {                                  // 안내는 바로 띄운다(기다리던 알림은 버린다)
       this.noticeQueue.length = 0;

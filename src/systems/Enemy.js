@@ -37,6 +37,7 @@ export class Enemy extends Walker {
     this.smashing = null;    // 치고 있는 시설
     this.smashLeft = 0;      // 그 시설을 치기까지 남은 시간(초)
     this.swingFor = null;    // 휘두르기 시작한 대상: 'player' 또는 시설
+    this.wireLeft = null;    // (2단계) 철조망 위에서 다음 피해까지 남은 시간(초). 철조망 위가 아니면 null
 
     this.sprite = this.scene.add.sprite(0, 0, this.key).setOrigin(this.asset.originX, this.asset.originY);
     this.body = new Body(this.scene, this.sprite, this.key);
@@ -54,10 +55,12 @@ export class Enemy extends Walker {
   // 주인공이 이 적을 칠 때 붙어야 하는 칸(Player.act 가 읽는다). 걷는 중이면 몸의 한가운데가 있는 칸.
   get tiles() { return [this.here()]; }
 
-  // 지나가는 비용: 땅 1, 내 시설은 breakCost(부수고 지나간다). 물과 나무·돌·덤불은 못 간다.
+  // 지나가는 비용: 땅 1, 내 시설은 breakCost(부수고 지나간다), 철조망은 pathCost(조금 돌아가서 피할 수 있으면 피한다, 11.4).
+  // 물과 나무·돌·덤불은 못 간다.
   costAt(col, row) {
     if (!this.map.isOpen(col, row)) return 0;
-    return this.map.structureAt(col, row) ? this.cfg.breakCost : 1;
+    if (this.map.structureAt(col, row)) return this.cfg.breakCost;
+    return this.map.wireAt(col, row) ? CONFIG.build.wire.pathCost : 1;
   }
 
   // 길을 찾을 때: 목표 칸(주인공의 칸)에서 시설 칸으로 바로 들어가는 걸음은 넣지 않는다.
@@ -152,12 +155,33 @@ export class Enemy extends Walker {
     this.wantPath = true;
   }
 
-  // 모닥불 가까이(slowRange 칸 안)에서는 느려진다 (5.7)
+  // 모닥불 가까이(slowRange 칸 안)에서는 느려진다 (5.7). 철조망 칸 위에서는 wire.slow 배 (11.4)
   speedNow() {
     const C = CONFIG.build.campfire;
     const slow = this.slowByFire && this.map.structures.some((s) =>
       s.type === 'campfire' && Math.hypot(s.col - this.col, s.row - this.row) <= C.slowRange);
-    return this.cfg.speed * (slow ? C.slow : 1);
+    return this.cfg.speed * (slow ? C.slow : 1) * (this.wireUnder() ? CONFIG.build.wire.slow : 1);
+  }
+
+  // 몸의 한가운데가 있는 칸의 철조망(없으면 null)
+  wireUnder() {
+    const h = this.here();
+    return this.map.wireAt(h.col, h.row);
+  }
+
+  // (2단계) 철조망 위에 있는 동안 damageInterval 초마다 피해. 줄 때마다 철조망 체력이 1 준다 (11.4)
+  touchWire(dt) {
+    const w = this.wireUnder(), W = CONFIG.build.wire;
+    if (!w) {
+      this.wireLeft = null;
+      return;
+    }
+    if (this.wireLeft === null) this.wireLeft = W.damageInterval;
+    this.wireLeft -= dt;
+    if (this.wireLeft > 0) return;
+    this.wireLeft += W.damageInterval;
+    this.scene.build.wear(w);
+    this.harm(W.damage);
   }
 
   face(dx, dy) { this.body.face(dx, dy); }
@@ -208,6 +232,8 @@ export class Enemy extends Walker {
     if (this.body.winding() && this.aim(target) !== this.swingFor) this.body.cancel();
     const swinging = this.body.attacking();
     if (!swinging) this.walk(dt, this.speedNow());
+    this.touchWire(dt);
+    if (!this.alive) return;
 
     // 서 있는 동안 하는 일: 목표 옆이면 목표를, 다음 칸이 시설이면 그 시설을 친다
     const atCentre = this.col === this.tile.col && this.row === this.tile.row;
@@ -280,6 +306,19 @@ export class Enemy extends Walker {
     this.body.hurt();
     this.body.knockFrom(me.x - at.x, me.y - at.y);
     this.body.freeze();
+  }
+
+  // 때린 쪽 없이 다쳤다(철조망): 번쩍임, 조각, hurt. 체력이 0이 되면 쓰러진다(밀리지 않는다).
+  harm(n) {
+    const F = CONFIG.fx, fx = this.scene.effects, me = this.foot();
+    this.hp -= n;
+    fx.flash(this.sprite);
+    fx.burst(['goo'], F.chips.enemyHit, me.x, me.y - F.impactHeight.char);
+    if (this.hp <= 0) {
+      this.system.kill(this, 0, 0);
+      return;
+    }
+    this.body.hurt();
   }
 
   // 그림: 걸으면 walk, 서 있으면 idle, 때릴 때 attack (12.3). 깊이는 발 위치. 깎였을 때만 체력 막대.

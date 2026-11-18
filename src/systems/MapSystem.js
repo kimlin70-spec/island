@@ -13,7 +13,8 @@ export class MapSystem {
     this.objects = [];                                               // { kind, key, col, row, tiles, sprite, blocks, tall, pickable }
     this.objectGrid = new Array(this.cols * this.rows).fill(null);   // 칸 -> 그 칸의 사물
     this.structures = [];                                            // 내가 지은 시설 { type, tiles, sprite, hp, ... }
-    this.structGrid = new Array(this.cols * this.rows).fill(null);   // 칸 -> 그 칸의 시설
+    this.structGrid = new Array(this.cols * this.rows).fill(null);   // 칸 -> 그 칸의 길을 막는 시설
+    this.wireGrid = new Array(this.cols * this.rows).fill(null);     // 칸 -> 그 칸의 철조망(길을 막지 않는 시설, 11.4)
   }
 
   inBounds(col, row) { return col >= 0 && row >= 0 && col < this.cols && row < this.rows; }
@@ -23,7 +24,11 @@ export class MapSystem {
   // 모래 칸인가(terrain 1). 걸으면 발자국이 남는다 (12.9)
   isSand(col, row) { return this.inBounds(col, row) && this.map.terrain[row][col] === 1; }
 
+  // 그 칸의 길을 막는 시설(울타리, 모닥불, 텐트). 철조망은 wireAt.
   structureAt(col, row) { return this.inBounds(col, row) ? this.structGrid[row * this.cols + col] : null; }
+  wireAt(col, row) { return this.inBounds(col, row) ? this.wireGrid[row * this.cols + col] : null; }
+  // 그 칸에 무엇이든 시설이 있는가(짓기, 치우기)
+  anyStructureAt(col, row) { return this.structureAt(col, row) || this.wireAt(col, row); }
 
   // 땅이고, 나무·돌·덤불이 없는 칸인가(시설은 따지지 않는다)
   isOpen(col, row) {
@@ -40,12 +45,14 @@ export class MapSystem {
 
   addStructure(s) {
     this.structures.push(s);
-    for (const t of s.tiles) this.structGrid[t.row * this.cols + t.col] = s;
+    const grid = s.blocks ? this.structGrid : this.wireGrid;
+    for (const t of s.tiles) grid[t.row * this.cols + t.col] = s;
   }
 
   removeStructure(s) {
     this.structures.splice(this.structures.indexOf(s), 1);
-    for (const t of s.tiles) this.structGrid[t.row * this.cols + t.col] = null;
+    const grid = s.blocks ? this.structGrid : this.wireGrid;
+    for (const t of s.tiles) grid[t.row * this.cols + t.col] = null;
   }
 
   // 그 칸의 장식(그루터기, 돌 부스러기)을 없앤다. 시설을 지으면 사라지고, 곡괭이로 파내도 사라진다. (3.5)
@@ -122,7 +129,7 @@ export class MapSystem {
     for (const h of hits) {
       const s = h.o.sprite;
       const alpha = this.scene.textures.getPixelAlpha(h.lx, h.ly, s.texture.key, s.frame.name);
-      const min = h.o.type === 'fence' ? CONFIG.input.pickAlphaFence : CONFIG.input.pickAlpha;
+      const min = h.o.type === 'fence' || h.o.type === 'wire' ? CONFIG.input.pickAlphaFence : CONFIG.input.pickAlpha;
       if (alpha !== null && alpha > min) return h.o;
     }
     return null;
