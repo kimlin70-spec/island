@@ -14,7 +14,7 @@
 
 ## 아이패드에서 하기 (사용자 요청)
 
-- 링크: https://claude.ai/artifact/VnBcazNdXrPoS5FGmXrxwT (claude.ai 아티팩트, 비공개. 사용자 계정으로 열린다)
+- 링크: https://claude.ai/artifact/VnBcazNdXrPoS5FGmXrxwT (claude.ai 아티팩트. 사용자가 "링크가 있는 누구나"로 공유해 두었다). 2026-11-19 에 Phase 15 까지로 다시 올렸다(파일 250개, 13MB).
 - 올린 것: `index.html` 의 내용(아티팩트가 doctype/head/body 를 감싸므로 그것과 "파일을 바로 열면" 안내를 뺀 것)과
   `assets/`, `data/`, `lib/`, `src/` 의 파일 152개(.md 제외). 게임 코드는 바꾸지 않았다.
 - 새 Phase 가 끝나면 같은 주소로 다시 올리면 된다(다른 대화에서는 위 주소를 `url` 로 넘긴다).
