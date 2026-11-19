@@ -181,6 +181,7 @@ export class Player extends Walker {
           this.faceTarget(a.target);
           const n = TOOL_ANIM[tool], b = this.body, gun = tool === 'gun';
           b.play(n, dt);                              // 든 프레임의 시간도 센다(아래). 그림도 그만큼 지난 곳부터.
+          if (!gun) this.scene.sfx.play('swing', { at: this.foot(), volume: CONFIG.sound.swing });   // 휘두르는 소리 (15.3)
           // 총: gun1(겨누기) aimTime 뒤에 gun2(쏘기). interval 마다 한 번 (11.6)
           this.swing = { t: 0, hitAt: gun ? CONFIG.tools.gun.aimTime : b.hitAt(n) || 0, total: b.ms(n), struck: false, tool };
           this.cooldown = gun ? CONFIG.tools.gun.interval : CONFIG.player.actionInterval;
@@ -208,6 +209,7 @@ export class Player extends Walker {
   // 쓰러지는 한 대(fatal)는 hurt 와 멈칫 대신 down 을 보여 준다(goDown).
   struck(from, fatal) {
     const F = CONFIG.fx, fx = this.scene.effects, me = this.foot(), at = from ? from.foot() : null;
+    this.scene.sfx.play('player_hurt');
     fx.impact(me.x, me.y - F.impactHeight.char, at);
     fx.flash(this.sprite);
     if (at) this.body.knockFrom(me.x - at.x, me.y - at.y);

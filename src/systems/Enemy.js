@@ -335,6 +335,7 @@ export class Enemy extends Walker {
     const m = this.asset.muzzle.shoot, flip = sp.flipX;
     const from = { x: sp.x + (flip ? -m[0] : m[0]), y: sp.y + m[1] };
     shots.muzzle(from.x, from.y, { flip });
+    scene.sfx.play('gun_shot', { at: from });
     const H = CONFIG.tower.hitHeight;
     const tent = target.structure;
     if (tent) {
@@ -387,6 +388,7 @@ export class Enemy extends Walker {
     const W = this.body.hitAt(this.body.pick('attack'));
     if (W === null || left > W) return;
     this.body.play('attack', W - left);
+    this.scene.sfx.play('swing', { at: this.foot(), volume: CONFIG.sound.swing });
     this.swingFor = what;
   }
 
@@ -395,6 +397,7 @@ export class Enemy extends Walker {
   hurt(n, from = this.scene.player) {
     const F = CONFIG.fx, fx = this.scene.effects, me = this.foot(), at = from.foot();
     this.hp -= n;
+    this.scene.sfx.play('hit_enemy', { at: me });
     const p = fx.impact(me.x, me.y - F.impactHeight.char, at);
     fx.flash(this.sprite);
     fx.burst(['goo'], F.chips.enemyHit, p.x, p.y);
@@ -411,6 +414,7 @@ export class Enemy extends Walker {
   harm(n) {
     const F = CONFIG.fx, fx = this.scene.effects, me = this.foot();
     this.hp -= n;
+    this.scene.sfx.play('hit_enemy', { at: me });
     fx.flash(this.sprite);
     fx.burst(['goo'], F.chips.enemyHit, me.x, me.y - F.impactHeight.char);
     if (this.hp <= 0) {

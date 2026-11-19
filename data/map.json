@@ -84,6 +84,8 @@
     {"col": 22, "row": 24}
   ],
   "pirates": {"ship": {"col": 35.92, "row": 59.15}, "boat": {"col": 34.97, "row": 53.18}, "landing": {"col": 35, "row": 51}},
+  "seedCrate": {"col": 43, "row": 43},
+  "pets": {"dog": {"col": 44, "row": 42}, "cat": {"col": 27, "row": 41}},
   "objects": [
     {"kind": "palm", "sprite": "obj_palm_1", "col": 16, "row": 19},
     {"kind": "palm", "sprite": "obj_palm_2", "col": 24, "row": 12},

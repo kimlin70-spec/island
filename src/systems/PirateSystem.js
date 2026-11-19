@@ -65,6 +65,7 @@ export class PirateSystem {
       this.shipDue = false;
       this.fadeTo(this.ship, 1, P.appearTime);
       this.scene.notice('해적선이 나타났습니다');
+      this.scene.sfx.play('ship_bell');
     }
     if (clock.isNight && this.landDue && clock.t >= P.landAt * len) {
       this.landDue = false;
@@ -92,6 +93,7 @@ export class PirateSystem {
     this.shipDue = false;
     this.landDue = false;
     this.fadeTo(this.ship, 1, 0);
+    this.scene.sfx.play('ship_bell');
     this.land();
   }
 

@@ -8,9 +8,10 @@
 """
 import json
 import os
+import random
 
 import numpy as np
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFilter
 
 import artlib as A
 import layout as LY
@@ -77,6 +78,10 @@ def make_objects():
     one('objects', 'obj_rubble', A.rubble(), 'object')
     for i, seed in enumerate((71, 72), 1):
         one('objects', f'obj_bush_{i}', A.bush(seed), 'object')
+        # 16장(배고픔): 열매를 딴 덤불. 같은 이름의 무늬(같은 붓자국)로 그려서 바꿔 끼워도 잎이 그대로다
+        full = A.bush(seed)
+        img, anchor = wc.sprite([p for p in full if p[2] != 'berry'], f'obj_bush_{i}', box=A.bbox(full, 12))
+        save(img, 'objects', f'obj_bush_{i}_picked', anchor, 'object')
     one('objects', 'obj_ship', A.ship(), 'object', lamp=px(A.SHIP_LAMP))
     one('objects', 'obj_rowboat', A.rowboat(), 'object')
     one('objects', 'obj_iron_1', A.iron_ore(81, False), 'object')
@@ -137,7 +142,12 @@ PLAYER_ANIMS = dict(
     pick=swing3('', 'pick', (190, 90, 150), 'heavy'), gun=anim([('gun1', 250), ('gun2', 150)], hit='gun2'),
     bdagger=swing3('b', 'dagger', (140, 90, 140), 'bswing'), baxe=swing3('b', 'axe', (190, 90, 150), 'bheavy'),
     bpick=swing3('b', 'pick', (190, 90, 150), 'bheavy'), bgun=anim([('bgun1', 250), ('bgun2', 150)], hit='bgun2'),
-    hurt=anim([('hurt', 220)]), down=anim([('down', 1000)]))
+    hurt=anim([('hurt', 220)]), down=anim([('down', 1000)]),
+    # 3단계: 농사
+    hoe=swing3('', 'hoe', (190, 90, 150), 'heavy'), bhoe=swing3('b', 'hoe', (190, 90, 150), 'bheavy'),
+    water=anim([('water1', 150), ('water2', 450)], hit='water2'), bwater=anim([('bwater1', 150), ('bwater2', 450)], hit='bwater2'),
+    crouch=anim([('crouch', 450)], hit='crouch'), bcrouch=anim([('bcrouch', 450)], hit='bcrouch'),
+    eat=anim([('eat', 280), ('idle', 120), ('eat', 280)]))
 ZOMBIE_ANIMS = dict(
     idle=anim([('idle', 500), ('idle2', 500)], True), walk=walk('', 160), bwalk=walk('b', 160),
     attack=anim([('attack0', 260), ('attack', 220)], hit='attack'), battack=anim([('battack0', 260), ('battack', 220)], hit='battack'),
@@ -191,10 +201,107 @@ def make_motion_fx():
     save(img, 'fx', 'proj_arrow_stuck', anchor, 'projectile')
 
 
+DOG_ANIMS = dict(
+    idle=anim([('idle', 500), ('idle2', 500)], True), bidle=anim([('bidle', 1000)], True),
+    walk=walk('', 90), bwalk=walk('b', 90), sit=anim([('sit', 220), ('sit2', 220)], True), lie=anim([('lie', 1000)], True),
+    sleep=anim([('sleep1', 900), ('sleep2', 900)], True), happy=anim([('happy1', 140), ('happy2', 140)] * 3),
+    bark=anim([('bark', 160), ('idle', 110), ('bark', 160), ('idle', 250)]), bite=anim([('bite0', 220), ('bite', 200)], hit='bite'))
+CAT_ANIMS = dict(
+    idle=anim([('idle', 700), ('idle2', 700)], True), bidle=anim([('bidle', 1000)], True),
+    walk=walk('', 110), bwalk=walk('b', 110), sit=anim([('sit', 1200), ('sit2', 400)], True), lie=anim([('lie', 1000)], True),
+    sleep=anim([('sleep1', 1100), ('sleep2', 1100)], True), happy=anim([('happy1', 300), ('happy2', 300)] * 2),
+    meow=anim([('meow', 500), ('sit', 200)]))
+
+
+def make_stage3():
+    """3단계: 문, 밭과 작물, 씨앗 상자, 반려동물, 농사 효과, 날씨"""
+    gate_anims = dict(open=anim([('open1', 60), ('open2', 60), ('open3', 80)]), close=anim([('open2', 60), ('open1', 60), ('closed', 80)]))
+    for ax in ('col', 'row'):
+        sheet('build', f'build_gate_{ax}', [A.gate(ax, st) for st in A.GATE_STATES], list(A.GATE_STATES), 'build', anims=gate_anims)
+    sheet('farm', 'farm_soil', [A.soil(False), A.soil(True)], ['dry', 'wet'], 'decal', pencil=0.35)
+    for c, k in (('carrot', 1.15), ('corn', 1.0), ('pumpkin', 1.35)):          # 칸 안에서 잘 보이게 조금 키운다
+        sheet('farm', f'crop_{c}', [A.xform(A.CROPS[c](st), k=k) for st in A.CROP_STAGES], list(A.CROP_STAGES), 'crop', pencil=0.8)
+    sheet('objects', 'obj_seed_crate', [A.seed_crate('closed'), A.seed_crate('open')], ['closed', 'open'], 'object')
+    for kind, anims in (('dog', DOG_ANIMS), ('cat', CAT_ANIMS)):
+        frames = A.DOG_FRAMES if kind == 'dog' else A.CAT_FRAMES
+        built = {n: A.pet(kind, n) for n in frames}
+        hr = (A.DOG if kind == 'dog' else A.CAT)['hr']
+        sheet('chars', f'char_{kind}', [built[n][0] for n in frames], list(frames), 'char', cols=10, anims=anims,
+              emote={n: px((built[n][1][0], built[n][1][1] - hr - 6)) for n in frames})
+    sheet('fx', 'fx_water', A.water_frames(), [f'water{i}' for i in range(1, 5)], 'fx', pencil=0.3, wobble=0.5,
+          anims={'play': anim([(f'water{i}', 90) for i in range(1, 5)])})
+    sheet('fx', 'fx_emote', [A.emote(n) for n in A.EMOTES], list(A.EMOTES), 'fx', pencil=0.3, wobble=0.4,
+          anims={'zzz': anim([('zzz1', 450), ('zzz2', 450), ('zzz3', 600)], True)},
+          note='기준점 = 표시의 아래 가운데. 동물의 emote 위치(기준점에서의 거리)에 놓는다.')
+    # 날씨
+    sheet('fx', 'fx_weather', [A.weather_part(n) for n in A.WEATHER_PARTS], list(A.WEATHER_PARTS), 'particle', pencil=0.0, wobble=0.0)
+    sheet('fx', 'fx_rain_splash', A.rain_splash_frames(), [f'splash{i}' for i in range(1, 5)], 'fx', pencil=0.0, wobble=0.3,
+          anims={'play': anim([(f'splash{i}', 55) for i in range(1, 5)])})
+    for i, seed in enumerate((3, 8), 1):
+        img, anchor = wc.sprite(A.xform(A.puddle(seed), k=1.45), f'decal_puddle_{i}', pencil=0.25, wobble=0.6)
+        save(img, 'fx', f'decal_puddle_{i}', anchor, 'decal')
+    save(rain_sheet(), 'fx', 'overlay_rain', (256, 256), 'weather', tile=True)
+    save(snow_sheet(), 'fx', 'overlay_snow', (256, 256), 'weather', tile=True)
+
+
+def _wrap_draw(size, draw_one, items):
+    """이어 붙여도 이음매가 없게: 가장자리를 넘는 것은 반대쪽에도 그린다."""
+    for it in items:
+        for ox in (-size, 0, size):
+            for oy in (-size, 0, size):
+                draw_one(it, ox, oy)
+
+
+def rain_sheet(size=512, s=2, n=240, seed=7):
+    """빗줄기 무늬(가로세로로 이어 붙일 수 있다). 화면에 고정해서 아래로 흘려 쓴다."""
+    rng = random.Random(seed)
+    S = size * s
+    a = Image.new('L', (S, S), 0)
+    d = ImageDraw.Draw(a)
+    dx, dy = 0.22, 1.0
+    items = [(rng.uniform(0, S), rng.uniform(0, S), rng.uniform(14, 34) * s, rng.uniform(1.0, 1.9) * s, rng.uniform(0.28, 0.62)) for _ in range(n)]
+
+    def one(it, ox, oy):
+        x, y, ln, w, al = it
+        for k in range(3):                                   # 꼬리 쪽이 옅다
+            f0, f1 = k / 3, (k + 1) / 3
+            d.line([(x + ox + dx * ln * f0, y + oy + dy * ln * f0), (x + ox + dx * ln * f1, y + oy + dy * ln * f1)],
+                   fill=int(255 * al * (0.45 + 0.55 * f1)), width=max(1, int(round(w))))
+    _wrap_draw(S, one, items)
+    a = a.resize((size, size), Image.LANCZOS)
+    img = Image.new('RGBA', (size, size), (226, 236, 248, 0))
+    img.putalpha(a)
+    return img
+
+
+def snow_sheet(size=512, s=2, n=150, seed=9):
+    rng = random.Random(seed)
+    S = size * s
+    a = Image.new('L', (S, S), 0)
+    d = ImageDraw.Draw(a)
+    items = [(rng.uniform(0, S), rng.uniform(0, S), rng.uniform(1.4, 3.6) * s, rng.uniform(0.6, 0.95)) for _ in range(n)]
+    items += [(rng.uniform(0, S), rng.uniform(0, S), rng.uniform(4.5, 6.5) * s, rng.uniform(0.25, 0.4)) for _ in range(14)]
+
+    def one(it, ox, oy):
+        x, y, r, al = it
+        d.ellipse((x + ox - r, y + oy - r, x + ox + r, y + oy + r), fill=int(255 * al))
+    _wrap_draw(S, one, items)
+    big = Image.new('L', (S * 3, S * 3))                     # 흐리게 할 때도 이음매가 없게 3x3으로 붙여서 흐린 뒤 가운데만
+    for i in range(3):
+        for j in range(3):
+            big.paste(a, (i * S, j * S))
+    a = big.filter(ImageFilter.GaussianBlur(1.3 * s)).crop((S, S, 2 * S, 2 * S)).resize((size, size), Image.LANCZOS)
+    img = Image.new('RGBA', (size, size), (255, 255, 255, 0))
+    img.putalpha(a)
+    return img
+
+
 def make_ui():
     box = (-64, -64, 64, 64)
     for name in ('wood', 'stone', 'heart', 'heart_empty', 'dagger', 'axe', 'pickaxe', 'tshirt', 'fence', 'tent',
-                 'campfire', 'sun', 'moon', 'craft', 'remove', 'sleep', 'iron', 'gun', 'wire', 'watchtower', 'guntower'):
+                 'campfire', 'sun', 'moon', 'craft', 'remove', 'sleep', 'iron', 'gun', 'wire', 'watchtower', 'guntower',
+                 'hoe', 'watering_can', 'farm', 'gate', 'carrot', 'corn', 'pumpkin', 'seed_carrot', 'seed_corn', 'seed_pumpkin',
+                 'rain', 'snow', 'sound_on', 'sound_off', 'hunger', 'hunger_empty', 'berry'):
         prims = A.fit(icon2(name), 94, enlarge=True)
         img, anchor = wc.sprite(prims, 'icon_' + name, box=box, keep_box=True)
         save(img, 'ui', 'icon_' + name, (img.width / 2, img.height / 2), 'icon')
@@ -219,7 +326,10 @@ def icon2(name):
         return noshadow(A.watchtower()) + A.xform(A.crossbow(A.turret_phi(2)), 0, -A.WT_PIVOT)
     if name == 'guntower':
         return noshadow(A.guntower()) + A.xform(A.swivel_gun(A.turret_phi(2)), 0, -A.GT_PIVOT)
-    return A.icon(name)
+    try:
+        return A.icon(name)
+    except KeyError:
+        return A.icon3(name)
 
 
 def range_ring(w=512, h=256, s=3):
@@ -277,11 +387,16 @@ def main():
     make_ui()
     make_fx()
     make_motion_fx()
+    make_stage3()
     ground = json.load(open(os.path.join(ASSETS, 'ground', 'ground.json'), encoding='utf-8'))
     meta = dict(tileWidth=LY.HW * 2, tileHeight=LY.HH * 2, viewWidth=LY.VIEW_W, viewHeight=LY.VIEW_H, ground=ground, turretDirections=A.TURRET_DIRS,
                 note='originX/originY = 그림에서 발이 닿는 점. 이 점을 칸 중심의 월드 좌표에 맞춘다.')
+    out = dict(meta=meta, assets=MAN)
+    snd = os.path.join(ASSETS, 'sfx', 'sounds.json')                 # 효과음 목록(make_sounds.py 가 만든다)
+    if os.path.exists(snd):
+        out['sounds'] = json.load(open(snd, encoding='utf-8'))
     with open(os.path.join(ASSETS, 'manifest.json'), 'w', encoding='utf-8') as fp:
-        json.dump(dict(meta=meta, assets=MAN), fp, ensure_ascii=False, indent=1)
+        json.dump(out, fp, ensure_ascii=False, indent=1)
     print(len(MAN), 'assets')
 
 

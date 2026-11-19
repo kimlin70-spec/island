@@ -14,6 +14,7 @@
 // 여는 법: 프로젝트 폴더에서 서버를 켜고  http://localhost:8000/tools/reference_map.html?mode=day
 //          mode = day(낮 화면 예시) | night(밤 화면 예시) | full(섬 전체) | defense(2단계: 탑, 철조망, 화살과 총알)
 //                 | motion(움직임과 효과: manifest 의 anims 를 모두 만들어 틀고, 조각 효과를 흩뿌린다)
+//                 | farm(3단계: 문, 밭, 동물)  &weather=rain | snow 를 붙이면 비, 눈. 화면을 누르면 효과음이 난다
 // 바닥 그림 깔기, 좌표 변환, 겹침 순서, 울타리 연결, 밤의 '빛 지도'를 어떻게 하는지 보여 준다.
 // 게임 코드는 이 파일을 늘려 가지 말고 DEMO_SPEC.md 2장의 구성대로 새로 짠다.
 const HW = 40, HH = 20;
@@ -27,7 +28,8 @@ function fenceMask(col, row, has) {
 }
 const Q = new URLSearchParams(location.search);
 const MODE = Q.get('mode') || 'day';
-const DEF = MODE === 'defense', MOTION = MODE === 'motion';
+const DEF = MODE === 'defense', MOTION = MODE === 'motion', FARM = MODE === 'farm';
+const WEATHER = Q.get('weather') || 'clear';
 const NIGHT = MODE === 'night' || DEF, FULL = MODE === 'full';
 // 포탑 방향 번호: 땅 위의 방향 = 화면 방향에서 세로를 2배로 편 각도. 16등분해서 가장 가까운 번호.
 function turretIndex(x, y, tx, ty, n) {
@@ -46,6 +48,10 @@ class Boot extends Phaser.Scene {
   create() {
     const man = this.cache.json.get('manifest');
     for (const ch of man.meta.ground.chunks) this.load.image(ch.key, '../assets/' + ch.file);
+    if (FARM) {                                   // 3단계: 눈 덮인 바닥 조각과 효과음
+      for (const ch of man.meta.ground.snowChunks) this.load.image(ch.key, '../assets/' + ch.file);
+      for (const [k, v] of Object.entries(man.sounds || {})) this.load.audio('sfx_' + k, '../assets/' + v.file);
+    }
     for (const [k, v] of Object.entries(man.assets)) {
       if (v.frameWidth) this.load.spritesheet(k, '../assets/' + v.file, { frameWidth: v.frameWidth, frameHeight: v.frameHeight });
       else this.load.image(k, '../assets/' + v.file);
@@ -83,6 +89,7 @@ class Game extends Phaser.Scene {
     const A = man.assets, G = man.meta.ground;
     window.__anims = buildAnims(this, A);
     if (MOTION) { this.setupMotion(A, G); return; }
+    if (FARM) { this.setupFarm(man, map); return; }
 
     // 1) 바닥: 큰 그림 한 장을 조각으로 나눈 것. 각 조각의 왼쪽 위를 월드 좌표 (x, y)에 놓고,
     //    가장자리 여유분 1px을 뺀 안쪽 1022x1022만 그린다. setCrop을 빼면 카메라가 움직일 때 조각 사이에 가는 줄이 보인다.
@@ -224,6 +231,100 @@ class Game extends Phaser.Scene {
     this.time.delayedCall(400, () => { window.__ready = true; });
   }
 
+  // ---------------------------------------------------------------- 3단계 확인: 문, 밭, 동물, 날씨, 효과음
+  setupFarm(man, map) {
+    const A = man.assets, G = man.meta.ground, m = G.chunkMargin, step = G.chunkStep;
+    for (const ch of G.chunks) this.add.image(ch.x, ch.y, ch.key).setOrigin(0, 0).setCrop(m, m, step, step).setDepth(0);
+    // 눈 바닥: 같은 자리에 겹쳐 두고 투명도로 쌓이고 녹는 것을 보여 준다(depth 1, 밭 흙보다 아래)
+    const snow = G.snowChunks.map(ch => this.add.image(ch.x, ch.y, ch.key).setOrigin(0, 0).setCrop(m, m, step, step).setDepth(1).setAlpha(0));
+    if (WEATHER === 'snow') this.tweens.add({ targets: snow, alpha: 1, duration: 3000 });
+    const put = (key, col, row, frame, depthAdd = 0) => {
+      const w = tileToWorld(col, row), v = A[key];
+      const s = frame === undefined ? this.add.image(w.x, w.y, key) : this.add.sprite(w.x, w.y, key, v.frames.indexOf(frame));
+      return s.setOrigin(v.originX, v.originY).setDepth(10 + w.y + depthAdd);
+    };
+    for (const o of map.objects) put(o.sprite, o.col, o.row);
+    const c0 = map.playerStart.col - 3, r0 = map.playerStart.row - 3, GATE = [c0 + 6, r0 + 3];
+    const ring = [];
+    for (let c = c0; c < c0 + 7; c++) ring.push([c, r0], [c, r0 + 6]);
+    for (let r = r0 + 1; r < r0 + 6; r++) ring.push([c0, r], [c0 + 6, r]);
+    const fences = ring.filter(t => !(t[0] === GATE[0] && t[1] === GATE[1]));
+    const set = new Set(ring.map(t => t[0] + ',' + t[1]));             // 문도 울타리의 이웃으로 친다
+    const has = (c, r) => set.has(c + ',' + r);
+    for (const [c, r] of fences) put('build_fence_' + fenceMask(c, r, has), c, r);
+    const axis = (has(GATE[0] + 1, GATE[1]) || has(GATE[0] - 1, GATE[1])) ? 'col' : 'row';
+    const gate = put('build_gate_' + axis, GATE[0], GATE[1], 'closed');
+    put('build_tent', c0 + 2.5, r0 + 2.5);
+    // 밭: 흙은 depth 2(바닥에 붙는 것), 작물은 사물처럼 10 + y
+    const crops = ['carrot', 'corn', 'pumpkin'], stages = A.crop_carrot.frames;
+    for (let i = 0; i < 3; i++) for (let j = 0; j < 4; j++) {
+      const col = c0 + 8 + i, row = r0 + j, w = tileToWorld(col, row);
+      this.add.sprite(w.x, w.y, 'farm_soil', (WEATHER === 'rain' || j % 2) ? 1 : 0).setOrigin(A.farm_soil.originX, A.farm_soil.originY).setDepth(2);
+      put('crop_' + crops[i], col, row, stages[3 - j]);
+    }
+    // 주인공이 문을 지나 밭까지 오가고, 강아지가 따라온다. 문은 가까이 오면 열리고 멀어지면 닫힌다.
+    const p = put('char_player', c0 + 4, r0 + 3, 'idle');
+    const dog = put('char_dog', c0 + 3, r0 + 3.5, 'idle');
+    const cat = put('char_cat', c0 + 1.3, r0 + 4.4, 'sleep1').play('char_cat:sleep');
+    const em = A.char_cat.emote.sleep1;
+    this.add.sprite(cat.x + em[0], cat.y + em[1], 'fx_emote').setOrigin(A.fx_emote.originX, A.fx_emote.originY).setDepth(50000).play('fx_emote:zzz');
+    const route = { u: 0 };
+    this.tweens.add({ targets: route, u: 1, duration: 2600, yoyo: true, repeat: -1, hold: 900, repeatDelay: 900, ease: 'Sine.easeInOut' });
+    let gateOpen = false, lastX = p.x, dogAnim = '';
+    this.events.on('update', () => {
+      const col = c0 + 4 + 4.2 * route.u, w = tileToWorld(col, r0 + 3);
+      const moving = Math.abs(w.x - lastX) > 0.05, right = w.x >= lastX;
+      p.setPosition(w.x, w.y).setDepth(10 + w.y).setFlipX(!right);
+      const pa = moving ? 'char_player:walk' : 'char_player:idle';
+      if (p.anims.currentAnim?.key !== pa) p.play(pa);
+      lastX = w.x;
+      const dw = tileToWorld(col - (right ? 1.1 : -1.1), r0 + 3.6);
+      dog.setPosition(dw.x, dw.y).setDepth(10 + dw.y).setFlipX(!right);
+      const da = moving ? 'char_dog:walk' : 'char_dog:sit';
+      if (dogAnim !== da) { dog.play(da); dogAnim = da; }
+      const near = Math.min(Math.abs(col - GATE[0]), Math.abs(col - (right ? 1.1 : -1.1) - GATE[0])) < 1.3;
+      if (near !== gateOpen) { gateOpen = near; gate.play('build_gate_' + axis + (near ? ':open' : ':close')); this.sfx(near ? 'gate_open' : 'gate_close'); }
+      window.__gate = gate.frame.name;
+    });
+    this.setupWeather(A);
+    const cam = this.cameras.main, c = tileToWorld(c0 + 5.5, r0 + 3.5);
+    cam.setBounds(G.x, G.y, G.width, G.height);
+    cam.centerOn(c.x, c.y);
+    // 효과음: 처음 누를 때 브라우저가 소리를 허락한다(Phaser 가 알아서 처리). 누를 때마다 다음 소리를 들려준다.
+    const names = Object.keys(man.sounds || {});
+    let k = 0;
+    this.input.on('pointerdown', () => { const n = names[k++ % names.length]; this.sfx(n); this.scene.get('ui').events.emit('sound', n); });
+    window.__sounds = names.filter(n => this.cache.audio.exists('sfx_' + n)).length;
+    this.time.delayedCall(400, () => { window.__ready = true; });
+  }
+
+  sfx(name) { if (this.sound.locked) return; this.sound.play('sfx_' + name, { volume: 0.8 }); }
+
+  setupWeather(A) {
+    if (WEATHER === 'clear') return;
+    const W = this.scale.width, H = this.scale.height, ui = this.scene.get('ui');
+    // 비, 눈 무늬: 화면에 고정된 TileSprite 두 장(가까운 것은 크게, 빠르게)
+    const key = WEATHER === 'rain' ? 'overlay_rain' : 'overlay_snow';
+    const far = this.add.tileSprite(0, 0, W, H, key).setOrigin(0, 0).setScrollFactor(0).setDepth(60000).setAlpha(WEATHER === 'rain' ? 0.6 : 0.8);
+    const near = this.add.tileSprite(0, 0, W, H, key).setOrigin(0, 0).setScrollFactor(0).setDepth(60001).setTileScale(1.7).setAlpha(WEATHER === 'rain' ? 0.45 : 0.6);
+    const shade = this.add.rectangle(0, 0, W, H, WEATHER === 'rain' ? 0xc7d1e6 : 0xf0f4ff).setOrigin(0, 0).setScrollFactor(0).setDepth(59999)
+      .setBlendMode(Phaser.BlendModes.MULTIPLY);
+    this.events.on('update', (t, dt) => {
+      if (WEATHER === 'rain') { far.tilePositionY -= dt * 0.9; far.tilePositionX -= dt * 0.2; near.tilePositionY -= dt * 1.5; near.tilePositionX -= dt * 0.33; }
+      else { far.tilePositionY -= dt * 0.05; far.tilePositionX = 20 * Math.sin(t / 1400); near.tilePositionY -= dt * 0.09; near.tilePositionX = 30 * Math.sin(t / 1100); }
+    });
+    if (WEATHER === 'rain') {
+      // 땅에 튀는 빗방울: 화면 안의 아무 곳에 짧게
+      const cam = this.cameras.main;
+      this.time.addEvent({ delay: 60, loop: true, callback: () => {
+        const v = cam.worldView, x = v.x + Math.random() * v.width, y = v.y + 120 + Math.random() * (v.height - 120);
+        const s = this.add.sprite(x, y, 'fx_rain_splash').setOrigin(A.fx_rain_splash.originX, A.fx_rain_splash.originY).setDepth(3).play('fx_rain_splash:play');
+        s.once('animationcomplete', () => s.destroy());
+      } });
+    }
+    window.__weather = { far: far.texture.key, near: near.texture.key, shade: !!shade };
+  }
+
   // ---------------------------------------------------------------- 2단계 확인: 탑, 포탑, 철조망, 날아가는 것
   setupDefense(A, map, c0, r0, WT, GT, put) {
     const occupied = new Set(map.objects.map(o => o.col + ',' + o.row));
@@ -321,8 +422,9 @@ class UI extends Phaser.Scene {
     }
     const style = { fontFamily: '"Apple SD Gothic Neo","Malgun Gothic","Noto Sans CJK KR",sans-serif', fontSize: '28px', fontStyle: 'bold', color: '#4a3d38',
       backgroundColor: '#fbf6ea', padding: { x: 14, y: 8 } };
-    const tapText = this.add.text(24, H - 70, '땅을 누르면 칸 번호가 나옵니다', style);
-    this.events.on('tap', (t) => tapText.setText('누른 칸: col ' + t.col + ', row ' + t.row));
+    const tapText = this.add.text(24, H - 70, FARM ? '화면을 누르면 효과음을 차례로 들려줍니다' : '땅을 누르면 칸 번호가 나옵니다', style);
+    this.events.on('tap', (t) => { if (!FARM) tapText.setText('누른 칸: col ' + t.col + ', row ' + t.row); });
+    this.events.on('sound', (n) => tapText.setText('효과음: ' + n));
     this.add.text(24, 24, '확인용 페이지  mode=' + MODE, style);
   }
   update(time) {

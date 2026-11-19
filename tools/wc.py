@@ -52,6 +52,14 @@ PAL = {
     'swish': '#f7fbff', 'swish_d': '#cfe2f1', 'dust_l': '#f1ebdf', 'dust': '#e2d8c6', 'dust_d': '#c8bba4',
     'vanish_l': '#c4b6dd', 'vanish': '#9786b4', 'vanish_d': '#73648f', 'splash': '#cde9f1', 'splash_d': '#97c9dc',
     'goo': '#a9cf8f', 'goo_d': '#82ad6f', 'foot': '#c7b088', 'ember': '#ffb35c', 'pink': '#f4a0a0',
+    # 3단계: 문, 농사, 반려동물
+    'soil_l': '#d2ae84', 'soil': '#b68f67', 'soil_d': '#977252', 'soil_dd': '#6f5541',
+    'wsoil_l': '#a5876b', 'wsoil': '#866850', 'wsoil_d': '#69503d',
+    'carrot': '#f08a38', 'carrot_d': '#cc6a26', 'corn': '#f6d35e', 'corn_d': '#d9ab3b', 'husk': '#bfd27e', 'tassel': '#dcbd6c',
+    'pumpkin_l': '#f9b766', 'pumpkin': '#ec8e3b', 'pumpkin_d': '#c76b28', 'stem': '#7f8f4f',
+    'can_l': '#b9dcd3', 'can': '#82b9ac', 'can_d': '#60998c', 'packet': '#f7efde', 'packet_d': '#e0d2b6',
+    'dog': '#fbf6ec', 'dog_d': '#e3d6c1', 'dogp': '#c98f5f', 'dogp_d': '#a7734a', 'collar': '#4f86c6', 'tongue': '#ef8b8b',
+    'cat': '#f3a85f', 'cat_d': '#da8c47', 'cat_l': '#fde8cc', 'cat_s': '#c87336', 'zzz': '#8ea6d8', 'note': '#8a79b8',
 }
 PENCIL = np.array([84, 70, 64], np.float32) / 255
 SHADOW_ALPHA = 0.30

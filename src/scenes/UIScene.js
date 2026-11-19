@@ -20,6 +20,7 @@ export class UIScene extends Phaser.Scene {
 
     this.makeLightmap();       // 가장 먼저: 월드 위, 다른 UI 아래 (3.7)
     this.makeHearts();
+    this.makeSoundButton();
     this.makeClock();
     this.makeTodo();
     this.makeBag();
@@ -141,6 +142,22 @@ export class UIScene extends Phaser.Scene {
     this.heartIcons.forEach((img, i) => img.setTexture(i < v ? 'icon_heart' : 'icon_heart_empty').setDisplaySize(size, size));
   }
 
+  click() { this.world.sfx.play('ui_click'); }
+
+  // ── 하트 칸 오른쪽: 소리 켜고 끄기 (15.1) ──
+
+  makeSoundButton() {
+    const HT = U.hearts, S = U.soundButton, r = HT.h / 2;
+    const cx = U.margin + HT.padX * 2 + (this.world.hearts.max - 1) * HT.step + HT.icon + S.gap + r, cy = U.margin + r;
+    const g = this.add.graphics().fillStyle(U.panel.color, U.panel.alpha).fillCircle(cx, cy, r)
+      .lineStyle(U.panel.borderWidth, INK, 1).strokeCircle(cx, cy, r - U.panel.borderWidth / 2);
+    g.setInteractive(new Phaser.Geom.Circle(cx, cy, r), Phaser.Geom.Circle.Contains);
+    this.soundIcon = this.add.image(cx, cy, 'icon_sound_on').setDisplaySize(S.icon, S.icon);
+    const show = () => this.soundIcon.setTexture(this.world.sfx.muted ? 'icon_sound_off' : 'icon_sound_on').setDisplaySize(S.icon, S.icon);
+    g.on('pointerdown', () => { this.world.sfx.toggleMute(); show(); this.click(); });
+    show();
+  }
+
   // ── 가운데 위: 시계 (5.5) ──
 
   makeClock() {
@@ -250,7 +267,7 @@ export class UIScene extends Phaser.Scene {
     this.craftPos = { cx, cy, r };
     this.craftBtn = this.add.graphics();
     this.craftBtn.setInteractive(new Phaser.Geom.Circle(cx, cy, r), Phaser.Geom.Circle.Contains);
-    this.craftBtn.on('pointerdown', () => this.toggleCraft());
+    this.craftBtn.on('pointerdown', () => { this.click(); this.toggleCraft(); });
     this.drawCraftButton();
     this.add.image(cx, cy + C.iconY, 'icon_craft').setDisplaySize(C.icon, C.icon);
     this.label(cx, cy + C.textY, '만들기', C.font, { originX: 0.5 });
@@ -353,6 +370,7 @@ export class UIScene extends Phaser.Scene {
     const bx = this.W - U.margin - D.buttonW, by = this.todoPos.y + this.todoPos.h + D.gap;
     const btn = this.panel(this.add.graphics(), bx, by, D.buttonW, D.buttonH, D.radius);
     btn.on('pointerdown', () => {
+      this.click();
       this.debugWin.setVisible(!this.debugWin.visible);
       // 2단계: 만들기 창만 숨긴다. 짓기 상태는 그대로(만들기 버튼을 다시 누르거나 다른 카드를 고를 때까지, 5.4)
       if (this.debugWin.visible && this.craftOpen && this.world.stage >= 2) {
@@ -388,7 +406,7 @@ export class UIScene extends Phaser.Scene {
       const y = D.pad + i * (D.itemH + D.itemGap), w = D.w - D.pad * 2;
       const g = this.hitRect(this.add.graphics(), D.pad, y, w, D.itemH);
       this.roundRect(g, D.pad, y, w, D.itemH, D.radius, U.cardColor, 1, INK, U.panel.borderWidth);
-      g.on('pointerdown', onPress);
+      g.on('pointerdown', () => { this.click(); onPress(); });
       const label = this.label(D.w / 2, y + D.itemH / 2, '', D.itemFont, { originX: 0.5 });
       this.debugLabels.push({ label, text });
       this.debugWin.add([g, label]);
@@ -415,7 +433,7 @@ export class UIScene extends Phaser.Scene {
     const equipRight = U.margin + this.bagLayout().w + E.gap + E.pad * 2 + this.world.equipment().length * E.slot;
     const x = Math.max(this.W / 2 - w / 2, equipRight + E.gap), y = this.H - U.margin - R.h;
     this.panel(bg, x, y, w, R.h);
-    bg.on('pointerdown', () => this.world.rest.exit());
+    bg.on('pointerdown', () => { this.click(); this.world.rest.exit(); });
     icon.setPosition(x + R.padX + R.icon / 2, y + R.h / 2);
     text.setPosition(x + R.padX + R.icon + R.gap, y + R.h / 2);
     this.restBox = this.add.container(0, 0, [bg, icon, text]).setVisible(visible);
@@ -444,7 +462,7 @@ export class UIScene extends Phaser.Scene {
       const bx = this.W / 2 - total / 2 + i * (M.buttonW + M.buttonGap);
       const g = this.hitRect(this.add.graphics(), bx, by, M.buttonW, M.buttonH);
       this.roundRect(g, bx, by, M.buttonW, M.buttonH, M.buttonRadius, primary ? U.yellow : U.cardColor, 1, INK, U.panel.borderWidth);
-      g.on('pointerdown', onPress);
+      g.on('pointerdown', () => { this.click(); onPress(); });
       parts.push(g, this.label(bx + M.buttonW / 2, by + M.buttonH / 2, text, M.buttonFont, { originX: 0.5 }));
     });
     this.modal = this.add.container(0, 0, parts).setDepth(30);

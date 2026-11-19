@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>효과음 들어 보기</title>
+<link rel="icon" href="data:,">
+<style>
+  :root { --ink: #4a3d38; --paper: #fbf6ea; --card: #fffcf2; --line: #d8cdb8; --accent: #f6cf5e; }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 24px; background: #e9e2d2; color: var(--ink);
+         font-family: "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif; }
+  h1 { font-size: 24px; margin: 0 0 6px; }
+  p.lead { margin: 0 0 18px; color: #7a6c63; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+  button.snd { display: flex; gap: 12px; align-items: center; width: 100%; padding: 12px 14px; text-align: left; cursor: pointer;
+               border: 2px solid var(--line); border-radius: 14px; background: var(--card); color: var(--ink); font: inherit; }
+  button.snd:hover { border-color: var(--ink); }
+  button.snd.playing { border-color: var(--ink); background: #fff3c4; }
+  .ico { flex: 0 0 34px; height: 34px; border-radius: 50%; background: var(--accent); display: grid; place-items: center; font-size: 15px; }
+  .name { font-weight: 700; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 14px; }
+  .note { font-size: 13px; color: #7a6c63; margin-top: 2px; }
+  .tag { font-size: 11px; padding: 1px 6px; border-radius: 6px; background: #dfe9f5; margin-left: 6px; font-family: inherit; font-weight: 600; }
+</style>
+</head>
+<body>
+<h1>효과음 들어 보기</h1>
+<p class="lead">누르면 소리가 납니다. <b>반복</b> 표시가 있는 소리는 한 번 더 누르면 멈춥니다. 서버를 켜고 <code>http://localhost:8000/tools/sound_test.html</code> 로 엽니다.</p>
+<div class="grid" id="grid"></div>
+<script>
+// 소리 목록: assets/manifest.json 의 sounds. (window.SOUNDS 가 미리 있으면 그것을 쓴다)
+async function load() {
+  if (window.SOUNDS) return window.SOUNDS;
+  const man = await (await fetch('../assets/manifest.json')).json();
+  const out = {};
+  for (const [k, v] of Object.entries(man.sounds || {})) out[k] = Object.assign({ url: '../assets/' + v.file }, v);
+  return out;
+}
+load().then((sounds) => {
+  const grid = document.getElementById('grid');
+  const loops = {};
+  for (const [name, v] of Object.entries(sounds)) {
+    const b = document.createElement('button');
+    b.className = 'snd';
+    b.innerHTML = `<span class="ico">▶</span><span><span class="name">${name}</span>${v.loop ? '<span class="tag">반복</span>' : ''}` +
+                  `<div class="note">${v.note || ''} · ${Number(v.duration).toFixed(1)}초</div></span>`;
+    b.onclick = () => {
+      if (v.loop) {
+        if (loops[name]) { loops[name].pause(); delete loops[name]; b.classList.remove('playing'); return; }
+        const a = new Audio(v.url); a.loop = true; a.volume = 0.9; a.play().catch(() => {}); loops[name] = a; b.classList.add('playing');
+        return;
+      }
+      const a = new Audio(v.url); a.volume = 0.9; a.play().catch(() => {});
+      b.classList.add('playing'); a.onended = () => b.classList.remove('playing');
+    };
+    grid.appendChild(b);
+  }
+});
+</script>
+</body>
+</html>

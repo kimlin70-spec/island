@@ -1,3 +1,4 @@
+import { CONFIG } from '../config.js';
 import { findPath } from './Pathfinder.js';
 
 // 칸 위를 걸어 다니는 것(주인공, 좀비)의 공통 부분: 위치, 길, 한 걸음씩 걷기, 몸이 걸친 칸.
@@ -121,6 +122,7 @@ export class Walker {
     if (!d) return;
     const h = this.here();
     this.scene.effects.step(this.sprite.x, this.sprite.y, (d.dc - d.dr) * 2, d.dc + d.dr, this.map.isSand(h.col, h.row));
+    this.scene.sfx.play('step', { at: this.sprite, volume: CONFIG.sound.step });   // 발소리 (15.3)
   }
 
   // 길을 따라 dt 초 동안 speed(칸/초)로 걷는다

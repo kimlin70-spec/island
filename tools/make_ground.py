@@ -3,6 +3,7 @@
 """
 섬의 바닥을 수채화처럼 한 장으로 칠해서 조각으로 저장한다.
 실행: python tools/make_ground.py     결과: assets/ground/ground_<행>_<열>.jpg
+                                      눈 덮인 바닥(3단계 날씨): assets/ground/ground_snow_<행>_<열>.jpg
 
 칸 경계가 보이지 않게, 땅 종류의 경계를 둥글고 구불구불하게 만든다.
 맵(data/map.json)을 바꾸면 이 스크립트를 다시 돌려야 한다.
@@ -63,6 +64,22 @@ def decorations(tmap, W, H):
     return render_svg("".join(parts), W, H)
 
 
+def snow_cover(out, water, d_land, H, W):
+    """눈 덮인 바닥: 땅은 눈으로 덮고(군데군데 땅이 보인다), 물가는 덜 쌓이고, 물은 조금 차갑게."""
+    base = 0.62 + 0.42 * noise(H, W, 90, 71) + 0.16 * noise(H, W, 20, 72)
+    cover = np.clip((base - 0.33) / 0.13, 0, 1) * np.clip((d_land - 5.0) / 18.0, 0, 1)
+    cover[water] = 0
+    shade = (0.5 + 0.5 * noise(H, W, 150, 73))[..., None] * 0.65
+    snow = np.array([0.975, 0.98, 1.0], np.float32) * (1 - shade) + np.array([0.83, 0.865, 0.94], np.float32) * shade
+    edge = (cover * (1 - cover) * 4)[..., None]
+    res = out * np.array([0.88, 0.92, 0.99], np.float32)
+    res = res * (1 - cover[..., None]) + snow * cover[..., None]
+    res *= 1 - np.array([0.10, 0.08, 0.04], np.float32) * edge            # 눈 가장자리에 옅은 푸른 선
+    res[water] = out[water] * np.array([0.9, 0.94, 1.0], np.float32)
+    res *= (1 + 0.02 * noise(H, W, 1.7, 74))[..., None]
+    return res
+
+
 def main():
     m = json.load(open(os.path.join(ROOT, 'data', 'map.json'), encoding='utf-8'))
     tmap = np.array(m['terrain'], np.uint8)
@@ -98,6 +115,7 @@ def main():
     del edges
     water = kind == 0
     d_water = ndi.distance_transform_edt(water).astype(np.float32)
+    d_land = ndi.distance_transform_edt(~water).astype(np.float32)          # 땅에서 물까지의 거리(눈 바닥용)
     print('distances done')
 
     t_var = np.clip(0.5 + 0.55 * noise(H, W, 262, 5) + 0.3 * noise(H, W, 56, 6), 0, 1)
@@ -134,7 +152,8 @@ def main():
 
     out *= (1 + 0.024 * noise(H, W, 1.7, 41) + 0.024 * noise(H, W, 7, 42) + 0.016 * aniso_noise(H, W, 38, 1.9, 43))[..., None]   # 종이 결
     img = Image.fromarray((np.clip(out, 0, 1) * 255).astype(np.uint8))
-    del out
+    snow_img = Image.fromarray((np.clip(snow_cover(out, water, d_land, H, W), 0, 1) * 255).astype(np.uint8))
+    del out, d_land
     gc.collect()
 
     gdir = os.path.join(ROOT, 'assets', 'ground')
@@ -146,15 +165,18 @@ def main():
     # 조각 가장자리에 반대편 가장자리 색이 섞여 가는 줄이 생기는 것을 막을 수 있다.
     M = (LY.CHUNK - LY.STEP) // 2
     nx, ny = (W - LY.CHUNK) // LY.STEP + 1, (H - LY.CHUNK) // LY.STEP + 1
-    chunks = []
+    chunks, snow_chunks = [], []
     for gy in range(ny):
         for gx in range(nx):
             name = f'ground_{gy}_{gx}'
             x0, y0 = gx * LY.STEP, gy * LY.STEP
             img.crop((x0, y0, x0 + LY.CHUNK, y0 + LY.CHUNK)).save(os.path.join(gdir, name + '.jpg'), quality=90, subsampling=0)
             chunks.append(dict(key=name, file=f'ground/{name}.jpg', x=LY.GROUND_X0 + x0, y=LY.GROUND_Y0 + y0))
+            sname = f'ground_snow_{gy}_{gx}'
+            snow_img.crop((x0, y0, x0 + LY.CHUNK, y0 + LY.CHUNK)).save(os.path.join(gdir, sname + '.jpg'), quality=88, subsampling=0)
+            snow_chunks.append(dict(key=sname, file=f'ground/{sname}.jpg', x=LY.GROUND_X0 + x0, y=LY.GROUND_Y0 + y0))
     meta = dict(x=LY.GROUND_X0 + M, y=LY.GROUND_Y0 + M, width=nx * LY.STEP, height=ny * LY.STEP,
-                chunkSize=LY.CHUNK, chunkStep=LY.STEP, chunkMargin=M, chunks=chunks)
+                chunkSize=LY.CHUNK, chunkStep=LY.STEP, chunkMargin=M, chunks=chunks, snowChunks=snow_chunks)
     json.dump(meta, open(os.path.join(gdir, 'ground.json'), 'w', encoding='utf-8'), indent=1)
     size = sum(os.path.getsize(os.path.join(gdir, n)) for n in os.listdir(gdir))
     print(len(chunks), 'chunks,', round(size / 1e6, 1), 'MB')

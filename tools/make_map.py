@@ -20,6 +20,8 @@ SEED = 21
 WATER, SAND, GRASS, FOREST, DIRT, IRONSOIL = 0, 1, 2, 3, 4, 5
 IRON_CENTER = (46, 31)          # 2단계: 동쪽 철광 지대
 START = (37, 39)
+SEED_CRATE = (43, 43)           # 3단계: 바닷가에 떠밀려 온 씨앗 상자(열 때까지 그 칸을 막는다)
+PETS = {'dog': (44, 42), 'cat': (27, 41)}     # 3단계: 강아지는 상자 옆 바닷가, 고양이는 서쪽 돌밭
 
 
 def radius(th):
@@ -173,6 +175,11 @@ def main():
         objects.append(dict(kind='iron', sprite='obj_iron_2' if irng.random() < 0.4 else 'obj_iron_1', col=c, row=r))
     objects.sort(key=lambda o: (o['col'] + o['row'], o['col']))
 
+    # 3단계: 위에서 만든 것은 그대로 두고, 씨앗 상자와 동물 자리만 더한다. 빈 땅인지, 상자가 길을 막지 않는지 확인한다.
+    for name, (c, r) in [('seedCrate', SEED_CRATE)] + list(PETS.items()):
+        assert isl(c, r) and (c, r) not in blocked and (c, r) != START, (name, c, r)
+    assert reachable(blocked | {SEED_CRATE}) == n_land - len(blocked) - 1, 'seed crate blocks a path'
+
     data = dict(
         cols=N, rows=N, tileWidth=80, tileHeight=40,
         terrainLegend={"0": "water", "1": "sand", "2": "grass", "3": "forest", "4": "dirt", "5": "ironsoil"},
@@ -182,6 +189,8 @@ def main():
         pirates=dict(ship=dict(col=round(ship[0], 2), row=round(ship[1], 2)),
                      boat=dict(col=round(boat[0], 2), row=round(boat[1], 2)),
                      landing=dict(col=landing[0], row=landing[1])),
+        seedCrate=dict(col=SEED_CRATE[0], row=SEED_CRATE[1]),
+        pets={k: dict(col=c, row=r) for k, (c, r) in PETS.items()},
         objects=objects,
     )
     parts = []

@@ -31,12 +31,14 @@ export class BootScene extends Phaser.Scene {
         this.load.image(key, 'assets/' + a.file);
       }
     }
+    // 효과음 (15.1): manifest 맨 위의 sounds
+    for (const [key, s] of Object.entries(manifest.sounds || {})) this.load.audio(key, 'assets/' + s.file);
     const failed = [];
     this.load.on('loaderror', (file) => failed.push(file.key));
     this.load.once('complete', () => {
       if (failed.length) {
-        console.error('불러오지 못한 그림:', failed.join(', '));
-        label.setText('그림을 불러오지 못했습니다\n' + failed.join(', '));
+        console.error('불러오지 못한 파일:', failed.join(', '));
+        label.setText('그림이나 소리를 불러오지 못했습니다\n' + failed.join(', '));
         return;
       }
       this.makeAnimations(manifest);

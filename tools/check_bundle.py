@@ -10,6 +10,7 @@ import re
 from collections import deque
 
 from PIL import Image
+from scipy.io import wavfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 problems = []
@@ -63,10 +64,12 @@ def main():
                 bad(f'{k}:{name} 의 hit 프레임 {a["hit"]} 가 애니메이션에 없음')
             if 'swing' in a and a['swing'] not in A.get('fx_swing', {}).get('anims', {}):
                 bad(f'{k}:{name} 의 swing {a["swing"]} 가 fx_swing 에 없음')
-    for ch in G['chunks']:
+    for ch in G['chunks'] + G.get('snowChunks', []):
         path = os.path.join(ROOT, 'assets', ch['file'])
         if not os.path.exists(path) or Image.open(path).size != (G['chunkSize'], G['chunkSize']):
             bad(f'{ch["key"]}: 바닥 조각이 없거나 크기가 다름')
+    if [(c['x'], c['y']) for c in G.get('snowChunks', [])] != [(c['x'], c['y']) for c in G['chunks']]:
+        bad('눈 덮인 바닥 조각의 자리가 보통 바닥 조각과 다름')
     nx = len({c['x'] for c in G['chunks']})
     ny = len({c['y'] for c in G['chunks']})
     if (G['width'], G['height']) != (nx * G['chunkStep'], ny * G['chunkStep']) or G['chunkStep'] + 2 * G['chunkMargin'] != G['chunkSize']:
@@ -116,6 +119,26 @@ def main():
     land = M['pirates']['landing']
     if (land['col'], land['row']) not in seen or not any((land['col'] + d[0], land['row'] + d[1]) in seen for d in ((1, 0), (-1, 0), (0, 1), (0, -1))):
         bad('해적 상륙 칸이나 그 옆 칸에 갈 수 없음')
+    crate = (M['seedCrate']['col'], M['seedCrate']['row'])                 # 3단계: 씨앗 상자, 동물 자리
+    if crate not in seen:
+        bad('씨앗 상자 자리에 갈 수 없음')
+    else:
+        rest = seen - {crate}
+        start2, q2 = {st}, deque([st])
+        while q2:
+            c, r = q2.popleft()
+            for dc in (-1, 0, 1):
+                for dr in (-1, 0, 1):
+                    n = (c + dc, r + dr)
+                    if n in start2 or n not in rest or (dc and dr and not ((c + dc, r) in rest and (c, r + dr) in rest)):
+                        continue
+                    start2.add(n)
+                    q2.append(n)
+        if len(start2) != len(rest):
+            bad('씨앗 상자가 길을 막음')
+    for k, v in M['pets'].items():
+        if (v['col'], v['row']) not in seen:
+            bad(f'{k} 자리에 갈 수 없음')
     for k in ('ship', 'boat'):
         p = M['pirates'][k]
         if T[int(round(p['row']))][int(round(p['col']))] != 0:
@@ -134,10 +157,10 @@ def main():
     names = set()
     for token in re.findall(r'`([^`\n]+)`', spec):
         for part in re.split(r'[,\s/·→]+', token):
-            m = re.fullmatch(r'((?:obj|build|char|icon|overlay|fx|light|glow|ground|turret|proj)_[a-z0-9_]*?)(\d+)~([a-z]?)(\d+)', part)
+            m = re.fullmatch(r'((?:obj|build|char|icon|overlay|fx|light|glow|ground|turret|proj|farm|crop|decal)_[a-z0-9_]*?)(\d+)~([a-z]?)(\d+)', part)
             if m:                                           # obj_tree_a1~a3, build_fence_0~15 같은 범위 표기
                 names.update(f'{m.group(1)}{i}' for i in range(int(m.group(2)), int(m.group(4)) + 1))
-            elif re.fullmatch(r'(obj|build|char|icon|overlay|fx|light|glow|ground|turret|proj)_[a-z0-9_]+', part):
+            elif re.fullmatch(r'(obj|build|char|icon|overlay|fx|light|glow|ground|turret|proj|farm|crop|decal)_[a-z0-9_]+', part):
                 names.add(part)
     for n in sorted(names):
         if n not in keys:
@@ -147,7 +170,7 @@ def main():
         bad(f'지시문에 한 번도 나오지 않는 그림: {unused}')
     frames = {f for v in A.values() for f in v.get('frames', [])}
     anim_names = {n for v in A.values() for n in v.get('anims', {})}
-    word = r'(?:b?(?:idle|walk|dagger|axe|pick|attack|gun|swing|heavy)|burn|aim|shoot|reload|hurt|down|die|rise|blink|impact|sparkle|vanish|splash|puff)\d?'
+    word = r'(?:b?(?:idle|walk|dagger|axe|pick|attack|gun|swing|heavy|hoe|water|crouch)|burn|aim|shoot|reload|hurt|down|die|rise|blink|impact|sparkle|vanish|splash|puff|eat|sit|lie|sleep|happy|bark|bite|meow|open|close|closed|zzz|seed|sprout|grow|ripe|dry|wet)\d?'
     for f in re.findall(rf'`({word})`', spec):
         if f not in frames | anim_names:
             bad(f'지시문에 있는 프레임(애니메이션) 이름이 그림에 없음: {f}')
@@ -179,6 +202,20 @@ def main():
     if f'"col": {st[0]}, "row": {st[1]}' not in spec:
         bad('지시문의 시작 칸이 맵과 다름')
     print(f'   그림 이름 {len(names)}개 확인')
+
+    print('4) 효과음')
+    S = man.get('sounds', {})
+    for k, v in S.items():
+        path = os.path.join(ROOT, 'assets', v['file'])
+        if not os.path.exists(path):
+            bad(f'효과음 파일 없음: {v["file"]}')
+            continue
+        sr, data = wavfile.read(path)
+        if abs(len(data) / sr - v['duration']) > 0.01:
+            bad(f'효과음 길이가 목록과 다름: {k}')
+        if f'`{k}`' not in spec:
+            bad(f'지시문에 한 번도 나오지 않는 효과음: {k}')
+    print(f'   효과음 {len(S)}개')
 
     print('문제 없음' if not problems else f'문제 {len(problems)}건')
     return 1 if problems else 0

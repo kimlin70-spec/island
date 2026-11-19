@@ -103,6 +103,98 @@
      "x": 1528,
      "y": 1768
     }
+   ],
+   "snowChunks": [
+    {
+     "key": "ground_snow_0_0",
+     "file": "ground/ground_snow_0_0.jpg",
+     "x": -2560,
+     "y": -276
+    },
+    {
+     "key": "ground_snow_0_1",
+     "file": "ground/ground_snow_0_1.jpg",
+     "x": -1538,
+     "y": -276
+    },
+    {
+     "key": "ground_snow_0_2",
+     "file": "ground/ground_snow_0_2.jpg",
+     "x": -516,
+     "y": -276
+    },
+    {
+     "key": "ground_snow_0_3",
+     "file": "ground/ground_snow_0_3.jpg",
+     "x": 506,
+     "y": -276
+    },
+    {
+     "key": "ground_snow_0_4",
+     "file": "ground/ground_snow_0_4.jpg",
+     "x": 1528,
+     "y": -276
+    },
+    {
+     "key": "ground_snow_1_0",
+     "file": "ground/ground_snow_1_0.jpg",
+     "x": -2560,
+     "y": 746
+    },
+    {
+     "key": "ground_snow_1_1",
+     "file": "ground/ground_snow_1_1.jpg",
+     "x": -1538,
+     "y": 746
+    },
+    {
+     "key": "ground_snow_1_2",
+     "file": "ground/ground_snow_1_2.jpg",
+     "x": -516,
+     "y": 746
+    },
+    {
+     "key": "ground_snow_1_3",
+     "file": "ground/ground_snow_1_3.jpg",
+     "x": 506,
+     "y": 746
+    },
+    {
+     "key": "ground_snow_1_4",
+     "file": "ground/ground_snow_1_4.jpg",
+     "x": 1528,
+     "y": 746
+    },
+    {
+     "key": "ground_snow_2_0",
+     "file": "ground/ground_snow_2_0.jpg",
+     "x": -2560,
+     "y": 1768
+    },
+    {
+     "key": "ground_snow_2_1",
+     "file": "ground/ground_snow_2_1.jpg",
+     "x": -1538,
+     "y": 1768
+    },
+    {
+     "key": "ground_snow_2_2",
+     "file": "ground/ground_snow_2_2.jpg",
+     "x": -516,
+     "y": 1768
+    },
+    {
+     "key": "ground_snow_2_3",
+     "file": "ground/ground_snow_2_3.jpg",
+     "x": 506,
+     "y": 1768
+    },
+    {
+     "key": "ground_snow_2_4",
+     "file": "ground/ground_snow_2_4.jpg",
+     "x": 1528,
+     "y": 1768
+    }
    ]
   },
   "turretDirections": 16,
@@ -245,8 +337,24 @@
    "originY": 0.6563,
    "kind": "object"
   },
+  "obj_bush_1_picked": {
+   "file": "objects/obj_bush_1_picked.png",
+   "w": 73,
+   "h": 56,
+   "originX": 0.4095,
+   "originY": 0.6563,
+   "kind": "object"
+  },
   "obj_bush_2": {
    "file": "objects/obj_bush_2.png",
+   "w": 74,
+   "h": 54,
+   "originX": 0.4175,
+   "originY": 0.6436,
+   "kind": "object"
+  },
+  "obj_bush_2_picked": {
+   "file": "objects/obj_bush_2_picked.png",
    "w": 74,
    "h": 54,
    "originX": 0.4175,
@@ -883,7 +991,7 @@
   "char_player": {
    "file": "chars/char_player.png",
    "w": 1310,
-   "h": 504,
+   "h": 630,
    "originX": 0.5,
    "originY": 0.6485,
    "kind": "char",
@@ -926,7 +1034,20 @@
     "bpick2",
     "bpick3",
     "bgun1",
-    "bgun2"
+    "bgun2",
+    "hoe1",
+    "hoe2",
+    "hoe3",
+    "bhoe1",
+    "bhoe2",
+    "bhoe3",
+    "water1",
+    "water2",
+    "bwater1",
+    "bwater2",
+    "crouch",
+    "bcrouch",
+    "eat"
    ],
    "anims": {
     "idle": {
@@ -1162,6 +1283,109 @@
       [
        "down",
        1000
+      ]
+     ],
+     "loop": false
+    },
+    "hoe": {
+     "frames": [
+      [
+       "hoe1",
+       190
+      ],
+      [
+       "hoe2",
+       90
+      ],
+      [
+       "hoe3",
+       150
+      ]
+     ],
+     "loop": false,
+     "hit": "hoe2",
+     "swing": "heavy"
+    },
+    "bhoe": {
+     "frames": [
+      [
+       "bhoe1",
+       190
+      ],
+      [
+       "bhoe2",
+       90
+      ],
+      [
+       "bhoe3",
+       150
+      ]
+     ],
+     "loop": false,
+     "hit": "bhoe2",
+     "swing": "bheavy"
+    },
+    "water": {
+     "frames": [
+      [
+       "water1",
+       150
+      ],
+      [
+       "water2",
+       450
+      ]
+     ],
+     "loop": false,
+     "hit": "water2"
+    },
+    "bwater": {
+     "frames": [
+      [
+       "bwater1",
+       150
+      ],
+      [
+       "bwater2",
+       450
+      ]
+     ],
+     "loop": false,
+     "hit": "bwater2"
+    },
+    "crouch": {
+     "frames": [
+      [
+       "crouch",
+       450
+      ]
+     ],
+     "loop": false,
+     "hit": "crouch"
+    },
+    "bcrouch": {
+     "frames": [
+      [
+       "bcrouch",
+       450
+      ]
+     ],
+     "loop": false,
+     "hit": "bcrouch"
+    },
+    "eat": {
+     "frames": [
+      [
+       "eat",
+       280
+      ],
+      [
+       "idle",
+       120
+      ],
+      [
+       "eat",
+       280
       ]
      ],
      "loop": false
@@ -1974,6 +2198,142 @@
    "originY": 0.5,
    "kind": "icon"
   },
+  "icon_hoe": {
+   "file": "ui/icon_hoe.png",
+   "w": 80,
+   "h": 80,
+   "originX": 0.5,
+   "originY": 0.5,
+   "kind": "icon"
+  },
+  "icon_watering_can": {
+   "file": "ui/icon_watering_can.png",
+   "w": 80,
+   "h": 80,
+   "originX": 0.5,
+   "originY": 0.5,
+   "kind": "icon"
+  },
+  "icon_farm": {
+   "file": "ui/icon_farm.png",
+   "w": 80,
+   "h": 80,
+   "originX": 0.5,
+   "originY": 0.5,
+   "kind": "icon"
+  },
+  "icon_gate": {
+   "file": "ui/icon_gate.png",
+   "w": 80,
+   "h": 80,
+   "originX": 0.5,
+   "originY": 0.5,
+   "kind": "icon"
+  },
+  "icon_carrot": {
+   "file": "ui/icon_carrot.png",
+   "w": 80,
+   "h": 80,
+   "originX": 0.5,
+   "originY": 0.5,
+   "kind": "icon"
+  },
+  "icon_corn": {
+   "file": "ui/icon_corn.png",
+   "w": 80,
+   "h": 80,
+   "originX": 0.5,
+   "originY": 0.5,
+   "kind": "icon"
+  },
+  "icon_pumpkin": {
+   "file": "ui/icon_pumpkin.png",
+   "w": 80,
+   "h": 80,
+   "originX": 0.5,
+   "originY": 0.5,
+   "kind": "icon"
+  },
+  "icon_seed_carrot": {
+   "file": "ui/icon_seed_carrot.png",
+   "w": 80,
+   "h": 80,
+   "originX": 0.5,
+   "originY": 0.5,
+   "kind": "icon"
+  },
+  "icon_seed_corn": {
+   "file": "ui/icon_seed_corn.png",
+   "w": 80,
+   "h": 80,
+   "originX": 0.5,
+   "originY": 0.5,
+   "kind": "icon"
+  },
+  "icon_seed_pumpkin": {
+   "file": "ui/icon_seed_pumpkin.png",
+   "w": 80,
+   "h": 80,
+   "originX": 0.5,
+   "originY": 0.5,
+   "kind": "icon"
+  },
+  "icon_rain": {
+   "file": "ui/icon_rain.png",
+   "w": 80,
+   "h": 80,
+   "originX": 0.5,
+   "originY": 0.5,
+   "kind": "icon"
+  },
+  "icon_snow": {
+   "file": "ui/icon_snow.png",
+   "w": 80,
+   "h": 80,
+   "originX": 0.5,
+   "originY": 0.5,
+   "kind": "icon"
+  },
+  "icon_sound_on": {
+   "file": "ui/icon_sound_on.png",
+   "w": 80,
+   "h": 80,
+   "originX": 0.5,
+   "originY": 0.5,
+   "kind": "icon"
+  },
+  "icon_sound_off": {
+   "file": "ui/icon_sound_off.png",
+   "w": 80,
+   "h": 80,
+   "originX": 0.5,
+   "originY": 0.5,
+   "kind": "icon"
+  },
+  "icon_hunger": {
+   "file": "ui/icon_hunger.png",
+   "w": 80,
+   "h": 80,
+   "originX": 0.5,
+   "originY": 0.5,
+   "kind": "icon"
+  },
+  "icon_hunger_empty": {
+   "file": "ui/icon_hunger_empty.png",
+   "w": 80,
+   "h": 80,
+   "originX": 0.5,
+   "originY": 0.5,
+   "kind": "icon"
+  },
+  "icon_berry": {
+   "file": "ui/icon_berry.png",
+   "w": 80,
+   "h": 80,
+   "originX": 0.5,
+   "originY": 0.5,
+   "kind": "icon"
+  },
   "overlay_ok": {
    "file": "ui/overlay_ok.png",
    "w": 90,
@@ -2450,6 +2810,1147 @@
    "originX": 0.7688,
    "originY": 0.7701,
    "kind": "projectile"
+  },
+  "build_gate_col": {
+   "file": "build/build_gate_col.png",
+   "w": 376,
+   "h": 92,
+   "originX": 0.5,
+   "originY": 0.5946,
+   "kind": "build",
+   "frameWidth": 94,
+   "frameHeight": 92,
+   "frames": [
+    "closed",
+    "open1",
+    "open2",
+    "open3"
+   ],
+   "anims": {
+    "open": {
+     "frames": [
+      [
+       "open1",
+       60
+      ],
+      [
+       "open2",
+       60
+      ],
+      [
+       "open3",
+       80
+      ]
+     ],
+     "loop": false
+    },
+    "close": {
+     "frames": [
+      [
+       "open2",
+       60
+      ],
+      [
+       "open1",
+       60
+      ],
+      [
+       "closed",
+       80
+      ]
+     ],
+     "loop": false
+    }
+   }
+  },
+  "build_gate_row": {
+   "file": "build/build_gate_row.png",
+   "w": 376,
+   "h": 92,
+   "originX": 0.5,
+   "originY": 0.5946,
+   "kind": "build",
+   "frameWidth": 94,
+   "frameHeight": 92,
+   "frames": [
+    "closed",
+    "open1",
+    "open2",
+    "open3"
+   ],
+   "anims": {
+    "open": {
+     "frames": [
+      [
+       "open1",
+       60
+      ],
+      [
+       "open2",
+       60
+      ],
+      [
+       "open3",
+       80
+      ]
+     ],
+     "loop": false
+    },
+    "close": {
+     "frames": [
+      [
+       "open2",
+       60
+      ],
+      [
+       "open1",
+       60
+      ],
+      [
+       "closed",
+       80
+      ]
+     ],
+     "loop": false
+    }
+   }
+  },
+  "farm_soil": {
+   "file": "farm/farm_soil.png",
+   "w": 172,
+   "h": 52,
+   "originX": 0.5,
+   "originY": 0.4819,
+   "kind": "decal",
+   "frameWidth": 86,
+   "frameHeight": 52,
+   "frames": [
+    "dry",
+    "wet"
+   ]
+  },
+  "crop_carrot": {
+   "file": "farm/crop_carrot.png",
+   "w": 304,
+   "h": 53,
+   "originX": 0.5,
+   "originY": 0.6353,
+   "kind": "crop",
+   "frameWidth": 76,
+   "frameHeight": 53,
+   "frames": [
+    "seed",
+    "sprout",
+    "grow",
+    "ripe"
+   ]
+  },
+  "crop_corn": {
+   "file": "farm/crop_corn.png",
+   "w": 288,
+   "h": 93,
+   "originX": 0.5,
+   "originY": 0.8121,
+   "kind": "crop",
+   "frameWidth": 72,
+   "frameHeight": 93,
+   "frames": [
+    "seed",
+    "sprout",
+    "grow",
+    "ripe"
+   ]
+  },
+  "crop_pumpkin": {
+   "file": "farm/crop_pumpkin.png",
+   "w": 328,
+   "h": 56,
+   "originX": 0.5,
+   "originY": 0.7222,
+   "kind": "crop",
+   "frameWidth": 82,
+   "frameHeight": 56,
+   "frames": [
+    "seed",
+    "sprout",
+    "grow",
+    "ripe"
+   ]
+  },
+  "obj_seed_crate": {
+   "file": "objects/obj_seed_crate.png",
+   "w": 168,
+   "h": 82,
+   "originX": 0.5,
+   "originY": 0.5152,
+   "kind": "object",
+   "frameWidth": 84,
+   "frameHeight": 82,
+   "frames": [
+    "closed",
+    "open"
+   ]
+  },
+  "char_dog": {
+   "file": "chars/char_dog.png",
+   "w": 850,
+   "h": 234,
+   "originX": 0.5,
+   "originY": 0.6452,
+   "kind": "char",
+   "frameWidth": 85,
+   "frameHeight": 78,
+   "frames": [
+    "idle",
+    "idle2",
+    "walk1",
+    "walk2",
+    "walk3",
+    "walk4",
+    "bwalk1",
+    "bwalk2",
+    "bwalk3",
+    "bwalk4",
+    "bidle",
+    "sit",
+    "sit2",
+    "lie",
+    "sleep1",
+    "sleep2",
+    "happy1",
+    "happy2",
+    "bark",
+    "bite0",
+    "bite"
+   ],
+   "anims": {
+    "idle": {
+     "frames": [
+      [
+       "idle",
+       500
+      ],
+      [
+       "idle2",
+       500
+      ]
+     ],
+     "loop": true
+    },
+    "bidle": {
+     "frames": [
+      [
+       "bidle",
+       1000
+      ]
+     ],
+     "loop": true
+    },
+    "walk": {
+     "frames": [
+      [
+       "walk1",
+       90
+      ],
+      [
+       "walk3",
+       90
+      ],
+      [
+       "walk2",
+       90
+      ],
+      [
+       "walk4",
+       90
+      ]
+     ],
+     "loop": true
+    },
+    "bwalk": {
+     "frames": [
+      [
+       "bwalk1",
+       90
+      ],
+      [
+       "bwalk3",
+       90
+      ],
+      [
+       "bwalk2",
+       90
+      ],
+      [
+       "bwalk4",
+       90
+      ]
+     ],
+     "loop": true
+    },
+    "sit": {
+     "frames": [
+      [
+       "sit",
+       220
+      ],
+      [
+       "sit2",
+       220
+      ]
+     ],
+     "loop": true
+    },
+    "lie": {
+     "frames": [
+      [
+       "lie",
+       1000
+      ]
+     ],
+     "loop": true
+    },
+    "sleep": {
+     "frames": [
+      [
+       "sleep1",
+       900
+      ],
+      [
+       "sleep2",
+       900
+      ]
+     ],
+     "loop": true
+    },
+    "happy": {
+     "frames": [
+      [
+       "happy1",
+       140
+      ],
+      [
+       "happy2",
+       140
+      ],
+      [
+       "happy1",
+       140
+      ],
+      [
+       "happy2",
+       140
+      ],
+      [
+       "happy1",
+       140
+      ],
+      [
+       "happy2",
+       140
+      ]
+     ],
+     "loop": false
+    },
+    "bark": {
+     "frames": [
+      [
+       "bark",
+       160
+      ],
+      [
+       "idle",
+       110
+      ],
+      [
+       "bark",
+       160
+      ],
+      [
+       "idle",
+       250
+      ]
+     ],
+     "loop": false
+    },
+    "bite": {
+     "frames": [
+      [
+       "bite0",
+       220
+      ],
+      [
+       "bite",
+       200
+      ]
+     ],
+     "loop": false,
+     "hit": "bite"
+    }
+   },
+   "emote": {
+    "idle": [
+     16.2,
+     -40.3
+    ],
+    "idle2": [
+     16.2,
+     -40.9
+    ],
+    "walk1": [
+     16.2,
+     -40.3
+    ],
+    "walk2": [
+     16.2,
+     -40.3
+    ],
+    "walk3": [
+     16.2,
+     -41.2
+    ],
+    "walk4": [
+     16.2,
+     -41.2
+    ],
+    "bwalk1": [
+     16.2,
+     -40.3
+    ],
+    "bwalk2": [
+     16.2,
+     -40.3
+    ],
+    "bwalk3": [
+     16.2,
+     -41.2
+    ],
+    "bwalk4": [
+     16.2,
+     -41.2
+    ],
+    "bidle": [
+     16.2,
+     -40.3
+    ],
+    "sit": [
+     8.8,
+     -40.9
+    ],
+    "sit2": [
+     8.8,
+     -40.9
+    ],
+    "lie": [
+     12.5,
+     -30.3
+    ],
+    "sleep1": [
+     13.8,
+     -22.2
+    ],
+    "sleep2": [
+     13.8,
+     -22.2
+    ],
+    "happy1": [
+     12.9,
+     -44.2
+    ],
+    "happy2": [
+     16.2,
+     -40.9
+    ],
+    "bark": [
+     16.2,
+     -42.2
+    ],
+    "bite0": [
+     16.0,
+     -34.2
+    ],
+    "bite": [
+     21.9,
+     -36.8
+    ]
+   }
+  },
+  "char_cat": {
+   "file": "chars/char_cat.png",
+   "w": 640,
+   "h": 134,
+   "originX": 0.5,
+   "originY": 0.6449,
+   "kind": "char",
+   "frameWidth": 64,
+   "frameHeight": 67,
+   "frames": [
+    "idle",
+    "idle2",
+    "walk1",
+    "walk2",
+    "walk3",
+    "walk4",
+    "bwalk1",
+    "bwalk2",
+    "bwalk3",
+    "bwalk4",
+    "bidle",
+    "sit",
+    "sit2",
+    "lie",
+    "sleep1",
+    "sleep2",
+    "happy1",
+    "happy2",
+    "meow"
+   ],
+   "anims": {
+    "idle": {
+     "frames": [
+      [
+       "idle",
+       700
+      ],
+      [
+       "idle2",
+       700
+      ]
+     ],
+     "loop": true
+    },
+    "bidle": {
+     "frames": [
+      [
+       "bidle",
+       1000
+      ]
+     ],
+     "loop": true
+    },
+    "walk": {
+     "frames": [
+      [
+       "walk1",
+       110
+      ],
+      [
+       "walk3",
+       110
+      ],
+      [
+       "walk2",
+       110
+      ],
+      [
+       "walk4",
+       110
+      ]
+     ],
+     "loop": true
+    },
+    "bwalk": {
+     "frames": [
+      [
+       "bwalk1",
+       110
+      ],
+      [
+       "bwalk3",
+       110
+      ],
+      [
+       "bwalk2",
+       110
+      ],
+      [
+       "bwalk4",
+       110
+      ]
+     ],
+     "loop": true
+    },
+    "sit": {
+     "frames": [
+      [
+       "sit",
+       1200
+      ],
+      [
+       "sit2",
+       400
+      ]
+     ],
+     "loop": true
+    },
+    "lie": {
+     "frames": [
+      [
+       "lie",
+       1000
+      ]
+     ],
+     "loop": true
+    },
+    "sleep": {
+     "frames": [
+      [
+       "sleep1",
+       1100
+      ],
+      [
+       "sleep2",
+       1100
+      ]
+     ],
+     "loop": true
+    },
+    "happy": {
+     "frames": [
+      [
+       "happy1",
+       300
+      ],
+      [
+       "happy2",
+       300
+      ],
+      [
+       "happy1",
+       300
+      ],
+      [
+       "happy2",
+       300
+      ]
+     ],
+     "loop": false
+    },
+    "meow": {
+     "frames": [
+      [
+       "meow",
+       500
+      ],
+      [
+       "sit",
+       200
+      ]
+     ],
+     "loop": false
+    }
+   },
+   "emote": {
+    "idle": [
+     12.5,
+     -30.9
+    ],
+    "idle2": [
+     12.5,
+     -31.6
+    ],
+    "walk1": [
+     12.5,
+     -30.9
+    ],
+    "walk2": [
+     12.5,
+     -30.9
+    ],
+    "walk3": [
+     12.5,
+     -31.9
+    ],
+    "walk4": [
+     12.5,
+     -31.9
+    ],
+    "bwalk1": [
+     12.5,
+     -30.9
+    ],
+    "bwalk2": [
+     12.5,
+     -30.9
+    ],
+    "bwalk3": [
+     12.5,
+     -31.9
+    ],
+    "bwalk4": [
+     12.5,
+     -31.9
+    ],
+    "bidle": [
+     12.5,
+     -30.9
+    ],
+    "sit": [
+     2.5,
+     -33.4
+    ],
+    "sit2": [
+     2.5,
+     -33.4
+    ],
+    "lie": [
+     8.8,
+     -24.1
+    ],
+    "sleep1": [
+     5.0,
+     -17.8
+    ],
+    "sleep2": [
+     5.0,
+     -18.2
+    ],
+    "happy1": [
+     13.1,
+     -27.0
+    ],
+    "happy2": [
+     12.5,
+     -30.9
+    ],
+    "meow": [
+     2.5,
+     -34.7
+    ]
+   }
+  },
+  "fx_water": {
+   "file": "fx/fx_water.png",
+   "w": 136,
+   "h": 46,
+   "originX": 0.5,
+   "originY": 0.7297,
+   "kind": "fx",
+   "frameWidth": 34,
+   "frameHeight": 46,
+   "frames": [
+    "water1",
+    "water2",
+    "water3",
+    "water4"
+   ],
+   "anims": {
+    "play": {
+     "frames": [
+      [
+       "water1",
+       90
+      ],
+      [
+       "water2",
+       90
+      ],
+      [
+       "water3",
+       90
+      ],
+      [
+       "water4",
+       90
+      ]
+     ],
+     "loop": false
+    }
+   }
+  },
+  "fx_emote": {
+   "file": "fx/fx_emote.png",
+   "w": 276,
+   "h": 41,
+   "originX": 0.5,
+   "originY": 0.803,
+   "kind": "fx",
+   "frameWidth": 46,
+   "frameHeight": 41,
+   "frames": [
+    "alert",
+    "heart",
+    "note",
+    "zzz1",
+    "zzz2",
+    "zzz3"
+   ],
+   "anims": {
+    "zzz": {
+     "frames": [
+      [
+       "zzz1",
+       450
+      ],
+      [
+       "zzz2",
+       450
+      ],
+      [
+       "zzz3",
+       600
+      ]
+     ],
+     "loop": true
+    }
+   },
+   "note": "기준점 = 표시의 아래 가운데. 동물의 emote 위치(기준점에서의 거리)에 놓는다."
+  },
+  "fx_weather": {
+   "file": "fx/fx_weather.png",
+   "w": 130,
+   "h": 36,
+   "originX": 0.5,
+   "originY": 0.5,
+   "kind": "particle",
+   "frameWidth": 26,
+   "frameHeight": 36,
+   "frames": [
+    "rain1",
+    "rain2",
+    "snow1",
+    "snow2",
+    "snow3"
+   ]
+  },
+  "fx_rain_splash": {
+   "file": "fx/fx_rain_splash.png",
+   "w": 124,
+   "h": 24,
+   "originX": 0.5,
+   "originY": 0.5263,
+   "kind": "fx",
+   "frameWidth": 31,
+   "frameHeight": 24,
+   "frames": [
+    "splash1",
+    "splash2",
+    "splash3",
+    "splash4"
+   ],
+   "anims": {
+    "play": {
+     "frames": [
+      [
+       "splash1",
+       55
+      ],
+      [
+       "splash2",
+       55
+      ],
+      [
+       "splash3",
+       55
+      ],
+      [
+       "splash4",
+       55
+      ]
+     ],
+     "loop": false
+    }
+   }
+  },
+  "decal_puddle_1": {
+   "file": "fx/decal_puddle_1.png",
+   "w": 69,
+   "h": 30,
+   "originX": 0.4701,
+   "originY": 0.5,
+   "kind": "decal"
+  },
+  "decal_puddle_2": {
+   "file": "fx/decal_puddle_2.png",
+   "w": 63,
+   "h": 35,
+   "originX": 0.4833,
+   "originY": 0.5231,
+   "kind": "decal"
+  },
+  "overlay_rain": {
+   "file": "fx/overlay_rain.png",
+   "w": 512,
+   "h": 512,
+   "originX": 0.5,
+   "originY": 0.5,
+   "kind": "weather",
+   "tile": true
+  },
+  "overlay_snow": {
+   "file": "fx/overlay_snow.png",
+   "w": 512,
+   "h": 512,
+   "originX": 0.5,
+   "originY": 0.5,
+   "kind": "weather",
+   "tile": true
+  }
+ },
+ "sounds": {
+  "ui_click": {
+   "file": "sfx/ui_click.wav",
+   "duration": 0.06,
+   "loop": false,
+   "note": "버튼, 카드를 누를 때"
+  },
+  "ui_error": {
+   "file": "sfx/ui_error.wav",
+   "duration": 0.33,
+   "loop": false,
+   "note": "재료가 부족할 때, 할 수 없는 일을 눌렀을 때"
+  },
+  "hit_wood": {
+   "file": "sfx/hit_wood.wav",
+   "duration": 0.519,
+   "loop": false,
+   "note": "나무를 칠 때(도끼, 단검)"
+  },
+  "hit_stone": {
+   "file": "sfx/hit_stone.wav",
+   "duration": 0.583,
+   "loop": false,
+   "note": "돌을 칠 때(곡괭이)"
+  },
+  "hit_iron": {
+   "file": "sfx/hit_iron.wav",
+   "duration": 1.098,
+   "loop": false,
+   "note": "철광석을 칠 때"
+  },
+  "tree_fall": {
+   "file": "sfx/tree_fall.wav",
+   "duration": 2.061,
+   "loop": false,
+   "note": "나무가 넘어갈 때"
+  },
+  "rock_break": {
+   "file": "sfx/rock_break.wav",
+   "duration": 0.643,
+   "loop": false,
+   "note": "돌, 철광석이 부서질 때"
+  },
+  "pickup": {
+   "file": "sfx/pickup.wav",
+   "duration": 0.165,
+   "loop": false,
+   "note": "재료나 아이템을 얻을 때"
+  },
+  "swing": {
+   "file": "sfx/swing.wav",
+   "duration": 0.237,
+   "loop": false,
+   "note": "휘두를 때(주인공, 해적)"
+  },
+  "hit_enemy": {
+   "file": "sfx/hit_enemy.wav",
+   "duration": 0.26,
+   "loop": false,
+   "note": "적이 맞을 때(단검, 화살, 총알, 개)"
+  },
+  "player_hurt": {
+   "file": "sfx/player_hurt.wav",
+   "duration": 0.269,
+   "loop": false,
+   "note": "주인공이 맞을 때"
+  },
+  "zombie_groan": {
+   "file": "sfx/zombie_groan.wav",
+   "duration": 1.769,
+   "loop": false,
+   "note": "좀비가 나타났을 때, 가끔 신음"
+  },
+  "zombie_die": {
+   "file": "sfx/zombie_die.wav",
+   "duration": 1.101,
+   "loop": false,
+   "note": "좀비가 쓰러질 때"
+  },
+  "zombie_rise": {
+   "file": "sfx/zombie_rise.wav",
+   "duration": 1.0,
+   "loop": false,
+   "note": "좀비가 땅에서 올라올 때"
+  },
+  "gun_shot": {
+   "file": "sfx/gun_shot.wav",
+   "duration": 1.107,
+   "loop": false,
+   "note": "총(주인공, 총 타워, 총잡이 해적)"
+  },
+  "arrow_shot": {
+   "file": "sfx/arrow_shot.wav",
+   "duration": 0.3,
+   "loop": false,
+   "note": "망루가 화살을 쏠 때"
+  },
+  "construct": {
+   "file": "sfx/construct.wav",
+   "duration": 0.465,
+   "loop": false,
+   "note": "시설을 지을 때"
+  },
+  "collapse": {
+   "file": "sfx/collapse.wav",
+   "duration": 0.564,
+   "loop": false,
+   "note": "시설이 부서질 때"
+  },
+  "craft": {
+   "file": "sfx/craft.wav",
+   "duration": 1.196,
+   "loop": false,
+   "note": "도구를 만들었을 때"
+  },
+  "dusk": {
+   "file": "sfx/dusk.wav",
+   "duration": 3.13,
+   "loop": false,
+   "note": "저녁이 시작될 때(\"곧 밤이 됩니다\")"
+  },
+  "night_start": {
+   "file": "sfx/night_start.wav",
+   "duration": 4.359,
+   "loop": false,
+   "note": "밤이 시작될 때"
+  },
+  "morning": {
+   "file": "sfx/morning.wav",
+   "duration": 2.28,
+   "loop": false,
+   "note": "아침이 될 때"
+  },
+  "heal": {
+   "file": "sfx/heal.wav",
+   "duration": 0.668,
+   "loop": false,
+   "note": "하트가 찰 때"
+  },
+  "game_over": {
+   "file": "sfx/game_over.wav",
+   "duration": 1.974,
+   "loop": false,
+   "note": "쓰러졌을 때"
+  },
+  "victory": {
+   "file": "sfx/victory.wav",
+   "duration": 2.023,
+   "loop": false,
+   "note": "첫 밤을 넘긴 결과 창"
+  },
+  "tent": {
+   "file": "sfx/tent.wav",
+   "duration": 0.495,
+   "loop": false,
+   "note": "텐트에 들어가고 나올 때"
+  },
+  "fire_loop": {
+   "file": "sfx/fire_loop.wav",
+   "duration": 4.0,
+   "loop": true,
+   "note": "모닥불 곁(반복, 거리에 따라 크기)"
+  },
+  "ship_bell": {
+   "file": "sfx/ship_bell.wav",
+   "duration": 3.091,
+   "loop": false,
+   "note": "해적선이 나타날 때"
+  },
+  "gate_open": {
+   "file": "sfx/gate_open.wav",
+   "duration": 0.518,
+   "loop": false,
+   "note": "문이 열릴 때"
+  },
+  "gate_close": {
+   "file": "sfx/gate_close.wav",
+   "duration": 0.42,
+   "loop": false,
+   "note": "문이 닫힐 때"
+  },
+  "till": {
+   "file": "sfx/till.wav",
+   "duration": 0.15,
+   "loop": false,
+   "note": "괭이로 밭을 갈 때"
+  },
+  "plant": {
+   "file": "sfx/plant.wav",
+   "duration": 0.112,
+   "loop": false,
+   "note": "씨앗을 심을 때"
+  },
+  "water_pour": {
+   "file": "sfx/water_pour.wav",
+   "duration": 0.9,
+   "loop": false,
+   "note": "물을 줄 때"
+  },
+  "harvest": {
+   "file": "sfx/harvest.wav",
+   "duration": 0.33,
+   "loop": false,
+   "note": "작물을 거둘 때"
+  },
+  "eat": {
+   "file": "sfx/eat.wav",
+   "duration": 0.36,
+   "loop": false,
+   "note": "먹을 때"
+  },
+  "hungry": {
+   "file": "sfx/hungry.wav",
+   "duration": 1.0,
+   "loop": false,
+   "note": "배가 고플 때(배부름이 1 남았을 때, 굶을 때)"
+  },
+  "dog_bark": {
+   "file": "sfx/dog_bark.wav",
+   "duration": 0.205,
+   "loop": false,
+   "note": "강아지가 짖을 때"
+  },
+  "cat_meow": {
+   "file": "sfx/cat_meow.wav",
+   "duration": 0.75,
+   "loop": false,
+   "note": "고양이가 울 때"
+  },
+  "rain_loop": {
+   "file": "sfx/rain_loop.wav",
+   "duration": 4.0,
+   "loop": true,
+   "note": "비(반복)"
+  },
+  "wind_loop": {
+   "file": "sfx/wind_loop.wav",
+   "duration": 6.0,
+   "loop": true,
+   "note": "눈 오는 날의 바람(반복)"
+  },
+  "amb_day": {
+   "file": "sfx/amb_day.wav",
+   "duration": 8.0,
+   "loop": true,
+   "note": "낮 배경(반복, 새소리)"
+  },
+  "amb_night": {
+   "file": "sfx/amb_night.wav",
+   "duration": 6.0,
+   "loop": true,
+   "note": "밤 배경(반복, 풀벌레)"
+  },
+  "step": {
+   "file": "sfx/step.wav",
+   "duration": 0.08,
+   "loop": false,
+   "note": "발소리(풀, 모래)"
+  },
+  "step_snow": {
+   "file": "sfx/step_snow.wav",
+   "duration": 0.094,
+   "loop": false,
+   "note": "발소리(눈)"
   }
  }
 }

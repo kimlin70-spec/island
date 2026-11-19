@@ -104,12 +104,14 @@ export class TowerSystem {
     const onHit = () => target.hurt(s.cfg.damage, { foot: () => tile });
     if (s.type === 'watchtower') {
       s.shotLeft = T.shotTime;
+      this.scene.sfx.play('arrow_shot', { at: from });
       shots.homing('arrow', from, target, s.cfg.arrowSpeed, onHit, { max: s.cfg.arcMax, ratio: s.cfg.arcRatio });
       return;
     }
     // 총 타워: 총구 불꽃(0.07초) 뒤 연기, 짧은 빛, 포탑 반동 (11.5, 12.8)
     const ang = A[s.turretKey].screenAngle[s.dir] * Math.PI / 180;
     shots.muzzle(from.x, from.y, { angle: ang });
+    this.scene.sfx.play('gun_shot', { at: from });
     const ux = Math.cos(ang), uy = Math.sin(ang), r = s.recoil;
     fx.run(T.recoilTime, (k) => { r.x = -ux * T.recoil * (1 - k); r.y = -uy * T.recoil * (1 - k); }, () => { r.x = 0; r.y = 0; });
     shots.homing('bullet', from, target, s.cfg.bulletSpeed, onHit);

@@ -47,6 +47,7 @@ export class EnemySystem {
     if (!t) return null;
     const e = this.add(kind, t);
     e.rise();
+    this.scene.sfx.play('zombie_rise', { at: e.foot() });
     const F = CONFIG.fx, fx = this.scene.effects, w = e.foot();
     fx.burst(['dirt'], F.chips.rise[0], w.x, w.y);
     fx.burst(['dust'], F.chips.rise[1], w.x, w.y);
@@ -115,6 +116,7 @@ export class EnemySystem {
     if (i < 0) return;
     this.list.splice(i, 1);
     this.defeated += 1;
+    if (e.kind === 'zombie') this.scene.sfx.play('zombie_die', { at: e.foot() });
     e.die(dx, dy);
   }
 

@@ -108,13 +108,14 @@ export class BuildSystem {
     if (!this.scene.inventory.pay(CONFIG.build[type].cost)) return;
     const s = this.place(type, this.spot.tiles);
     this.popUp(s);
+    this.scene.sfx.play('construct', { at: s.sprite });
     this.scene.onBuilt(s);
     this.point(wx, wy);                              // 방금 지은 칸은 이제 지을 수 없는 칸이다
     // 짓기 상태는 유지된다. 더 지을 수 없게 되면 풀린다.
     if (this.atMax(type)) {
       this.setMode(null);
     } else if (!this.canAfford(type)) {
-      this.scene.notice('재료가 부족합니다');
+      this.scene.error('재료가 부족합니다');
       this.setMode(null);
     }
   }
@@ -168,6 +169,7 @@ export class BuildSystem {
       const back = Math.floor(n * CONFIG.build.refundRate);
       if (back <= 0) continue;
       this.scene.inventory.add(item, back);
+      if (!line) this.scene.sfx.play('pickup');
       fx.popup(x, y - 40 - line++ * (CONFIG.fx.popupIcon + 2), ICON[item], '+' + back);
     }
     this.destroy(s);
@@ -179,6 +181,7 @@ export class BuildSystem {
     if (this.scene.rest.tent === s) this.scene.rest.exit();
     const fx = this.scene.effects, sp = s.sprite;
     if (broken) {
+      this.scene.sfx.play('collapse', { at: sp });
       fx.burst(BROKEN[s.type] || ['wood1', 'wood2'], CONFIG.fx.chips.broken, sp.x, sp.y - CONFIG.fx.impactHeight.object);
       fx.dust(sp.x, sp.y);
     } else {

@@ -11,6 +11,8 @@ const GROUP = { tree: 'tree', pine: 'tree', palm: 'tree', rock: 'rock', stump: '
 const LEFTOVER = { tree: { key: 'obj_stump', kind: 'stump' }, rock: { key: 'obj_rubble', kind: 'rubble' }, iron: { key: 'obj_rubble', kind: 'rubble' } };
 const NEED = { rock: '곡괭이가 필요합니다', ground: '곡괭이가 필요합니다', iron: '곡괭이가 필요합니다' };   // 쓸 도구가 없을 때의 알림
 const ICON = { wood: 'icon_wood', stone: 'icon_stone', iron: 'icon_iron' };
+// 칠 때의 소리 (15.3). 그루터기는 나무, 돌 부스러기는 돌 소리
+const HIT_SOUND = { tree: 'hit_wood', pine: 'hit_wood', palm: 'hit_wood', stump: 'hit_wood', rock: 'hit_stone', rubble: 'hit_stone', iron: 'hit_iron' };
 // 조각 (12.6). 잎은 단풍나무(obj_tree_w1)만 leaf3
 const WOOD = ['wood1', 'wood2'], STONE = ['stone1', 'stone2'];
 const leavesOf = (key) => (key === 'obj_tree_w1' ? ['leaf3'] : ['leaf1', 'leaf2']);
@@ -39,6 +41,7 @@ export class NodeSystem {
     const { x, y } = tileToWorld(o.col, o.row);                // 그림의 기준점(흔들리기 전의 자리)
     const above = s.displayHeight * s.originY;                 // 발에서 그림 꼭대기까지
     n.hp -= CONFIG.tools[tool].power[n.group];
+    scene.sfx.play(HIT_SOUND[o.kind] || 'hit_stone', { at: { x, y } });   // 칠 때의 소리 (15.3)
     // 맞은 곳 (12.4): 나무·돌은 기준점에서 30px 위. 그루터기·돌 부스러기는 낮아서 그림 높이의 절반을 넘지 않게.
     const lift = n.group === 'ground' ? Math.min(F.hitHeight, above * 0.5) : F.impactHeight.object;
     const p = fx.impact(x, y - lift, scene.player.foot());
@@ -75,14 +78,17 @@ export class NodeSystem {
       const pl = scene.player, dx = x - pl.foot().x;
       const dir = dx > 0 ? 1 : dx < 0 ? -1 : (pl.sprite.flipX ? -1 : 1);
       fx.fall(o.key, x, y, s.depth, dir, leavesOf(o.key), s.alpha);
+      scene.sfx.play('tree_fall', { at: { x, y } });
     } else {                                                   // 돌·철광석: 바로 돌 부스러기, 먼지와 조각 (12.7)
       fx.dust(x, y);
+      scene.sfx.play('rock_break', { at: { x, y } });
       fx.burst(n.group === 'iron' ? ['iron'] : STONE, n.group === 'iron' ? C.ironBreak : C.rockBreak, x, y - lift);
     }
     const left = LEFTOVER[n.group];
     scene.map.toDecor(o, left.key, left.kind);
     this.attach(o);
     scene.inventory.add(n.cfg.give, amount);
+    scene.sfx.play('pickup');
     if (n.cfg.give === 'iron') scene.onIronMined(amount);   // 할 일 "철광석 5개 모으기"는 캔 개수를 센다(11.1)
     return true;
   }

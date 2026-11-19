@@ -80,6 +80,13 @@ export const CONFIG = {
   // (사용자 요청, 문서에 없음) 난이도: 2단계부터 나오는 좀비·해적·총잡이의 체력을 이 배수로(zombie, pirate, gunner 의 hp × 이 값).
   // 1단계는 그대로(단검으로 싸우는 첫 밤이 너무 어려워지지 않게). 1 로 두면 문서의 값.
   stage2: { enemyHpScale: 2 },
+  // 효과음 (15.4). master: 전체 크기, ambience: 배경 소리(낮·밤)에 더 곱하는 값, loopFade: 반복 소리의 크기가 바뀌는 시간(초),
+  // fullRange/hearRange: 카메라 가운데에서 이 칸 안은 그대로, 이 칸에서 0. detune: 같은 소리를 조금씩 다르게(센트).
+  // sameSoundGap: 같은 소리를 다시 틀지 않는 시간(초), maxSame: 같은 소리를 동시에 트는 수, step: 발소리 크기
+  sound: { master: 0.8, ambience: 0.5, loopFade: 2, fullRange: 4, hearRange: 14, detune: 100, sameSoundGap: 0.05, maxSame: 4, step: 0.3,
+           swing: 0.5,                 // 휘두르는 소리의 크기(15.3)
+           fire: { near: 2, far: 8, volume: 0.6 },   // 모닥불 곁: 가장 가까운 모닥불까지 near 칸 안 volume, far 칸에서 0 (15.3)
+           groanEvery: [8, 15] },      // 밤 동안 좀비 하나가 신음하는 간격(초) (15.3)
   todo:   { fenceCount: 8 },
   todo2:  { iron: 5, wire: 6 },        // (2단계) 할 일: 캔 철광석 수, 깐 철조망 수 (11.1)
 
@@ -190,6 +197,7 @@ export const CONFIG = {
               costY: 138, costIcon: 32, costFont: 22, costStep: 58, costTrim: 6, costTextX: 36, statusFont: 20 },
     // 왼쪽 위: 하트(56px). 빈 칸은 icon_heart_empty
     hearts: { h: 72, padX: 13, step: 58, icon: 56 },
+    soundButton: { gap: 10, icon: 46 },   // 하트 칸 오른쪽의 동그란 소리 켜고 끄기 버튼(지름은 하트 칸 높이) (15.1)
     // 가운데 위: 해/달 아이콘, "1일째 낮", 진행 막대(낮 노랑, 밤 파랑). x 는 화면 가운데 기준, y 는 패널 위쪽 기준
     clock: { w: 460, h: 72, iconX: -190, icon: 64, textX: -150, textY: 24, font: 26,
              barX: -150, barY: 42, barW: 356, barH: 18, track: 0xc4b8a8, dayFill: 0xf0be54, nightFill: 0x687ac4 },

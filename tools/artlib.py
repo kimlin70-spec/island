@@ -592,6 +592,11 @@ def _held(p, hand, gun_len):
     front_or_under = 'over' if view == 'f' else 'under'
     if kind in ('dagger', 'axe', 'pickaxe', 'sword'):
         return tool_prims(kind, hand, t[1]), front_or_under
+    if kind in ('hoe', 'can'):                     # 3단계 농기구. ('can', 각도, 'drops') = 물이 떨어지는 중
+        out = farm_tool_prims(kind, hand, t[1])
+        if len(t) > 2:
+            out += can_drops(hand, t[1])
+        return out, front_or_under
     if kind == 'gun':
         bx, by = t[1]
         return musket((bx + p['lean'], by + p['bob']), t[2], gun_len)[0], front_or_under
@@ -1537,3 +1542,719 @@ def arrow_stuck():
     return xform([E(1, 1, 6, 2.4, 'dirt_d', op=0.8), L([(0, 0), (-21, -15)], 3.4, 'wood'),
                   P([(-23, -16), (-30, -24), (-21, -24), (-15, -18)], 'white'), P([(-23, -16), (-31, -15), (-24, -10), (-17, -13)], 'white'),
                   L([(-14, -10), (-12, -8)], 2.6, 'fletch')], k=1.3)
+
+
+# ================================================================== 3단계: 문, 농사, 반려동물
+# ---- 문: 울타리 줄 위에 놓는 두 짝 문. axis 'col' = col 방향 줄(화면 ↘↖), 'row' = row 방향 줄(화면 ↙↗).
+#      기둥은 칸 가장자리(이웃 울타리의 가로대가 닿는 곳)에 있고, 문짝은 보는 사람 반대쪽(화면 위쪽)으로 열린다.
+GATE_STATES = {'closed': 0, 'open1': 32, 'open2': 64, 'open3': 88}
+
+
+def _gate_post(x, y):
+    px_, py_ = iso(x, y)
+    return [P([(px_ - 6.5, py_ + 2), (px_ + 6.5, py_ + 2), (px_ + 6.5, py_ - 52), (px_ - 6.5, py_ - 52)], 'wood'),
+            P([(px_ + 0.5, py_ + 2), (px_ + 6.5, py_ + 2), (px_ + 6.5, py_ - 52), (px_ + 0.5, py_ - 52)], 'wood_d', soft=True),
+            P([(px_ - 7.5, py_ - 52), (px_, py_ - 60), (px_ + 7.5, py_ - 52)], 'wood_l'),
+            L([(px_ - 5.5, py_ - 15), (px_ + 5.5, py_ - 15)], 2.4, 'metal'), L([(px_ - 5.5, py_ - 33), (px_ + 5.5, py_ - 33)], 2.4, 'metal')]
+
+
+def _gate_leaf(h, t):
+    """문짝 한 장: 경첩 h -> 끝 t (칸 좌표). 세로 널 3장, 가로대 2개, 빗장 1개."""
+    at = lambda f, z: iso(h[0] + (t[0] - h[0]) * f, h[1] + (t[1] - h[1]) * f, z)
+    out = []
+    for i in range(3):
+        f0, f1 = 0.04 + i * 0.32, 0.29 + i * 0.32
+        fm = (f0 + f1) / 2
+        out.append(P([at(f0, 4), at(f1, 4), at(f1, 36), at(fm, 42), at(f0, 36)], 'wood_l'))
+    for z in (13, 30):
+        out.append(L([at(0.02, z), at(0.98, z)], 5, 'wood_d'))
+        out.append(L([at(0.02, z + 1.4), at(0.98, z + 1.4)], 1.6, 'wood'))
+    out.append(L([at(0.08, 13), at(0.92, 30)], 4, 'wood_d'))
+    return out
+
+
+def gate(axis, state='closed'):
+    th = math.radians(GATE_STATES[state])
+    c, s = math.cos(th), math.sin(th)
+    if axis == 'col':
+        posts = [(-0.5, 0.0), (0.5, 0.0)]
+        leaves = [((-0.47, 0.0), (c, -s)), ((0.47, 0.0), (-c, -s))]
+        rot = 26.57
+    else:
+        posts = [(0.0, -0.5), (0.0, 0.5)]
+        leaves = [((0.0, -0.47), (-s, c)), ((0.0, 0.47), (-s, -c))]
+        rot = -26.57
+    items = [(x + y, _gate_post(x, y)) for x, y in posts]
+    for (hx, hy), (dx, dy) in leaves:
+        tx, ty = hx + dx * 0.45, hy + dy * 0.45
+        items.append(((hx + tx + hy + ty) / 2, _gate_leaf((hx, hy), (tx, ty))))
+    prims = [S(4, 4, 44, 9, rot)]
+    for _, ps in sorted(items, key=lambda it: it[0]):
+        prims += ps
+    return prims
+
+
+# ---- 밭(갈아 놓은 흙). 기준점 = 칸 가운데. 고랑은 col 방향.
+def _square(k=0.45, rr=0.07, n=5):
+    """칸 좌표의 둥근 모서리 정사각형(반 길이 k) -> 화면 점들"""
+    pts = []
+    for cx, cy, a0 in ((k - rr, -k + rr, -90), (k - rr, k - rr, 0), (-k + rr, k - rr, 90), (-k + rr, -k + rr, 180)):
+        for i in range(n + 1):
+            a = math.radians(a0 + 90 * i / n)
+            pts.append(iso(cx + rr * math.cos(a), cy + rr * math.sin(a)))
+    return pts
+
+
+def soil(wet=False):
+    l, m, d = ('wsoil_l', 'wsoil', 'wsoil_d') if wet else ('soil_l', 'soil', 'soil_d')
+    out = [P([(x, y + 2) for x, y in _square(0.46)], 'soil_dd', op=0.55), P(_square(0.45), m)]
+    for y in (-0.18, 0.0, 0.18):
+        out.append(L([iso(-0.38, y), iso(0.38, y)], 4.2, d))
+    for y in (-0.27, -0.09, 0.09, 0.27):
+        out.append(L([iso(-0.37, y, 1.2), iso(0.37, y, 1.2)], 3, l, op=0.85))
+    if wet:
+        out += [E(-18, -6, 6, 2.2, 'white', op=0.22), E(14, 6, 7, 2.4, 'white', op=0.2), E(4, -14, 5, 1.8, 'white', op=0.2)]
+    return out
+
+
+# ---- 작물: 단계 seed(심음) -> sprout(싹) -> grow(자람) -> ripe(다 자람). 기준점 = 칸 가운데
+CROP_STAGES = ['seed', 'sprout', 'grow', 'ripe']
+
+
+def _frond(b, ang, ln, key='leafA', dark='leafA_d', n=3):
+    a = math.radians(ang)
+    tip = (b[0] + math.sin(a) * ln, b[1] - math.cos(a) * ln)
+    out = [L([b, tip], 1.5, dark)]
+    for i in range(1, n + 1):
+        f = i / (n + 0.6)
+        x, y = b[0] + (tip[0] - b[0]) * f, b[1] + (tip[1] - b[1]) * f
+        side = 1 if i % 2 else -1
+        out.append(E(x + math.cos(a) * 2.6 * side, y + math.sin(a) * 2.6 * side, 3.4, 1.9, key, ang + 90 - 35 * side))
+    out.append(E(tip[0], tip[1], 3.2, 2.0, key, ang + 90))
+    return out
+
+
+def _blade(base, ln, ang, droop, w, key):
+    """옥수수 잎: base에서 ang(도, 0=위) 방향으로 뻗다가 끝이 처진다."""
+    a = math.radians(ang)
+    mid = (base[0] + math.sin(a) * ln * 0.55, base[1] - math.cos(a) * ln * 0.55 - 4)
+    tip = (base[0] + math.sin(a) * ln, base[1] - math.cos(a) * ln + droop)
+    c = bez2(base, mid, tip, 10)
+    lft, rgt = ribbon(c, [w * math.sin(math.pi * min(1, (i + 1) / 11)) ** 0.6 for i in range(len(c))])
+    return [P(lft + rgt[::-1], key)]
+
+
+def _mound_dot(b, seed_key):
+    return [E(b[0], b[1] + 0.5, 5, 2.4, 'soil_dd', op=0.75), E(b[0] + 0.5, b[1] - 0.6, 2.2, 1.5, seed_key)]
+
+
+def carrot(stage):
+    spots = [iso(-0.25, 0.09), iso(0.0, 0.09), iso(0.25, 0.09)]
+    out = []
+    for i, b in enumerate(spots):
+        j = (-1.5, 1.0, -0.5)[i]
+        b = (b[0] + j, b[1])
+        if stage == 'seed':
+            out += _mound_dot(b, 'carrot')
+        elif stage == 'sprout':
+            out += [L([b, (b[0] - 3, b[1] - 7)], 1.5, 'leafA_d'), E(b[0] - 4, b[1] - 8.5, 3.2, 2.0, 'leafA', -30),
+                    L([b, (b[0] + 3, b[1] - 8)], 1.5, 'leafA_d'), E(b[0] + 4, b[1] - 9.5, 3.2, 2.0, 'leafA', 30)]
+        elif stage == 'grow':
+            for k, a in enumerate((-48, -22, 4, 28, 52)):
+                out += _frond(b, a + j * 3, 14 + (k % 2) * 3, 'leafA' if k % 2 else 'leafB')
+        else:
+            out += [E(b[0], b[1] - 0.5, 6, 4.4, 'carrot'), E(b[0] - 1.6, b[1] - 2.2, 2.4, 1.5, 'pumpkin_l')]
+            for k, a in enumerate((-52, -28, -6, 16, 36, 58)):
+                out += _frond((b[0], b[1] - 3), a + j * 3, 19 + (k % 3) * 3, 'leafA' if k % 2 else 'leafB', n=4)
+    return out
+
+
+def _corn_stalk(b, h, stage):
+    out = []
+    if stage == 'sprout':
+        return [L([b, (b[0], b[1] - 12)], 2.2, 'leafA_d')] + _blade((b[0], b[1] - 5), 12, -60, 3, 2.6, 'leafA') + \
+            _blade((b[0], b[1] - 9), 12, 55, 2, 2.6, 'leafB')
+    top = (b[0] + 1, b[1] - h)
+    out.append(L([b, top], 4.6 if stage == 'ripe' else 3.6, 'leafB_d'))
+    n = 6 if stage == 'ripe' else 4
+    for i in range(n):
+        y = 0.16 + 0.8 * i / n
+        side = -1 if i % 2 else 1
+        base = (b[0] + (top[0] - b[0]) * y, b[1] + (top[1] - b[1]) * y)
+        out += _blade(base, h * (0.42 - 0.12 * y), side * (58 - 18 * y), h * 0.12, 4.0 if stage == 'ripe' else 3.4,
+                      'leafA' if i % 2 else 'leafB')
+    if stage == 'ripe':
+        for y, side in ((0.42, 1), (0.58, -1)):
+            cx, cy = b[0] + side * 5, b[1] - h * y
+            out += [E(cx, cy, 4.6, 10.5, 'corn', side * 18), E(cx - side * 1.2, cy - 2, 1.8, 6, 'corn_d', side * 18, soft=True),
+                    P([(cx - side * 5, cy + 9), (cx + side * 4, cy + 10), (cx + side * 1, cy - 4)], 'husk'),
+                    L([(cx + side * 3, cy - 9), (cx + side * 6, cy - 14)], 1.4, 'tassel')]
+        for a in (-40, -15, 10, 35):
+            r = math.radians(a)
+            out.append(L([top, (top[0] + math.sin(r) * 11, top[1] - math.cos(r) * 11 + abs(a) * 0.08)], 1.6, 'tassel'))
+    return out
+
+
+def corn(stage):
+    s1, s2 = iso(-0.22, 0.06), iso(0.2, 0.1)
+    if stage == 'seed':
+        return _mound_dot(s1, 'corn') + _mound_dot(s2, 'corn')
+    h1, h2 = {'sprout': (12, 12), 'grow': (44, 38), 'ripe': (92, 80)}[stage]
+    return _corn_stalk(s1, h1, stage) + _corn_stalk(s2, h2, stage)
+
+
+def _pleaf(cx, cy, r, rot=0.0, key='leafA', dark='leafA_d'):
+    """호박잎: 다섯 갈래의 둥근 잎(땅 위에 비스듬히 누운 모양)"""
+    pts = []
+    for i in range(30):
+        a = 2 * math.pi * i / 30
+        rr = r * (1 + 0.16 * math.cos(5 * a))
+        pts.append((rr * math.cos(a), rr * math.sin(a) * 0.72))
+    a = math.radians(rot)
+    rp = lambda x, y: (cx + x * math.cos(a) - y * math.sin(a), cy + x * math.sin(a) + y * math.cos(a))
+    out = [P([rp(x, y) for x, y in pts], key)]
+    for k in range(5):
+        b = 2 * math.pi * k / 5 + 0.3
+        out.append(L([rp(0, 0), rp(r * 0.75 * math.cos(b), r * 0.75 * math.sin(b) * 0.72)], 1.2, dark, op=0.8))
+    return out
+
+
+def _pumpkin(cx, cy, rx, ry, keys=('pumpkin_l', 'pumpkin', 'pumpkin_d')):
+    l, m, d = keys
+    out = [E(cx - rx * 0.55, cy, rx * 0.5, ry, d), E(cx + rx * 0.55, cy, rx * 0.5, ry, d),
+           E(cx - rx * 0.28, cy, rx * 0.5, ry * 1.02, m), E(cx + rx * 0.28, cy, rx * 0.5, ry * 1.02, m),
+           E(cx, cy - 0.5, rx * 0.42, ry * 1.04, l), E(cx - rx * 0.2, cy - ry * 0.45, rx * 0.16, ry * 0.2, 'white', op=0.35)]
+    out.append(P([(cx - 2, cy - ry + 1), (cx - 3, cy - ry - 7), (cx + 2, cy - ry - 9), (cx + 3, cy - ry + 1)], 'stem'))
+    return out
+
+
+def pumpkin(stage):
+    b = (0.0, 2.0)
+    if stage == 'seed':
+        return [E(0, 2.5, 5.5, 2.6, 'soil_dd', op=0.75), E(0.5, 1.4, 2.6, 1.5, 'white')]
+    if stage == 'sprout':
+        return [L([b, (0, -8)], 2.2, 'leafA_d'), E(-5.5, -10, 5.8, 3.6, 'leafA', -20), E(5.5, -10, 5.8, 3.6, 'leafB', 20)]
+    if stage == 'grow':
+        return [L(bez2((0, 2), (-22, 4), (-30, -6), 8), 2.2, 'leafA_d'), L(bez2((0, 2), (20, 8), (30, 2), 8), 2.2, 'leafA_d')] + \
+            _pleaf(-24, -6, 12, -10) + _pleaf(22, -2, 11, 15, 'leafB') + _pumpkin(4, -4, 9, 7, ('leafB', 'leafA', 'leafA_d')) + \
+            _pleaf(-6, -16, 13, 5)
+    vine = L(bez2((-30, 6), (-10, 10), (6, -2), 10), 2.4, 'leafA_d')
+    curl = L([(30 + 6 * math.cos(t) * (1 - t / 14), -14 + 4 * math.sin(t) * (1 - t / 14)) for t in [i * 0.5 for i in range(22)]], 1.4, 'leafA_d')
+    return [vine] + _pleaf(-26, -4, 13, -12) + _pleaf(-6, -22, 14, 8, 'leafB') + _pumpkin(6, -14, 23, 16) + \
+        _pleaf(28, 0, 11, 20) + [curl]
+
+
+CROPS = {'carrot': carrot, 'corn': corn, 'pumpkin': pumpkin}
+
+
+# ---- 씨앗 상자(바닷가에 떠밀려 온 상자). 기준점 = 칸 가운데
+def seed_crate(state='closed'):
+    c = v3(0, 0, 15)
+    hx, hy, hz = v3(0.25, 0), v3(0, 0.2), (0.0, 0.0, 15.0)
+    out = [S(6, 6, 46, 15, 6)]
+    if state == 'open':
+        out += box3(v3(-0.08, 0.43, 2.2), v3(0.27, 0), v3(0, 0.07), (0.0, 0.0, 2.2), 'wood_l', ('wood_l', 'wood', 'wood_d'))
+    out += box3(c, hx, hy, hz, 'soil_dd' if state == 'open' else 'wood_l', ('wood_l', 'wood', 'wood_d'))
+    for f in (-0.45, 0.0, 0.45):                      # 널 사이 선
+        a, b = vadd(c, vadd(vmul(hx, f), vadd(hy, (0, 0, -15)))), vadd(c, vadd(vmul(hx, f), vadd(hy, (0, 0, 15))))
+        out.append(line3([a, b], 1.6, 'wood_d', op=0.8))
+    for z in (-15, 15):
+        out.append(line3([vadd(c, vadd(vmul(hx, -1), vadd(hy, (0, 0, z * 0.92)))), vadd(c, vadd(hx, vadd(hy, (0, 0, z * 0.92))))], 3, 'wood_d'))
+    if state == 'open':
+        sack = [E(30, -6, 13, 7, 'canvas_d', 8), E(29, -8, 11, 5, 'canvas', 8), L([(19, -9), (24, -4)], 2, 'rope')]
+    else:
+        lid = pr(vadd(c, (0, 0, 15)))
+        sack = [E(lid[0] - 4, lid[1] - 9, 15, 11, 'canvas'), E(lid[0] + 4, lid[1] - 6, 9, 7, 'canvas_d', soft=True),
+                P([(lid[0] - 9, lid[1] - 18), (lid[0] - 4, lid[1] - 26), (lid[0] + 2, lid[1] - 18)], 'canvas'),
+                L([(lid[0] - 9, lid[1] - 17), (lid[0] + 3, lid[1] - 17)], 2.4, 'rope'),
+                L([(lid[0] - 6, lid[1] - 8), (lid[0] - 6, lid[1] - 13)], 1.6, 'leafA_d'), E(lid[0] - 8.5, lid[1] - 14, 3.2, 2, 'leafA', -30),
+                E(lid[0] - 3.5, lid[1] - 14.5, 3.2, 2, 'leafB', 30)]
+    return out + sack
+
+
+# ---- 손에 드는 농기구
+def farm_tool_prims(kind, hand, ang, k=1.0):
+    q = _frame(hand, ang)
+    if kind == 'hoe':
+        return [L([q(-7 * k, 0), q(40 * k, 0)], 4.4 * k, 'wood_d'),
+                P([q(34 * k, -1 * k), q(41 * k, -1 * k), q(43 * k, 16 * k), q(31 * k, 16 * k)], 'wood_l'),
+                L([q(31.5 * k, 15.5 * k), q(42.5 * k, 15.5 * k)], 2 * k, 'wood')]
+    if kind == 'can':                       # 손잡이를 쥔 물뿌리개. ang = 기울인 각도
+        body = [q(-9 * k, 6 * k), q(11 * k, 6 * k), q(12 * k, 22 * k), q(10 * k, 25 * k), q(-8 * k, 25 * k), q(-10 * k, 22 * k)]
+        out = [L([q(-6 * k, 6 * k), q(-4 * k, -2 * k), q(5 * k, -2 * k), q(8 * k, 6 * k)], 3 * k, 'can_d'),
+               P(body, 'can'), P([q(2 * k, 6 * k), q(11 * k, 6 * k), q(12 * k, 22 * k), q(10 * k, 25 * k), q(2 * k, 25 * k)], 'can_d', soft=True),
+               L([q(-9 * k, 9 * k), q(11 * k, 9 * k)], 1.6 * k, 'can_l'),
+               L([q(10 * k, 20 * k), q(27 * k, 8 * k)], 3.6 * k, 'can'), E(*q(28.5 * k, 7 * k), 3.6 * k, 2.6 * k, 'can_d', ang - 35)]
+        return out
+    raise KeyError(kind)
+
+
+def can_drops(hand, ang, k=1.0):
+    """물뿌리개에서 떨어지는 물줄기(기울였을 때)"""
+    q = _frame(hand, ang)
+    x, y = q(29.5 * k, 8.5 * k)
+    return [L([(x, y + 3), (x + 1, y + 12)], 1.6, 'splash_d', op=0.8), L([(x + 4, y + 2), (x + 6, y + 13)], 1.6, 'splash_d', op=0.8),
+            E(x + 2, y + 17, 1.6, 2.4, 'splash_d'), E(x + 6, y + 19, 1.4, 2.2, 'splash_d'), E(x - 1, y + 21, 1.3, 2.0, 'splash_d')]
+
+
+# ---- 주인공의 농사 동작(프레임은 POSES 뒤에 붙인다)
+h1_, h2_, h3_ = _swing('hoe', (152, -118), (72, 50), (56, 66))
+bh1_, bh2_, bh3_ = _swing('hoe', (176, -128), (126, -30), (96, 10), view='b')
+POSES.update(hoe1=h1_, hoe2=h2_, hoe3=h3_, bhoe1=bh1_, bhoe2=bh2_, bhoe3=bh3_,
+             water1=pose(near=64, far=-12, tool=('can', 4)),
+             water2=pose(legs=(-2, 0, 3, 0), lean=2, near=72, far=-14, tool=('can', 40, 'drops')),
+             bwater1=pose(view='b', far=64, near=-10, tool=('can', 4)),
+             bwater2=pose(view='b', legs=(-2, 0, 3, 0), lean=2, far=72, near=-12, tool=('can', 40, 'drops')),
+             crouch=pose(legs=(-12, 0, 13, 0), bob=14, lean=9, near=50, far=36),
+             bcrouch=pose(view='b', legs=(-12, 0, 13, 0), bob=14, lean=9, near=36, far=50),
+             eat=pose(near=154, far=-12, face='bite'))
+
+
+# ---- 반려동물(강아지, 고양이). 네 발 동물 뼈대: 몸통, 다리 4개, 목, 머리, 꼬리. 오른쪽을 본다.
+#   view 'f' = 앞모습(화면 아래쪽으로 갈 때), 'b' = 뒷모습(화면 위쪽으로 갈 때: 얼굴이 안 보이고 꼬리가 앞에 온다)
+#   legs = 네 다리 (앞뒤 dx, 들림) 순서: 먼 뒷다리, 먼 앞다리, 가까운 뒷다리, 가까운 앞다리
+DOG = dict(body='dog', dark='dog_d', patch='dogp', patch_d='dogp_d', ear='dogp', eye='ink',
+           bx=-2, by=-27, rx=25, ry=12, hip=-15, sho=14, leg_y=-22, legw=7.0, paw=(4.8, 3.0),
+           feet=(-18, 11, -13, 17), head=(26, -46), hr=12.5)
+CAT = dict(body='cat', dark='cat_d', patch='cat_s', patch_d='cat_s', ear='cat', eye='ink',
+           bx=-1, by=-19, rx=19, ry=8.5, hip=-11, sho=11, leg_y=-16, legw=5.4, paw=(3.6, 2.3),
+           feet=(-14, 8, -9, 13), head=(20, -33), hr=10.5)
+QSTAND = ((0, 0), (0, 0), (0, 0), (0, 0))
+
+
+def qpose(**kw):
+    p = dict(legs=QSTAND, bob=0, tilt=0, hx=0, hy=0, tail=0, mouth='closed', eyes='open', view='f', ears=0)
+    p.update(kw)
+    return p
+
+
+def _qleg(top, foot, w, key, paw, paw_key):
+    return [L([top, foot], w, key), E(foot[0] + 1.8, foot[1] + 0.3, paw[0], paw[1], paw_key)]
+
+
+def _rot_about(pt, deg, c):
+    a = math.radians(deg)
+    x, y = pt[0] - c[0], pt[1] - c[1]
+    return (c[0] + x * math.cos(a) - y * math.sin(a), c[1] + x * math.sin(a) + y * math.cos(a))
+
+
+def _dog_head(H, p, r):
+    hx, hy = H
+    view, mouth, eyes = p['view'], p['mouth'], p['eyes']
+    ear_a = p['ears']
+    if view == 'b':
+        return [E(hx + 8, hy - 1, 7, 5.5, 'dog_d'), E(hx, hy, r, r * 0.95, 'dog'),
+                P([(hx - 4, hy - 10), (hx - 12, hy - 2 - ear_a), (hx - 9, hy + 8), (hx - 2, hy + 3)], 'dogp'),
+                P([(hx + 5, hy - 10), (hx + 12, hy - 3 - ear_a), (hx + 10, hy + 7), (hx + 3, hy + 3)], 'dogp_d'),
+                E(hx + 1, hy - 4, 5, 6, 'dogp', op=0.85)]
+    out = [P([(hx + 4, hy - 11), (hx + 9, hy - 15 - ear_a), (hx + 12, hy - 7)], 'dogp_d'),        # 먼 귀
+           E(hx, hy, r, r * 0.94, 'dog'), E(hx - 2, hy - 5, 6.5, 6, 'dogp', op=0.9)]
+    sn = (hx + 10, hy + 4.5)
+    if mouth in ('open', 'bark', 'tongue'):
+        drop = 4.5 if mouth == 'bark' else 3
+        out += [P([(sn[0] - 6, sn[1] + 2), (sn[0] + 7, sn[1] + 1), (sn[0] + 5, sn[1] + 2 + drop), (sn[0] - 4, sn[1] + 3 + drop)], 'ink')]
+        if mouth in ('tongue', 'open'):
+            out.append(E(sn[0] + 1, sn[1] + 4.5 + drop * 0.6, 3.2, 3.6, 'tongue'))
+        out.append(E(sn[0], sn[1] - (1 if mouth == 'bark' else 0), 8.5, 5.5, 'dog'))
+    else:
+        out += [E(sn[0], sn[1], 8.5, 6, 'dog'), L([(sn[0] - 1, sn[1] + 3.5), (sn[0] + 3, sn[1] + 4.5), (sn[0] + 6.5, sn[1] + 3)], 1.4, 'ink')]
+    out.append(E(sn[0] + 7.5, sn[1] - 2.5, 3.1, 2.5, 'ink'))
+    for ex, ey, sz in ((hx + 3.5, hy - 2.5, 1.0), (hx + 10.5, hy - 3.5, 0.82)):
+        if eyes == 'open':
+            out += [E(ex, ey, 2.1 * sz, 2.7 * sz, 'ink'), E(ex + 0.6, ey - 1.0, 0.7, 0.7, 'white')]
+        elif eyes == 'happy':
+            out.append(L([(ex - 2.4, ey + 0.8), (ex, ey - 1.6), (ex + 2.4, ey + 0.8)], 1.6, 'ink'))
+        else:
+            out.append(L([(ex - 2.4, ey - 0.2), (ex, ey + 1.4), (ex + 2.4, ey - 0.2)], 1.6, 'ink'))
+    out.append(P([(hx - 3, hy - 11), (hx - 12, hy - 2 - ear_a), (hx - 10, hy + 9), (hx - 3, hy + 4)], 'dogp'))   # 가까운 귀(늘어진 귀)
+    return out
+
+
+def _cat_head(H, p, r):
+    hx, hy = H
+    view, mouth, eyes = p['view'], p['mouth'], p['eyes']
+    ears = [P([(hx - 8, hy - 4), (hx - 6, hy - 17 - p['ears']), (hx + 1, hy - 8)], 'cat'),
+            P([(hx + 2, hy - 8), (hx + 8, hy - 17 - p['ears']), (hx + 10, hy - 3)], 'cat')]
+    inner = [P([(hx - 6.5, hy - 6), (hx - 5.5, hy - 13.5 - p['ears']), (hx - 1, hy - 8)], 'pink'),
+             P([(hx + 3.5, hy - 8), (hx + 7.5, hy - 14 - p['ears']), (hx + 8.5, hy - 5)], 'pink')]
+    if view == 'b':
+        return ears + [E(hx, hy, r, r * 0.92, 'cat'), L([(hx - 3, hy - 9), (hx - 2, hy - 3)], 2, 'cat_s'),
+                       L([(hx + 2, hy - 9), (hx + 2.5, hy - 3)], 2, 'cat_s'), E(hx + 7, hy + 3, 4, 3, 'cat_d', op=0.6)]
+    out = ears + inner + [E(hx, hy, r, r * 0.92, 'cat'), L([(hx - 2, hy - 9.5), (hx - 1.5, hy - 5)], 1.8, 'cat_s'),
+                          L([(hx + 2.5, hy - 9.5), (hx + 2.5, hy - 5)], 1.8, 'cat_s'), E(hx + 5.5, hy + 4.5, 5.2, 3.6, 'cat_l')]
+    for ex, ey, sz in ((hx + 1.0, hy - 0.5, 1.0), (hx + 8.0, hy - 1.0, 0.85)):
+        if eyes == 'open':
+            out += [E(ex, ey, 1.9 * sz, 2.8 * sz, 'ink'), E(ex + 0.5, ey - 1.1, 0.7, 0.7, 'white')]
+        elif eyes == 'happy':
+            out.append(L([(ex - 2.2, ey + 0.8), (ex, ey - 1.4), (ex + 2.2, ey + 0.8)], 1.5, 'ink'))
+        else:
+            out.append(L([(ex - 2.2, ey - 0.2), (ex, ey + 1.3), (ex + 2.2, ey - 0.2)], 1.5, 'ink'))
+    nx, ny = hx + 7.5, hy + 2.6
+    out.append(P([(nx - 1.6, ny - 1), (nx + 1.6, ny - 1), (nx, ny + 0.9)], 'pink'))
+    if mouth in ('open', 'meow'):
+        out.append(P([(nx - 2.2, ny + 2), (nx + 2.2, ny + 2), (nx, ny + 5.2)], 'ink'))
+    else:
+        out.append(L([(nx - 2.4, ny + 2.6), (nx, ny + 1.5), (nx + 2.4, ny + 2.6)], 1.1, 'ink'))
+    out += [L([(nx + 2, ny + 1.4), (nx + 9, ny)], 0.8, 'ink', op=0.6), L([(nx + 2, ny + 2.6), (nx + 9, ny + 3.4)], 0.8, 'ink', op=0.6)]
+    return out
+
+
+def _tail(kit, base, p):
+    """꼬리: p['tail'] = 흔드는 각도(도). 강아지는 위로 말린 꼬리, 고양이는 긴 꼬리."""
+    a = math.radians(p['tail'])
+    if kit is DOG:
+        tip = (base[0] - 12 * math.cos(a) + 6 * math.sin(a), base[1] - 16 * math.cos(a) - 4 * math.sin(a))
+        mid = (base[0] - 9 + 3 * math.sin(a), base[1] - 4)
+        c = bez2(base, mid, tip, 8)
+        return [L(c, 6, 'dog'), L(c[-3:], 6, 'dogp_d')]
+    tip = (base[0] - 10 + 12 * math.sin(a), base[1] - 24 * math.cos(a * 0.5))
+    mid = (base[0] - 12, base[1] - 6)
+    c = bez2(base, mid, tip, 10) + [(tip[0] + 5 * math.cos(a), tip[1] - 4)]
+    out = [L(c, 4.6, 'cat')]
+    for f in (0.35, 0.6, 0.85):
+        i = int(f * (len(c) - 1))
+        out.append(E(c[i][0], c[i][1], 2.6, 1.6, 'cat_s', 30))
+    return out
+
+
+def quad(kit, p):
+    """서 있거나 걷는 네 발 동물"""
+    bob, view, tilt = p['bob'], p['view'], p['tilt']
+    bx, by = kit['bx'], kit['by'] + bob
+    c = (bx, by)
+    rt = lambda pt: _rot_about(pt, tilt, c)
+    hip_l, sho_l = rt((kit['hip'], kit['leg_y'] + bob)), rt((kit['sho'], kit['leg_y'] + bob))
+    feet = kit['feet']
+    legs = p['legs']
+
+    def leg(i, near):
+        dx, lift = legs[i]
+        top = hip_l if i % 2 == 0 else sho_l
+        top = (top[0] + (1.5 if near else -1.5), top[1] + (1 if near else 0))
+        foot = (feet[i] + dx, (0.0 if near else -2.5) - lift)
+        return _qleg(top, foot, kit['legw'], kit['body'] if near else kit['dark'], kit['paw'], kit['body'] if near else kit['dark'])
+
+    is_dog = kit is DOG
+    hr = kit['hr']
+    H = rt((kit['head'][0] + p['hx'], kit['head'][1] + bob + p['hy']))
+    tail_base = rt((bx - kit['rx'] + 2, by - kit['ry'] * 0.45))
+    body = [P([(x, y) for x, y in [rt(q) for q in ell_pts(bx, by, kit['rx'], kit['ry'], 0, 30)]], kit['body'])]
+    body.append(P([rt(q) for q in ell_pts(bx + 2, by + kit['ry'] * 0.45, kit['rx'] * 0.8, kit['ry'] * 0.45, 0, 20)], kit['dark'], soft=True))
+    if is_dog:
+        body.append(P([rt(q) for q in ell_pts(bx - 5, by - 6, 13, 6.2, 0, 20)], 'dogp'))
+        neck = P([rt((bx + 13, by - 9)), (H[0] - 9, H[1] + 2), (H[0] + 1, H[1] + 8), rt((bx + 22, by + 2))], 'dog')
+        collar = [L([(H[0] - 8, H[1] + 9), (H[0] - 2, H[1] + 12.5), (H[0] + 3, H[1] + 11)], 3.6, 'collar'),
+                  E(H[0] - 1, H[1] + 15, 2.2, 2.2, 'gold')]
+        head = _dog_head(H, p, hr)
+    else:
+        for f in (-0.45, -0.1, 0.25):
+            x = bx + kit['rx'] * f
+            body.append(L([rt((x - 2, by - kit['ry'] + 1)), rt((x + 1, by - 2))], 2.4, 'cat_s'))
+        neck = P([rt((bx + 10, by - 6)), (H[0] - 7, H[1] + 2), (H[0] + 2, H[1] + 7), rt((bx + 17, by + 2))], 'cat')
+        collar = [P([rt(q) for q in ell_pts(bx + 13, by + 2, 6, 4, 0, 14)], 'cat_l')]
+        head = _cat_head(H, p, hr)
+    tail = _tail(kit, tail_base, p)
+    shadow = [S(2, 1, kit['rx'] + 6, 7)]
+    if view == 'b':
+        return shadow + leg(0, False) + leg(1, False) + [neck] + head + body + collar[:0] + leg(2, True) + leg(3, True) + tail
+    return shadow + leg(0, False) + leg(1, False) + tail + body + leg(2, True) + leg(3, True) + [neck] + collar + head
+
+
+def emote_point(kit, p):
+    """감정 표시(!, 하트, zzz)를 띄울 자리: 머리 위"""
+    return (kit['head'][0] + p.get('hx', 0), kit['head'][1] + p.get('bob', 0) + p.get('hy', 0) - kit['hr'] - 10)
+
+
+def _dog_neck_head(body_pt, H, p):
+    neck = P([(body_pt[0] - 6, body_pt[1] - 6), (H[0] - 9, H[1] + 2), (H[0] + 1, H[1] + 8), (body_pt[0] + 6, body_pt[1] + 4)], 'dog')
+    collar = [L([(H[0] - 8, H[1] + 9), (H[0] - 2, H[1] + 12.5), (H[0] + 3, H[1] + 11)], 3.6, 'collar'), E(H[0] - 1, H[1] + 15, 2.2, 2.2, 'gold')]
+    return [neck] + collar + _dog_head(H, p, DOG['hr'])
+
+
+def _dog_sit(p):
+    wag = p['tail']
+    H = (14 + p['hx'], -47 + p['hy'])
+    tail = bez2((-13, -6), (-24, -1), (-31, -6 - wag), 8)
+    out = [S(-2, 1, 24, 7), L(tail, 6, 'dog'), L(tail[-3:], 6, 'dogp_d')]
+    out += _qleg((5, -24), (7, -2.5), 7.0, 'dog_d', DOG['paw'], 'dog_d')
+    out += [P(ell_pts(-5, -22, 12.5, 17, -18, 26), 'dog'), P(ell_pts(-8, -27, 8.5, 8, -18, 18), 'dogp'),
+            P(ell_pts(-2, -15, 8, 9, -18, 16), 'dog_d', soft=True), E(-9, -10, 11.5, 9, 'dog'), E(-6, -6, 8, 4, 'dog_d', soft=True),
+            E(1.5, -1.5, 5.5, 3, 'dog')]
+    out += _qleg((10, -22), (12, 0), 7.4, 'dog', DOG['paw'], 'dog')
+    return out + _dog_neck_head((6, -32), H, p), H
+
+
+def _dog_lie(p, sleep=False, breath=0.0):
+    H = (22 + p['hx'], -17 + p['hy']) if sleep else (20 + p['hx'], -30 + p['hy'])
+    tail = bez2((-19, -12), (-29, -12), (-31, -3), 8)
+    out = [S(-1, 1, 25, 7), L(tail, 6, 'dog'), L(tail[-3:], 6, 'dogp_d')]
+    out += _qleg((10, -8), (24, -4.5), 7.0, 'dog_d', DOG['paw'], 'dog_d')
+    out += [P(ell_pts(-2, -12 - breath * 0.5, 20, 10.5 + breath, 0, 28), 'dog'), P(ell_pts(-5, -18 - breath, 11, 5.5, 0, 18), 'dogp'),
+            P(ell_pts(0, -6, 15, 4, 0, 18), 'dog_d', soft=True), E(-11, -10, 10.5, 9, 'dog'), E(-8, -6, 7, 4, 'dog_d', soft=True),
+            E(-1, -2.5, 5.2, 2.7, 'dog')]
+    if sleep:
+        out += _dog_neck_head((10, -11), H, dict(p, eyes='closed', mouth='closed', ears=-2))
+        out += _qleg((12, -5), (27, -1), 7.2, 'dog', DOG['paw'], 'dog')
+    else:
+        out += _qleg((12, -5), (28, -1), 7.2, 'dog', DOG['paw'], 'dog')
+        out += _dog_neck_head((10, -13), H, p)
+    return out, H
+
+
+def _cat_sit(p):
+    H = (4 + p['hx'], -37 + p['hy'])
+    tip = (15, -6) if p['tail'] else (12, 0.5)
+    tail = bez2((-11, -3), (-5, 4), tip, 10)
+    out = [S(0, 1, 18, 6)]
+    out += _qleg((2, -15), (3, -2), 5.4, 'cat_d', CAT['paw'], 'cat_d')
+    out += [P(ell_pts(-2, -17, 11, 14, -10, 24), 'cat'), E(-6, -8, 9.5, 7.5, 'cat'),
+            L([(-10, -21), (-6, -17)], 2.2, 'cat_s'), L([(-11, -14), (-6, -11)], 2.2, 'cat_s'), L([(-11, -7), (-5, -5)], 2.2, 'cat_s'),
+            E(4, -21, 5, 8, 'cat_l')]
+    out += _qleg((6, -14), (7, 0), 5.6, 'cat', CAT['paw'], 'cat_l')
+    out += [L(tail, 4.6, 'cat')] + [E(tail[i][0], tail[i][1], 2.4, 1.6, 'cat_s', 60) for i in (4, 7)]
+    out += _cat_head(H, p, CAT['hr'])
+    return out, H
+
+
+def _cat_lie(p, sleep=False, breath=0.0):
+    out = [S(0, 1, 20, 6)]
+    if sleep:
+        H = (8 + p['hx'], -12 + p['hy'] - breath * 0.6)
+        out += [P(ell_pts(0, -10 - breath * 0.5, 16, 10.5 + breath, 0, 26), 'cat'),
+                L([(-9, -19), (-6, -12)], 2.4, 'cat_s'), L([(-2, -20), (0, -13)], 2.4, 'cat_s'), L([(-14, -12), (-10, -8)], 2.4, 'cat_s')]
+        out += _cat_head(H, dict(p, eyes='closed', ears=-3), CAT['hr'] * 0.95)
+        tail = bez2((-15, -5), (-6, 4), (13, 0), 10)
+        out += [L(tail, 4.8, 'cat')] + [E(tail[i][0], tail[i][1], 2.4, 1.7, 'cat_s', 75) for i in (3, 6, 9)]
+        return out, H
+    H = (14 + p['hx'], -22 + p['hy'])
+    tail = bez2((-17, -6), (-10, 2), (6, 1), 10)
+    out += [L(tail, 4.4, 'cat')] + [E(tail[i][0], tail[i][1], 2.3, 1.6, 'cat_s', 70) for i in (3, 7)]
+    out += [P(ell_pts(-1, -10, 18, 9.5, 0, 26), 'cat'), L([(-10, -19), (-7, -12)], 2.4, 'cat_s'), L([(-3, -19.5), (-1, -12)], 2.4, 'cat_s'),
+            E(11, -7, 6, 6, 'cat_l'), E(15, -2.5, 4, 2.4, 'cat_l'), E(9.5, -2, 3.6, 2.2, 'cat_l')]
+    out += _cat_head(H, p, CAT['hr'])
+    return out, H
+
+
+# 강아지와 고양이의 프레임(이름: 자세). 걷기 4장은 대각선 다리가 함께 움직이는 종종걸음.
+QWALK = {'walk1': dict(legs=((-6, 0), (8, 0), (8, 0), (-6, 0)), tail=15),
+         'walk3': dict(legs=((2, 4), (0, 0), (0, 0), (2, 4)), bob=-1.5, tail=5),
+         'walk2': dict(legs=((8, 0), (-6, 0), (-6, 0), (8, 0)), tail=-15),
+         'walk4': dict(legs=((0, 0), (2, 4), (2, 4), (0, 0)), bob=-1.5, tail=-5)}
+
+
+def _qframes(kind):
+    out = {'idle': ('q', qpose()), 'idle2': ('q', qpose(bob=-1, tail=-18 if kind == 'dog' else 12))}
+    for n in ('walk1', 'walk2', 'walk3', 'walk4'):
+        out[n] = ('q', qpose(**QWALK[n]))
+    for n in ('walk1', 'walk2', 'walk3', 'walk4'):
+        out['b' + n] = ('q', qpose(view='b', **QWALK[n]))
+    out['bidle'] = ('q', qpose(view='b'))
+    if kind == 'dog':
+        out.update(sit=('sit', qpose(tail=0, mouth='tongue')), sit2=('sit', qpose(tail=10, mouth='tongue')),
+                   lie=('lie', qpose()), sleep1=('sleep', 0.0), sleep2=('sleep', 1.0),
+                   happy1=('q', qpose(mouth='tongue', eyes='happy', tilt=-14, legs=((0, 0), (4, 9), (0, 0), (6, 11)), tail=30)),
+                   happy2=('q', qpose(mouth='tongue', eyes='happy', bob=-1, tail=-30)),
+                   bark=('q', qpose(mouth='bark', hy=-3, legs=((-3, 0), (4, 0), (-3, 0), (5, 0)))),
+                   bite0=('q', qpose(tilt=8, hy=6, hx=-2, legs=((-2, 0), (-2, 0), (-2, 0), (-1, 0)), tail=10)),
+                   bite=('q', qpose(tilt=4, hx=8, hy=3, mouth='bark', legs=((4, 0), (10, 0), (4, 0), (12, 0)), tail=-10)))
+    else:
+        out.update(sit=('sit', qpose(tail=0)), sit2=('sit', qpose(tail=1)),
+                   lie=('lie', qpose()), sleep1=('sleep', 0.0), sleep2=('sleep', 1.0),
+                   happy1=('q', qpose(eyes='happy', tilt=6, hy=4, tail=-28)), happy2=('q', qpose(eyes='happy', bob=-1, hy=1, tail=-12)),
+                   meow=('sit', qpose(mouth='meow', hy=-2)))
+    return out
+
+
+DOG_FRAMES, CAT_FRAMES = _qframes('dog'), _qframes('cat')
+
+
+def pet(kind, name):
+    """(도형, 머리 가운데) 를 돌려준다."""
+    kit = DOG if kind == 'dog' else CAT
+    how, arg = (DOG_FRAMES if kind == 'dog' else CAT_FRAMES)[name]
+    if how == 'q':
+        H = (kit['head'][0] + arg['hx'], kit['head'][1] + arg['bob'] + arg['hy'])
+        return quad(kit, arg), _rot_about(H, arg['tilt'], (kit['bx'], kit['by'] + arg['bob']))
+    if how == 'sit':
+        return _dog_sit(arg) if kind == 'dog' else _cat_sit(arg)
+    if how == 'lie':
+        return _dog_lie(arg) if kind == 'dog' else _cat_lie(arg)
+    return _dog_lie(qpose(), sleep=True, breath=arg) if kind == 'dog' else _cat_lie(qpose(), sleep=True, breath=arg)
+
+
+
+# ---- 3단계 아이콘(가운데 (0,0), 대략 ±52 안)
+def _packet(inner, band):
+    body = [(-30, -36), (30, -36), (32, 40), (-32, 40)]
+    return [P(body, 'packet'), P([(-30, -36), (30, -36), (31, -24), (-31, -24)], 'packet_d'),
+            L([(-28, -30), (28, -30)], 1.4, 'ink', op=0.4), P([(-32, 26), (32, 26), (32, 40), (-32, 40)], band)] + xform(inner, 0, 2, 1.0)
+
+
+def _carrot_item(k=1.0):
+    root = [(-6, -14), (6, -14), (4, 6), (1, 26), (-1, 26), (-4, 6)]
+    out = [L([(0, -14), (-8, -34)], 3, 'leafA_d'), L([(0, -14), (2, -38)], 3, 'leafA_d'), L([(0, -14), (10, -32)], 3, 'leafA_d'),
+           E(-8, -34, 4.5, 3, 'leafA', -60), E(2, -38, 4.5, 3, 'leafB', -80), E(10, -32, 4.5, 3, 'leafA', -110),
+           P([(x * 1.5, y) for x, y in root], 'carrot'), P([(1, -14), (9, -14), (6, 6), (1, 26)], 'carrot_d', soft=True)]
+    for y in (-4, 6, 14):
+        out.append(L([(-5 + y * 0.12, y), (-1, y + 1)], 1.4, 'carrot_d'))
+    return xform(out, 0, 0, k)
+
+
+def _corn_item(k=1.0):
+    out = [E(0, 0, 13, 30, 'corn', 20)]
+    for i in range(-3, 4):
+        for j in range(-6, 7, 2):
+            x, y = i * 4.2, j * 4.4
+            a = math.radians(20)
+            if (x / 12) ** 2 + (y / 28) ** 2 < 0.9:
+                out.append(E(x * math.cos(a) - y * math.sin(a), x * math.sin(a) + y * math.cos(a), 1.9, 1.6, 'corn_d', op=0.5))
+    out += [P([(-6, 30), (-24, 10), (-20, 34)], 'husk'), P([(4, 30), (22, 18), (10, 40)], 'leafB'), P([(-2, 26), (-14, 0), (2, 22)], 'leafA')]
+    return xform(out, 0, 0, k)
+
+
+def icon3(name):
+    noshadow = lambda ps: [p for p in ps if p[-1].get('tag') != 'shadow']
+    if name == 'hoe':
+        return farm_tool_prims('hoe', (-22, 30), -60, 1.9)
+    if name == 'watering_can':
+        return xform(farm_tool_prims('can', (-10, -26), 0, 1.0), 0, 0, 2.2)
+    if name == 'farm':
+        return soil(True) + carrot('grow')
+    if name == 'gate':
+        return noshadow(gate('col', 'closed'))
+    if name == 'carrot':
+        return _carrot_item()
+    if name == 'corn':
+        return _corn_item()
+    if name == 'pumpkin':
+        return _pumpkin(0, 0, 34, 24) + [_pleaf(-22, -18, 12, -30)[0]]
+    if name == 'seed_carrot':
+        return _packet(_carrot_item(0.55), 'carrot')
+    if name == 'seed_corn':
+        return _packet(_corn_item(0.55), 'corn_d')
+    if name == 'seed_pumpkin':
+        return _packet(_pumpkin(0, 4, 18, 13), 'pumpkin_d')
+    if name in ('rain', 'snow'):
+        cloud = [E(-14, -6, 20, 16, 'smoke'), E(10, -14, 22, 19, 'smoke_l'), E(26, -2, 16, 13, 'smoke'), E(0, 2, 34, 12, 'smoke'),
+                 E(4, 6, 30, 7, 'smoke_d', soft=True)]
+        if name == 'rain':
+            drops = [L([(x, y), (x - 4, y + 11)], 4, 'splash_d') for x, y in ((-18, 20), (-2, 26), (14, 20), (28, 28))]
+        else:
+            drops = []
+            for x, y, r in ((-18, 24, 6), (2, 32, 7), (22, 24, 6)):
+                for a in (0, 60, 120):
+                    t = math.radians(a)
+                    drops.append(L([(x - math.cos(t) * r, y - math.sin(t) * r), (x + math.cos(t) * r, y + math.sin(t) * r)], 2.4, 'zzz'))
+        return cloud + drops
+    if name in ('hunger', 'hunger_empty', 'berry'):
+        return icon_hunger(name)
+    if name in ('sound_on', 'sound_off'):
+        spk = [P([(-30, -10), (-16, -10), (2, -26), (2, 26), (-16, 10), (-30, 10)], 'ink')]
+        if name == 'sound_on':
+            return spk + [L([(12 + 8 * math.cos(t), 10 * math.sin(t)) for t in [math.radians(a) for a in range(-50, 51, 10)]], 4, 'ink'),
+                          L([(14 + 18 * math.cos(t), 20 * math.sin(t)) for t in [math.radians(a) for a in range(-50, 51, 10)]], 4, 'ink')]
+        return spk + [L([(12, -12), (32, 12)], 5, 'heart'), L([(32, -12), (12, 12)], 5, 'heart')]
+    raise KeyError(name)
+
+
+# ---- 3단계 효과
+def water_frames():
+    """물뿌리개 물방울이 밭에 떨어지는 효과(기준점 = 밭 가운데)"""
+    drop = lambda x, y, op=1.0: P([(x, y - 4), (x + 2, y), (x, y + 2), (x - 2, y)], 'splash_d', **({'op': op} if op < 1 else {}))
+    return [[drop(-10, -34), drop(0, -38), drop(9, -32)],
+            [drop(-10, -18), drop(0, -22), drop(9, -16), drop(-4, -34), drop(5, -36)],
+            [E(-10, -1, 5, 1.8, 'foam'), E(9, 1, 5, 1.8, 'foam'), drop(-4, -16), drop(5, -18), E(0, 0, 4, 1.6, 'splash')],
+            [E(-4, -1, 7, 2.4, 'foam', op=0.6), E(5, 1, 7, 2.4, 'foam', op=0.6), E(-10, 2, 5, 2, 'wsoil_d', op=0.5), E(9, 3, 5, 2, 'wsoil_d', op=0.5)]]
+
+
+EMOTES = ['alert', 'heart', 'note', 'zzz1', 'zzz2', 'zzz3']
+
+
+def emote(name):
+    """머리 위에 띄우는 표시(기준점 = 아래 가운데)"""
+    z = lambda x, y, s, op=1.0: L([(x, y), (x + s, y), (x, y + s), (x + s, y + s)], max(2.2, s * 0.24), 'zzz', **({'op': op} if op < 1 else {}))
+    if name == 'alert':
+        return [E(0, -16, 12, 12, 'white'), P([(-4, -6), (0, 1), (4, -6)], 'white'), L([(0, -23), (0, -14)], 3.8, 'heart'), E(0, -8.5, 2.1, 2.1, 'heart')]
+    if name == 'heart':
+        return xform(heart('pink'), 0, -12, 0.34) + [E(-4, -16, 2.4, 1.6, 'white', -30, op=0.7)]
+    if name == 'note':
+        return [E(-3, -6, 4.4, 3.2, 'note', -20), L([(1, -7), (1, -25)], 2.4, 'note'), L([(1, -25), (8, -21), (7, -15)], 2.4, 'note')]
+    if name == 'zzz1':
+        return [z(-3, -12, 8)]
+    if name == 'zzz2':
+        return [z(-3, -12, 8), z(3, -24, 10)]
+    return [z(-3, -12, 8, 0.6), z(3, -24, 10), z(10, -38, 12)]
+
+
+# ---- 날씨
+WEATHER_PARTS = ['rain1', 'rain2', 'snow1', 'snow2', 'snow3']
+
+
+def weather_part(name):
+    """빗방울, 눈송이(가운데 기준). 비는 오른쪽 아래로 비스듬히 떨어진다."""
+    if name == 'rain1':
+        return [L([(-3, -14), (3, 14)], 2.6, 'splash', op=0.85)]
+    if name == 'rain2':
+        return [L([(-2, -9), (2, 9)], 2.2, 'splash', op=0.7)]
+    if name == 'snow1':
+        return [E(0, 0, 4, 4, 'white')]
+    if name == 'snow2':
+        return [E(0, 0, 6, 6, 'white', op=0.9), E(-1, -1, 3, 3, 'white')]
+    out = []
+    for a in (0, 60, 120):
+        t = math.radians(a)
+        out.append(L([(-math.cos(t) * 7, -math.sin(t) * 7), (math.cos(t) * 7, math.sin(t) * 7)], 2.0, 'white'))
+    return out + [E(0, 0, 2.4, 2.4, 'white')]
+
+
+def rain_splash_frames():
+    return [[E(0, 0, 3, 1.2, 'foam'), L([(0, -1), (0, -5)], 1.4, 'splash')],
+            [E(0, 0, 6, 2, 'foam', op=0.8), L([(-3, -1), (-5, -6)], 1.3, 'splash'), L([(3, -1), (5, -6)], 1.3, 'splash')],
+            [L(ell_pts(0, 0, 8, 2.8, 0, 20) + [ell_pts(0, 0, 8, 2.8, 0, 20)[0]], 1.4, 'foam', op=0.7), E(-6, -7, 1, 1, 'splash'), E(6, -7, 1, 1, 'splash')],
+            [L(ell_pts(0, 0, 11, 3.6, 0, 20) + [ell_pts(0, 0, 11, 3.6, 0, 20)[0]], 1.1, 'foam', op=0.4)]]
+
+
+def puddle(seed):
+    """비가 올 때 땅에 생기는 물웅덩이(기준점 = 가운데, 바닥에 붙는다)"""
+    rng = random.Random(seed)
+    pts = []
+    for i in range(24):
+        a = 2 * math.pi * i / 24
+        r = 1 + 0.18 * math.sin(3 * a + rng.uniform(0, 6)) + 0.1 * math.sin(5 * a + rng.uniform(0, 6))
+        pts.append((math.cos(a) * 30 * r, math.sin(a) * 13 * r))
+    return [P([(x, y + 1.5) for x, y in pts], 'wsoil_d', op=0.35), P(pts, 'splash_d', op=0.75),
+            P([(x * 0.8 - 2, y * 0.7 - 1) for x, y in pts], 'splash', op=0.7),
+            L([(-14, -4), (2, -6)], 2.2, 'white', op=0.6), L([(6, 3), (14, 2)], 1.6, 'white', op=0.5)]
+
+
+
+# ---- 배고픔(16장): 배부름 아이콘, 열매
+def _bowl(full=True):
+    body = bez3((-40, -4), (-38, 22), (-20, 30), (0, 30)) + bez3((0, 30), (20, 30), (38, 22), (40, -4))[1:]
+    if not full:
+        return [P(body + [(40, -4)], 'heart_e'), E(0, -4, 40, 8, 'heart_e'), L([(-14, 33), (14, 33)], 5, 'heart_e')]
+    out = [E(0, -10, 33, 22, 'white'), E(-10, -18, 12, 8, 'canvas_l', soft=True)]
+    for x, y in ((-16, -12), (-4, -22), (8, -14), (18, -6), (-22, -4), (2, -6), (12, -24)):
+        out.append(E(x, y, 3.2, 2.0, 'canvas', 25))
+    out += [E(6, -26, 5, 3, 'leafA', -20), E(10, -27, 4, 2.6, 'leafB', 30)]
+    out += [P(body + [(40, -4)], 'wood'), P(bez3((4, 0), (30, 2), (34, 18), (10, 29)) + [(4, 20)], 'wood_d', soft=True),
+            L([(-40, -4), (40, -4)], 4, 'wood_l'), L([(-16, 33), (16, 33)], 5, 'wood_d'),
+            L([(-30, 10), (-12, 14)], 2, 'wood_l', op=0.7)]
+    return out
+
+
+def _berries(k=1.0):
+    out = [L([(0, -22), (4, -34)], 2.6, 'leafA_d'), E(10, -34, 9, 5, 'leafA', -25), L([(4, -32), (13, -35)], 1.2, 'leafA_d')]
+    for x, y in ((-12, 4), (12, 6), (0, -12)):
+        out += [E(x, y, 13, 13, 'berry'), E(x + 4, y + 4, 7, 7, 'heart', soft=True, op=0.6), E(x - 4, y - 5, 3.6, 2.6, 'white', -30, op=0.8)]
+    return xform(out, 0, 0, k)
+
+
+def icon_hunger(name):
+    if name == 'hunger':
+        return _bowl(True)
+    if name == 'hunger_empty':
+        return _bowl(False)
+    if name == 'berry':
+        return _berries()
+    raise KeyError(name)

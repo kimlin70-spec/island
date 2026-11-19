@@ -17,6 +17,7 @@ export class RestSystem {
     p.stopAction();
     p.sprite.setVisible(false);
     this.tent = tent;
+    this.scene.sfx.play('tent');
     tent.sprite.setTexture('build_tent_lit');
     this.healLeft = CONFIG.build.tent.healInterval;
     this.scene.events.emit('rest-changed');
@@ -26,6 +27,7 @@ export class RestSystem {
   exit() {
     if (!this.tent) return;
     if (this.tent.sprite.active) this.tent.sprite.setTexture('build_tent');
+    this.scene.sfx.play('tent');
     this.tent = null;
     this.scene.player.sprite.setVisible(true);
     this.scene.events.emit('rest-changed');
