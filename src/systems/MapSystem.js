@@ -37,9 +37,16 @@ export class MapSystem {
     return !(o && o.blocks);
   }
 
-  // 주인공이 걸을 수 있는 칸인가. 시설(울타리, 모닥불, 텐트)이 있는 칸은 지나갈 수 없다.
-  // 문서 5.1은 "주인공은 자기 울타리를 넘어 다닐 수 있다"이지만, 사용자 요청으로 울타리도 막는다.
+  // 주인공이 걸을 수 있는 칸인가. 시설(울타리, 모닥불, 텐트)이 있는 칸은 지나갈 수 없다. 문은 지나간다(13.2).
+  // 문서 5.1은 "주인공은 자기 울타리를 넘어 다닐 수 있다"이지만, 사용자 요청으로 울타리도 막는다(Phase 11 부터는 문서도 같다).
   isWalkable(col, row) {
+    if (!this.isOpen(col, row)) return false;
+    const s = this.structGrid[row * this.cols + col];
+    return !s || s.type === 'gate';
+  }
+
+  // 적에게 막히지 않은 칸인가: 땅이고 시설이 없는 칸. 적에게 문은 울타리와 같다(13.2)
+  isPassable(col, row) {
     return this.isOpen(col, row) && !this.structGrid[row * this.cols + col];
   }
 
@@ -131,7 +138,7 @@ export class MapSystem {
     for (const h of hits) {
       const s = h.s;
       const alpha = this.scene.textures.getPixelAlpha(h.lx, h.ly, s.texture.key, s.frame.name);
-      const min = h.o.type === 'fence' || h.o.type === 'wire' ? CONFIG.input.pickAlphaFence : CONFIG.input.pickAlpha;
+      const min = h.o.type === 'fence' || h.o.type === 'wire' || h.o.type === 'gate' ? CONFIG.input.pickAlphaFence : CONFIG.input.pickAlpha;
       if (alpha !== null && alpha > min) return h.o;
     }
     return null;

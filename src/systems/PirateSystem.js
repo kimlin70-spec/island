@@ -106,7 +106,7 @@ export class PirateSystem {
     const out = [];
     for (let r = 0; r < m.rows; r++) {
       for (let c = 0; c < m.cols; c++) {
-        if (m.isWalkable(c, r) && !busy.has(c + ',' + r)) out.push({ col: c, row: r, d: Math.hypot(c - L.col, r - L.row) });
+        if (m.isPassable(c, r) && !busy.has(c + ',' + r)) out.push({ col: c, row: r, d: Math.hypot(c - L.col, r - L.row) });
       }
     }
     out.sort((a, b) => a.d - b.d || a.row - b.row || a.col - b.col);

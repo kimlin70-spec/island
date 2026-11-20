@@ -10,11 +10,12 @@ const CAMPFIRE = { id: 'campfire', type: 'build',  icon: 'icon_campfire' };
 const TENT     = { id: 'tent',     type: 'build',  icon: 'icon_tent' };
 const WATCH    = { id: 'watchtower', type: 'build', icon: 'icon_watchtower' };
 const GUNTOWER = { id: 'guntower',   type: 'build', icon: 'icon_guntower' };
+const GATE     = { id: 'gate',     type: 'build',  icon: 'icon_gate' };
 const REMOVE   = { id: 'remove',   type: 'remove', icon: 'icon_remove', name: '치우기', note: '절반 돌려받음' };
 // 1단계: 6장 한 줄
 export const CARDS = [AXE, PICKAXE, FENCE, CAMPFIRE, TENT, REMOVE];
-// 2단계: 10장 두 줄(11.3)
-export const CARDS2 = [AXE, PICKAXE, GUN, FENCE, WIRE, CAMPFIRE, TENT, WATCH, GUNTOWER, REMOVE];
+// 2단계: 10장 두 줄(11.3). (3단계, 사용자와 정함) 셋째 줄에 문. 농사 카드(Phase 12)도 셋째 줄에 더한다
+export const CARDS2 = [AXE, PICKAXE, GUN, FENCE, WIRE, CAMPFIRE, TENT, WATCH, GUNTOWER, REMOVE, GATE];
 export function cardsFor(stage) { return stage >= 2 ? CARDS2 : CARDS; }
 
 function source(card) {

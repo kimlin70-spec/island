@@ -2,14 +2,16 @@ import { CONFIG } from '../config.js';
 import { tileToWorld, worldToTile, worldToTileFloat } from '../iso.js';
 import { isTower } from './TowerSystem.js';
 
-// 짓기와 치우기 (5.4). 시설: 울타리, 모닥불, 텐트, (2단계) 철조망, 망루, 총 타워.
+// 짓기와 치우기 (5.4). 시설: 울타리, 모닥불, 텐트, (2단계) 철조망, 망루, 총 타워, (3단계) 문.
 export const REMOVE = 'remove';
 const SPRITE = { fence: 'build_fence_0', campfire: 'build_campfire', tent: 'build_tent', wire: 'build_wire_0',
-                 watchtower: 'build_watchtower', guntower: 'build_guntower' };
+                 watchtower: 'build_watchtower', guntower: 'build_guntower', gate: 'build_gate_col' };
 const TALL = { tent: true, watchtower: true, guntower: true };   // 캐릭터를 가릴 수 있는 키 큰 시설(3.4)
 const BROKEN = { wire: ['iron'], guntower: ['stone1', 'stone2'] };   // 부서질 때의 조각(12.6). 그 밖은 나무
 const OPEN = { wire: true };            // 길을 막지 않는 시설(누구나 지나간다, 11.4)
-const LINKED = { fence: 'build_fence_', wire: 'build_wire_' };   // 이웃한 같은 시설끼리 이어지는 그림(3.6, 11.4)
+const LINKED = { fence: 'build_fence_', wire: 'build_wire_', gate: true };   // 이웃한 같은 시설끼리 이어지는 그림(3.6, 11.4, 13.2)
+// 이어지는 무리: 울타리는 문과도 이어진다(13.2). 문 그림은 이어진 울타리의 방향으로 고른다(gateKey)
+const LINK_GROUP = { fence: ['fence', 'gate'], gate: ['fence', 'gate'], wire: ['wire'] };
 const ICON = { wood: 'icon_wood', stone: 'icon_stone', iron: 'icon_iron' };
 
 export class BuildSystem {
@@ -138,6 +140,7 @@ export class BuildSystem {
       blocks: !OPEN[type],                           // 철조망만 false
     };
     if (isTower(type)) scene.towers.attach(s);           // 포탑(11.10)
+    if (type === 'gate') s.open = false;                  // (3단계) 문: 열려 있는가(보이는 것만. 적은 늘 막힌다)
     if (type === 'campfire') {
       // 불꽃 애니메이션과 빛무리(월드에 ADD로 올린다. 모닥불 바로 위)
       sprite.play(SPRITE[type] + '_burn');
@@ -218,6 +221,24 @@ export class BuildSystem {
     }
   }
 
+  // (3단계) 문 열고 닫기 (13.2): 주인공이 openRange 칸 안에 오면 open 과 gate_open, closeRange 칸보다 멀어지면 close 와 gate_close.
+  // 텐트 안의 주인공은 문 곁에 없는 것으로 본다. (친구가 된 동물은 Phase 13 에서 더한다)
+  updateGates() {
+    const G = CONFIG.build.gate, p = this.scene.player, out = this.scene.rest.resting;
+    for (const s of this.map.structures) {
+      if (s.type !== 'gate') continue;
+      const d = out ? Infinity : Math.hypot(p.col - s.col, p.row - s.row);
+      if (!s.open && d <= G.openRange) this.swingGate(s, true);
+      else if (s.open && d > G.closeRange) this.swingGate(s, false);
+    }
+  }
+
+  swingGate(s, open) {
+    s.open = open;
+    s.sprite.play(s.sprite.texture.key + (open ? ':open' : ':close'));
+    this.scene.sfx.play(open ? 'gate_open' : 'gate_close', { at: s.sprite });
+  }
+
   // 지을 수 있는 거리의 원: 짓는 상태(치우기 제외)에서 주인공의 발을 가운데로. canBuildAt 의 reach 와 같은 원이다.
   syncReach() {
     const p = this.scene.player, on = this.building && !p.downed;
@@ -230,6 +251,7 @@ export class BuildSystem {
   // 밤에는 모닥불마다 불꽃에서 불티가 emberEvery 초마다 하나씩 오른다 (12.6). 지은 탑을 눌러 띄운 사거리 원을 시간이 되면 숨긴다.
   update(dt) {
     this.syncReach();
+    this.updateGates();
     if (this.rangeLeft > 0 && (this.rangeLeft -= dt) <= 0 && !isTower(this.mode)) this.range.setVisible(false);
     if (!this.scene.clock.isNight) return;
     const F = CONFIG.fx, flame = this.map.assets.build_campfire.flame;
@@ -250,11 +272,24 @@ export class BuildSystem {
     }
   }
 
-  // 울타리·철조망 연결 (3.6, 11.4): 이웃 칸에 같은 시설이 있는 방향으로 이어진다. build_fence_0~15, build_wire_0~15.
-  // 울타리와 철조망은 서로 이어지지 않는다.
+  // 울타리·철조망 연결 (3.6, 11.4): 이웃 칸에 같은 무리의 시설이 있는 방향으로 이어진다. build_fence_0~15, build_wire_0~15.
+  // 울타리와 철조망은 서로 이어지지 않는다. 울타리는 문과 이어진다(문 칸도 울타리로 본다, 13.2).
   sameAt(type, col, row) {
     const s = this.map.anyStructureAt(col, row);
-    return !!s && s.type === type;
+    return !!s && LINK_GROUP[type].includes(s.type);
+  }
+
+  // 문 그림 (13.2): 이웃 울타리(문 포함)가 col 방향에 있으면 build_gate_col, row 방향이면 build_gate_row. 둘 다이거나 없으면 col
+  gateKey(col, row) {
+    const c = this.sameAt('gate', col + 1, row) || this.sameAt('gate', col - 1, row);
+    const r = this.sameAt('gate', col, row + 1) || this.sameAt('gate', col, row - 1);
+    return r && !c ? 'build_gate_row' : 'build_gate_col';
+  }
+
+  // 문 그림을 고르고, 열려 있으면 열린 모습(open3), 아니면 닫힌 모습(closed)
+  setGateTexture(s) {
+    const key = this.gateKey(s.col, s.row), frames = this.map.assets[key].frames;
+    s.sprite.setTexture(key, frames.indexOf(s.open ? 'open3' : 'closed'));
   }
 
   linkMask(type, col, row) {
@@ -267,7 +302,8 @@ export class BuildSystem {
     for (const [dc, dr] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) {
       if (!this.sameAt(type, col + dc, row + dr)) continue;
       const s = this.map.anyStructureAt(col + dc, row + dr);
-      s.sprite.setTexture(LINKED[type] + this.linkMask(type, s.col, s.row));
+      if (s.type === 'gate') this.setGateTexture(s);
+      else s.sprite.setTexture(LINKED[s.type] + this.linkMask(s.type, s.col, s.row));
     }
   }
 

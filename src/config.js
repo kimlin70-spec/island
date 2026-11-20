@@ -33,6 +33,8 @@ export const CONFIG = {
     reach: 7, refundRate: 0.5,
     reachCircle: { tint: 0x7fd858, alpha: 0.9 },   // 초록: 탑의 사거리 원(색 없음)과 구별되게   // (사용자 요청) 짓는 동안 주인공 둘레에 지을 수 있는 거리(reach)를 원으로 보여 준다. 그림은 overlay_range
     fence:    { name: '울타리', cost: { wood: 1 }, hp: 6 },
+    // (3단계) 문 (13.2, 13.6 의 gate). 주인공이 openRange 칸 안에 오면 열리고, closeRange 칸보다 멀어지면 닫힌다
+    gate:     { name: '문', cost: { wood: 3 }, hp: 10, openRange: 1.3, closeRange: 1.8 },
     campfire: { name: '모닥불', cost: { wood: 3, stone: 3 }, hp: 10, slowRange: 3, slow: 0.5,
                 light: { radius: 300, color: 0xffedc7, alpha: 1,
                          flicker: 0.03, flickerRates: [11, 27] },    // 반지름이 ±3%로 일렁인다. 일렁이는 빠르기(라디안/초) 두 가지를 섞는다
@@ -88,7 +90,8 @@ export const CONFIG = {
            fire: { near: 2, far: 8, volume: 0.6 },   // 모닥불 곁: 가장 가까운 모닥불까지 near 칸 안 volume, far 칸에서 0 (15.3)
            groanEvery: [8, 15] },      // 밤 동안 좀비 하나가 신음하는 간격(초) (15.3)
   todo:   { fenceCount: 8 },
-  todo2:  { iron: 5, wire: 6 },        // (2단계) 할 일: 캔 철광석 수, 깐 철조망 수 (11.1)
+  todo2:  { iron: 5, wire: 6 },
+  todo3:  { farm: 6 },                 // (3단계) 할 일: 간 밭 수 (13.5)        // (2단계) 할 일: 캔 철광석 수, 깐 철조망 수 (11.1)
 
   // ── 아래는 6장에 없는, 화면과 조작에 쓰는 숫자 ──
   screen: {

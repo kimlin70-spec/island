@@ -16,6 +16,7 @@ import { TowerSystem, isTower } from '../systems/TowerSystem.js';
 import { Shots } from '../systems/Shots.js';
 import { Sound } from '../systems/Sound.js';
 import { bestTool, cardCost, cardName, objectParticle } from '../systems/Crafting.js';
+import { TODO_ITEMS2 } from '../systems/Todo.js';
 
 // 월드: 섬, 사물, 주인공, 적, 카메라, 누르기, 시간. 화면 UI(UIScene)에는 events 로 바뀐 것을 알린다.
 //   inventory-changed, tools-changed, todo-changed, build-changed, structures-changed,
@@ -33,7 +34,7 @@ export class GameScene extends Phaser.Scene {
     this.frame = 0;                                   // 프레임 번호(효과와 그림의 시간을 언제부터 셀지 정할 때 쓴다)
     this.updating = false;                            // 프레임을 돌리는 중인가(아니면 프레임 사이: 누르기 등)
     this.elapsed = 0;                                 // 흐른 게임 시간(초). 모닥불 빛이 일렁이는 데 쓴다.
-    this.stage = 1;                                   // 1단계, 2단계(첫 밤의 결과 창에서 "계속하기" 뒤, 11.1)
+    this.stage = 1;                                   // 1단계, 2단계(첫 밤의 결과 창에서 "계속하기" 뒤, 11.1), 3단계(2단계의 할 일을 모두 마친 뒤. 사용자와 정함)
     this.ironMined = 0;                               // (2단계) 캔 철광석 수(할 일 1번)
 
     this.sfx = new Sound(this);                       // 효과음 (15장)
@@ -79,6 +80,7 @@ export class GameScene extends Phaser.Scene {
     this.input.on('gameout', () => this.pointerLeft());
 
     // 낮과 밤 (5.5)
+    this.events.on('todo-changed', () => this.checkStage3());
     // 소리 (15.3): 저녁, 밤, 아침. 배경 소리는 저녁과 아침에 낮·밤을 서로 바꿔 튼다
     this.events.on('dusk', () => { this.notice('곧 밤이 됩니다'); this.sfx.play('dusk'); this.setAmbience(true); });
     this.events.on('night', () => { this.notice('밤이 되었습니다'); this.sfx.play('night_start'); this.setAmbience(true); });
@@ -130,7 +132,7 @@ export class GameScene extends Phaser.Scene {
     else if (o && o.node) this.pressNode(o);               // 나무, 돌, 철광석, 그루터기, 돌 부스러기
     else if (o && o.type === 'tent') this.pressTent(o);
     else if (o && isTower(o.type)) this.build.showRange(o, o.type, CONFIG.tower.rangeShowTime);   // 지은 탑: 사거리 원 2초 (11.5)
-    else if (o && (o.type === 'fence' || o.type === 'wire')) this.walkTo(o.col, o.row);   // 울타리·철조망을 누른 것은 그 칸(땅)을 누른 것과 같다(철조망 칸은 걸어갈 수 있다).
+    else if (o && (o.type === 'fence' || o.type === 'wire' || o.type === 'gate')) this.walkTo(o.col, o.row);   // 울타리·철조망을 누른 것은 그 칸(땅)을 누른 것과 같다(철조망 칸은 걸어갈 수 있다).
     else if (!o) this.walkTo(t.col, t.row);           // 땅
     // 덤불, 모닥불은 눌러도 아무 일이 없다. 울타리 칸은 지나갈 수 없는 칸이라 아무 일이 없다.
   }
@@ -269,6 +271,14 @@ export class GameScene extends Phaser.Scene {
     if (this.build.count('wire') >= CONFIG.todo2.wire) this.todo.check('wire');
   }
 
+  // (3단계) 2단계의 할 일을 모두 마치면 할 일 목록이 3단계로 바뀐다(사용자와 정함). 그때 이미 지은 문이 있으면 "문 달기"를 체크
+  checkStage3() {
+    if (this.stage !== 2 || !TODO_ITEMS2.every((t) => this.todo.isDone(t.id))) return;
+    this.stage = 3;
+    this.events.emit('stage-changed');
+    if (this.build.count('gate') > 0) this.todo.check('gate');
+  }
+
   onIronMined(n) {
     this.ironMined += n;
     this.checkStage2();
@@ -379,6 +389,7 @@ export class GameScene extends Phaser.Scene {
   onBuilt(s) {
     if (s.type === 'campfire' || s.type === 'tent') this.todo.check(s.type);
     if (isTower(s.type)) this.todo.check(s.type);    // (2단계) 할 일 3번 망루 세우기, 4번 총 타워 세우기
+    if (s.type === 'gate' && this.stage >= 3) this.todo.check('gate');   // (3단계) 문 달기
     if (this.build.count('fence') >= CONFIG.todo.fenceCount) this.todo.check('fence');
     this.checkStage2();
   }

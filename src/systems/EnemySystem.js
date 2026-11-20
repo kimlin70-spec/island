@@ -33,7 +33,7 @@ export class EnemySystem {
   // 그런 곳이 없으면 가장 먼 곳. 시설을 지어 막힌 자리는 쓰지 않는다.
   spawnPoint() {
     const p = this.scene.player, min = CONFIG.zombie.spawnMinDistance;
-    const free = this.scene.mapData.zombieSpawns.filter((t) => this.map.isWalkable(t.col, t.row));
+    const free = this.scene.mapData.zombieSpawns.filter((t) => this.map.isPassable(t.col, t.row));
     if (!free.length) return null;
     const dist = (t) => Math.hypot(t.col - p.col, t.row - p.row);
     const far = free.filter((t) => dist(t) >= min);

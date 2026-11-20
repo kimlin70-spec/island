@@ -76,7 +76,7 @@ export class Enemy extends Walker {
   }
 
   // 비스듬히 갈 때 양옆 칸은 비어 있어야 한다. 시설 두 개 사이를 비스듬히 빠져나가지 않는다.
-  sideOk(col, row) { return this.map.isWalkable(col, row); }
+  sideOk(col, row) { return this.map.isPassable(col, row); }
 
   // 다음 칸이 시설이면 그 앞에서 멈춘다(부순 다음에 간다)
   mayEnter(t) { return !this.map.structureAt(t.col, t.row); }
