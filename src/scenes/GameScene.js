@@ -18,6 +18,7 @@ import { Sound } from '../systems/Sound.js';
 import { FarmSystem, CROPS } from '../systems/FarmSystem.js';
 import { PetSystem } from '../systems/PetSystem.js';
 import { WeatherSystem } from '../systems/WeatherSystem.js';
+import { HungerSystem } from '../systems/HungerSystem.js';
 import { bestTool, cardCost, cardName, objectParticle } from '../systems/Crafting.js';
 import { TODO_ITEMS2 } from '../systems/Todo.js';
 
@@ -48,6 +49,7 @@ export class GameScene extends Phaser.Scene {
     this.effects = new Effects(this);
     this.clock = new TimeSystem(this);
     this.hearts = new Hearts(this);
+    this.hunger = new HungerSystem(this);             // 배고픔과 덤불 열매 (16장)
 
     this.map = new MapSystem(this, this.mapData, manifest);
     this.map.build();
@@ -137,6 +139,7 @@ export class GameScene extends Phaser.Scene {
     if (e) this.pressEnemy(e);                        // 적: 다가가서 단검으로 친다 (5.9). 총이 있으면 멀리서 쏜다 (11.6)
     else if (pet) this.pets.press(pet);               // (3단계) 동물: 다가가서 쓰다듬는다 (13.4)
     else if (o && o.kind === 'iron' && this.stage < 2) this.error('아직 캘 수 없습니다');   // 철광석은 2단계부터 캔다 (4장, 11.2)
+    else if (o && o.kind === 'bush') this.hunger.pressBush(o);   // 덤불: 열매를 딴다 (16.3)
     else if (o && o.kind === 'crate') this.farm.pressCrate(o);   // (3단계) 씨앗 상자 (13.3)
     else if (o && o.node) this.pressNode(o);               // 나무, 돌, 철광석, 그루터기, 돌 부스러기
     else if (o && o.type === 'tent') this.pressTent(o);
@@ -419,7 +422,7 @@ export class GameScene extends Phaser.Scene {
     this.enemies.clearAll();
     this.shots.clearHostile();                        // 총잡이가 쏘고 날던 총알도
     this.nightEndHearts = this.hearts.value;          // 결과 창의 "남은 하트": 밤을 넘긴 때의 하트(아침에 차기 전)
-    if (this.hearts.heal(CONFIG.player.morningHeal)) this.heartsUp();
+    if (!this.hunger.starving && this.hearts.heal(CONFIG.player.morningHeal)) this.heartsUp();   // 굶는 동안은 차지 않는다(16.1)
     this.sfx.play('morning');
     this.setAmbience(false);
     this.build.repairAll();
@@ -473,6 +476,9 @@ export class GameScene extends Phaser.Scene {
   debugPets() { this.pets.befriendAll(); }
   // 날씨 바꾸기: 맑음 -> 비 -> 눈 -> 맑음 (14.4)
   debugWeather() { this.weather.cycle(); }
+  // 배부름 가득, 배부름 0 (16.4)
+  debugHungerFull() { this.hunger.set(this.hunger.max); }
+  debugHungerZero() { this.hunger.set(0); }
   // (2단계) 해적 부르기: 밤에만. 해적선과 해적이 바로 나온다 (11.8)
   debugPirates() { if (this.clock.isNight && !this.player.downed) this.pirates.callNow(); }
 
@@ -495,6 +501,7 @@ export class GameScene extends Phaser.Scene {
     this.shots.update(dt);
     this.farm.update(dt);
     this.weather.update(dt);
+    this.hunger.update(dt);
     this.build.update(dt);
     const pl = this.player;
     // 쓰러진 뒤 downDelay 초가 지나면 "쓰러졌습니다" 창 (12.3)

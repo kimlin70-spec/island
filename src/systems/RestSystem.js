@@ -39,7 +39,7 @@ export class RestSystem {
     this.healLeft -= dt;
     while (this.healLeft <= 0) {
       this.healLeft += CONFIG.build.tent.healInterval;
-      if (this.scene.hearts.heal(1)) this.scene.heartsUp();
+      if (!this.scene.hunger.starving && this.scene.hearts.heal(1)) this.scene.heartsUp();   // 굶는 동안은 차지 않는다(16.1)
     }
   }
 }

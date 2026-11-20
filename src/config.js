@@ -110,6 +110,10 @@ export const CONFIG = {
     ripeSway: { angle: 2, period: 1.5 },      // 다 자란 작물이 흔들리는 각도(도)와 한 번 흔드는 시간(초)
     debugSeeds: 5,                            // 시험용 도구 "씨앗 +5"
   },
+  // 배고픔 (16.5). enabled: false 면 배부름이 없고 먹을 것은 하트를 채운다
+  hunger: { enabled: true, max: 5, start: 5, drainEvery: 90, starveEvery: 30, warnAt: 1,
+            food: { berry: 1, carrot: 1, corn: 2, pumpkin: 3, mushroom: 1 } },
+  berries: { perBush: 2, heal: 1 },   // 덤불 열매 (16.3)
   // 날씨 (14.5). 아래 줄의 값은 14장의 글에 있는 숫자
   weather: {
     chance: { clear: 0.6, rain: 0.25, snow: 0.15 }, firstDay: 'clear', fade: 4,
@@ -183,7 +187,8 @@ export const CONFIG = {
     buildPopPeak: 0.6,       // 지을 때 가장 커지는 때(buildPop 시간에 대한 비율)
     corpseShift: 30,         // 쓰러진 적의 몸 한가운데: 발에서 보는 쪽의 뒤로(px). 연기가 여기서 난다
     // 조각의 수 (12.6 표). [a, b]는 앞의 조각 a개 + 뒤의 조각 b개
-    chips: { till: 4, harvest: 4,           // (3단계) 밭 갈기 dirt, 거두기 잎 (13.3)
+    chips: { till: 4, harvest: 4, berry: 2,   // berry: 열매를 딸 때 잎 (16.3)
+                       // (3단계) 밭 갈기 dirt, 거두기 잎 (13.3)
              treeHit: [3, 2], treeFall: 8, rockHit: [3, 1], rockBreak: 6, enemyHit: 3, rise: [6, 2], build: 4, broken: 6, hearts: 2, ember: 1,
              ironHit: [2, 3], ironBreak: 6 },   // ironBreak: 다 캔 철광석의 조각(12.7은 수를 적지 않았다. 돌과 같게)
     // 조각이 흩어지는 모양: 보통(12.6 예시), 천천히 지는 잎, 위로 오르는 하트, 모닥불 불티.
@@ -244,7 +249,9 @@ export const CONFIG = {
     // (3단계) "무엇을 심을까요?" 창 (preview_farm.png). bottom: 화면 아래에서 창 아래까지
     seedWin: { bottom: 180, pad: 18, titleH: 52, titleY: 32, titleFont: 26, closeFont: 22, cardW: 150, cardH: 166, cardGap: 12,
                icon: 70, iconY: 54, nameY: 118, countY: 146, nameFont: 22, countFont: 20 },
-    soundButton: { gap: 10, icon: 46 },   // 하트 칸 오른쪽의 동그란 소리 켜고 끄기 버튼(지름은 하트 칸 높이) (15.1)
+    soundButton: { gap: 10, icon: 46 },
+    // (배고픔) 하트 칸 바로 아래의 배부름 칸: 밥그릇 다섯 개(44px). 1 이하면 shakeEvery 초마다 살짝 흔든다 (16.4)
+    hunger: { gap: 8, h: 56, padX: 12, step: 50, icon: 44, shakeEvery: 0.8, shake: 3 },   // 하트 칸 오른쪽의 동그란 소리 켜고 끄기 버튼(지름은 하트 칸 높이) (15.1)
     // 가운데 위: 해/달 아이콘, "1일째 낮", 진행 막대(낮 노랑, 밤 파랑). x 는 화면 가운데 기준, y 는 패널 위쪽 기준
     clock: { w: 460, h: 72, iconX: -190, icon: 64, textX: -150, textY: 24, font: 26,
              weatherGap: 14, weatherIcon: 60,   // (날씨) 시계 오른쪽의 비·눈 아이콘 (14.1, preview_rain.png)

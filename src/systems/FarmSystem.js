@@ -273,20 +273,6 @@ export class FarmSystem {
     }
   }
 
-  // ── 먹기 ──
-
-  // 가방의 작물을 눌렀다: 하나를 먹고 하트가 heal 만큼 찬다. 가득이면 먹지 않는다.
-  eat(crop) {
-    const scene = this.scene, C = CONFIG.farm.crops[crop];
-    if (scene.inventory.count(crop) <= 0 || scene.player.downed) return;
-    if (scene.hearts.value >= scene.hearts.max) {
-      scene.error('하트가 가득 찼습니다');
-      return;
-    }
-    scene.inventory.add(crop, -1);
-    scene.hearts.heal(C.heal);
-    scene.heartsUp();
-    scene.sfx.play('eat');
-    if (!scene.rest.resting) scene.player.body.play('eat');
-  }
+  // ── 먹기 ── 배고픔(16장)과 함께 HungerSystem.eat 에서 한다
+  eat(crop) { this.scene.hunger.eat(crop); }
 }

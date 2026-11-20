@@ -2,6 +2,7 @@ import { CONFIG } from '../config.js';
 import { cardsFor, cardCost, cardName } from '../systems/Crafting.js';
 import { todoFor } from '../systems/Todo.js';
 import { CROPS } from '../systems/FarmSystem.js';
+import { FOODS } from '../systems/HungerSystem.js';
 
 const U = CONFIG.ui;
 const INK = Phaser.Display.Color.HexStringToColor(U.ink).color;
@@ -22,6 +23,7 @@ export class UIScene extends Phaser.Scene {
     this.makeLightmap();       // 가장 먼저: 월드 위, 다른 UI 아래 (3.7)
     this.makeHearts();
     this.makeSoundButton();
+    this.makeHunger();
     this.makeClock();
     this.makeTodo();
     this.makeBag();
@@ -44,6 +46,7 @@ export class UIScene extends Phaser.Scene {
     listen('build-changed', () => { this.refreshCards(); this.refreshHint(); });
     listen('structures-changed', () => this.refreshCards());
     listen('hearts-changed', () => this.refreshHearts());
+    listen('hunger-changed', () => this.refreshHunger());
     listen('rest-changed', () => this.restBox.setVisible(this.world.rest.resting));
     listen('speed-changed', () => this.refreshDebug());
     listen('stage-changed', () => this.onStage());
@@ -147,6 +150,40 @@ export class UIScene extends Phaser.Scene {
 
   click() { this.world.sfx.play('ui_click'); }
 
+  // ── 하트 칸 아래: 배부름 (16.4). 배고픔을 끄면 없다. 1 이하면 남은 밥그릇이 shakeEvery 초마다 살짝 흔들린다 ──
+
+  makeHunger() {
+    const HN = U.hunger, HT = U.hearts, n = this.world.hunger.max, y = U.margin + HT.h + HN.gap;
+    if (this.hungerObjs) for (const o of this.hungerObjs) o.destroy();
+    if (this.hungerShake) this.hungerShake.remove();
+    this.hungerObjs = [];
+    this.hungerIcons = [];
+    if (!this.world.hunger.enabled) return;
+    this.hungerObjs.push(this.panel(this.add.graphics(), U.margin, y, HN.padX * 2 + (n - 1) * HN.step + HN.icon, HN.h));
+    for (let i = 0; i < n; i++) {
+      const img = this.add.image(U.margin + HN.padX + HN.icon / 2 + i * HN.step, y + HN.h / 2, 'icon_hunger');
+      img.baseX = img.x;
+      this.hungerIcons.push(img);
+      this.hungerObjs.push(img);
+    }
+    this.hungerShake = this.time.addEvent({ delay: HN.shakeEvery * 1000, loop: true, callback: () => this.shakeHunger() });
+    this.refreshHunger();
+  }
+
+  refreshHunger() {
+    if (!this.hungerIcons) return;
+    const v = this.world.hunger.value, size = U.hunger.icon;
+    this.hungerIcons.forEach((img, i) => img.setTexture(i < v ? 'icon_hunger' : 'icon_hunger_empty').setDisplaySize(size, size));
+  }
+
+  shakeHunger() {
+    const v = this.world.hunger.value;
+    if (v > 1) return;
+    for (const img of this.hungerIcons.slice(0, v)) {
+      this.tweens.add({ targets: img, x: { from: img.baseX - U.hunger.shake, to: img.baseX }, duration: 200, ease: 'Sine.easeOut' });
+    }
+  }
+
   // ── 하트 칸 오른쪽: 소리 켜고 끄기 (15.1) ──
 
   makeSoundButton() {
@@ -234,7 +271,7 @@ export class UIScene extends Phaser.Scene {
   // 가방에 보이는 것: 재료(1단계 나무·돌, 2단계부터 철광석도), (3단계) 가진 작물과 씨앗만
   bagItems() {
     const base = this.world.stage >= 2 ? ['wood', 'stone', 'iron'] : ['wood', 'stone'];
-    const extra = [...CROPS, ...CROPS.map((c) => 'seed_' + c)].filter((it) => this.world.inventory.count(it) > 0);
+    const extra = ['berry', ...CROPS, ...CROPS.map((c) => 'seed_' + c)].filter((it) => this.world.inventory.count(it) > 0);
     return [...base, ...extra];
   }
 
@@ -257,7 +294,7 @@ export class UIScene extends Phaser.Scene {
     this.bagKey = items.join(',');
     items.forEach((item, i) => {
       const img = this.add.image(x + B.iconX[i], y + B.h / 2, 'icon_' + item).setDisplaySize(B.icon, B.icon);
-      if (CROPS.includes(item)) img.setInteractive().on('pointerdown', () => this.world.farm.eat(item));   // 작물을 누르면 먹는다 (13.3)
+      if (FOODS.includes(item)) img.setInteractive().on('pointerdown', () => this.world.hunger.eat(item));   // 열매와 작물을 누르면 먹는다 (13.3, 16.2)
       this.bagObjs.push(img);
       this.bagCounts[item] = this.label(x + B.countX[i], y + B.countY, '0', B.font);
       this.bagObjs.push(this.bagCounts[item]);
@@ -374,6 +411,7 @@ export class UIScene extends Phaser.Scene {
     this.makeRest();
     this.makeCraftWindow();
     this.makeDebugWindow();
+    this.makeHunger();
   }
 
   drawCraftButton() {
@@ -465,6 +503,7 @@ export class UIScene extends Phaser.Scene {
       ...(this.world.stage >= 2 ? [['씨앗 +' + CONFIG.farm.debugSeeds, () => this.world.debugSeeds()], ['작물 다 자라게', () => this.world.debugRipen()], ['동물 모두 친구로', () => this.world.debugPets()]] : []),   // (3단계) 13.5
       [() => `속도 ×${this.world.debugSpeed}`, () => this.world.debugToggleSpeed()],
       ['날씨 바꾸기', () => this.world.debugWeather()],   // 14.4
+      ...(this.world.hunger.enabled ? [['배부름 가득', () => this.world.debugHungerFull()], ['배부름 0', () => this.world.debugHungerZero()]] : []),   // 16.4
       ['닫기', () => this.debugWin.setVisible(false)],
     ];
     const h = D.pad * 2 + items.length * D.itemH + (items.length - 1) * D.itemGap;
