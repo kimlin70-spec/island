@@ -3,7 +3,7 @@ import { tileToWorld } from '../iso.js';
 
 // 배고픔 (16장)과 덤불 열매(16.3). config.hunger.enabled 가 false 면 배부름은 없고, 먹을 것은 하트를 채운다(13.3).
 // 덤불 열매는 배고픔을 꺼도 딸 수 있다.
-export const FOODS = ['berry', 'carrot', 'corn', 'pumpkin'];   // 가방에서 눌러 먹는 것(버섯은 17장)
+export const FOODS = ['berry', 'carrot', 'corn', 'pumpkin', 'mushroom'];   // 가방에서 눌러 먹는 것(버섯은 17.8)
 
 export class HungerSystem {
   constructor(scene) {
@@ -56,8 +56,8 @@ export class HungerSystem {
     scene.sfx.play('hungry');
     scene.hearts.damage(1);
     const down = scene.hearts.value <= 0;
-    if (scene.rest.resting) {
-      if (down) scene.rest.exit();
+    if (scene.rest.resting || scene.home.bed) {     // (지하) 침대도 텐트와 같다
+      if (down) scene.wakeUp();
       else return;
     }
     pl.struck(null, down);
@@ -78,11 +78,11 @@ export class HungerSystem {
     } else {
       if (scene.hearts.value >= scene.hearts.max) { scene.error('하트가 가득 찼습니다'); return; }
       scene.inventory.add(item, -1);
-      scene.hearts.heal(item === 'berry' ? CONFIG.berries.heal : CONFIG.farm.crops[item].heal);
+      scene.hearts.heal(item === 'berry' ? CONFIG.berries.heal : item === 'mushroom' ? CONFIG.ug.mushroom.heal : CONFIG.farm.crops[item].heal);
       scene.heartsUp();
     }
     scene.sfx.play('eat');
-    if (!scene.rest.resting) scene.player.body.play('eat');
+    if (!scene.rest.resting && !scene.home.bed) scene.player.body.play('eat');
   }
 
   // ── 덤불 열매 (16.3) ──

@@ -38,8 +38,8 @@ export class Underground {
   key(c, r) { return c + ',' + r; }
   inBounds(c, r) { return c >= 0 && r >= 0 && c < this.floor.cols && r < this.floor.rows; }
   isDug(c, r) { return this.inBounds(c, r) && this.dug.has(this.key(c, r)); }
-  // 설 수 있는 칸: 파낸 칸이고 막힌 구멍이 아니다(가구는 Phase 18)
-  standable(c, r) { return this.isDug(c, r) && this.key(c, r) !== this.holeKey; }
+  // 설 수 있는 칸: 파낸 칸이고 막힌 구멍이 아니고 가구(깔개 빼고)가 없다 (17.4, 17.6)
+  standable(c, r) { return this.isDug(c, r) && this.key(c, r) !== this.holeKey && !(this.scene.home && this.scene.home.blocks(c, r)); }
   tall(c, r) { return !this.isDug(c, r) && (this.isDug(c + 1, r) || this.isDug(c, r + 1) || this.isDug(c + 1, r + 1)); }
   solid(c, r) { return this.isDug(c, r) || this.tall(c, r); }
 
@@ -115,7 +115,7 @@ export class Underground {
         b.sprite.setFrame(A.frames.indexOf('closed'));
         this.switchTo(true);
         scene.cameras.main.fadeIn(U.fadeMs, 0, 0, 0);
-        this.climb(false, () => { this.busy = false; scene.todo.check('down'); });
+        this.climb(false, () => { this.busy = false; scene.todo.check('down'); this.tip(); });
       });
     });
   }
@@ -125,6 +125,13 @@ export class Underground {
     const pl = this.scene.player, e = this.floor.entry;
     if (pl.tile.col === e.col && pl.tile.row === e.row && !pl.moving) { this.goUp(); return; }
     if (pl.goTo(e.col, e.row)) this.upPending = true;
+  }
+
+  // 처음 내려갔을 때 한 번 (17.9)
+  tip() {
+    if (this.tipped) return;
+    this.tipped = true;
+    this.scene.notice('흙벽을 누르면 곡괭이로 팝니다 · 사다리를 누르면 올라갑니다');
   }
 
   goUp() {
@@ -161,7 +168,11 @@ export class Underground {
   // 지하로(true) / 땅 위로(false) 옮긴다: 주인공과 따라다니는 동물, 카메라, 바탕색, 소리, 날씨
   switchTo(down) {
     const scene = this.scene, U = CONFIG.ug, pl = scene.player, cam = scene.cameras.main;
+    scene.home.wake();
+    scene.home.standUp();
+    scene.build.setMode(null);                      // 짓던 것은 그만둔다(위와 아래의 카드가 다르다)
     this.active = down;
+    if (down) this.ripeTold = new Set();            // 땅 위 소식: 작물마다 처음 한 번(내려올 때마다 새로, 17.9)
     let at;
     if (down) {
       this.makeFixtures();
@@ -204,7 +215,16 @@ export class Underground {
 
   onPress(wx, wy) {
     if (this.busy) return;
-    const hit = this.pick(wx, wy);
+    const home = this.scene.home, pl = this.scene.player, hit = this.pick(wx, wy);
+    if (home.bed) {                                 // 자는 중: 침대를 누르면 일어난다. 다른 곳은 반응하지 않는다 (17.7)
+      if (hit && hit.furniture === home.bed) home.wake();
+      return;
+    }
+    if (pl.seat) {                                  // 앉아 있다: 다른 곳을 누르면 일어나서 간다
+      if (hit && hit.furniture === pl.seat.stool) return;
+      home.standUp();
+    }
+    if (hit && hit.furniture) { this.upPending = false; home.press(hit.furniture); return; }
     if (hit === 'ladder') { this.pressLadder(); return; }
     if (hit === 'hole') {
       const h = this.hole;
@@ -213,19 +233,24 @@ export class Underground {
       return;
     }
     const t = hit || this.tileAt(wx, wy);
+    if (home.at(t.col, t.row)) return;              // 가구 칸의 바닥(그림 밖)을 누른 것: 아무 일도 없다
     if (this.standable(t.col, t.row)) { this.upPending = false; this.scene.walkTo(t.col, t.row); return; }
     this.dig(t);
   }
 
-  // 누른 것: 사다리, 막힌 구멍, 벽·덮개(그 흙 덩어리 칸). depth 가 큰 것부터, 투명하지 않은 곳만. 없으면 null
+  // 그림 img 의 (x, y)가 투명하지 않은가. 뒤집은 그림(벽난로)은 기준점을 가운데로 뒤집혀 그려진다
+  hitImage(img, x, y) {
+    const dx = (x - img.x) * (img.flipX ? -1 : 1);
+    const lx = Math.floor(dx + img.displayWidth * img.originX), ly = Math.floor(y - (img.y - img.displayHeight * img.originY));
+    if (lx < 0 || ly < 0 || lx >= img.width || ly >= img.height) return false;
+    const a = this.scene.textures.getPixelAlpha(lx, ly, img.texture.key, img.frame.name);
+    return a !== null && a > CONFIG.input.pickAlpha;
+  }
+
+  // 누른 것: 가구, 사다리, 막힌 구멍, 벽·덮개(그 흙 덩어리 칸). depth 가 큰 것부터, 투명하지 않은 곳만. 없으면 null
   pick(x, y) {
-    const tex = this.scene.textures, hits = [];
-    const test = (img) => {
-      const lx = Math.floor(x - (img.x - img.displayWidth * img.originX)), ly = Math.floor(y - (img.y - img.displayHeight * img.originY));
-      if (lx < 0 || ly < 0 || lx >= img.width || ly >= img.height) return false;
-      const a = tex.getPixelAlpha(lx, ly, img.texture.key, img.frame.name);
-      return a !== null && a > CONFIG.input.pickAlpha;
-    };
+    const hits = [], test = (img) => this.hitImage(img, x, y);
+    for (const f of this.scene.home.list) if (f.type !== 'rug' && test(f.sprite)) hits.push({ d: f.sprite.depth, v: { furniture: f } });
     if (this.ladder && test(this.ladder)) hits.push({ d: this.ladder.depth, v: 'ladder' });
     if (this.hole && test(this.hole)) hits.push({ d: this.hole.depth, v: 'hole' });
     for (const p of this.pieces) if (p.target && test(p.img)) hits.push({ d: p.img.depth, v: { col: p.target[0], row: p.target[1] } });
@@ -349,14 +374,15 @@ export class Underground {
     return k <= 0 ? 1 : 1 - (1 - CONFIG.ug.shaft.duskMin) * Math.min(1, k);
   }
 
-  // 지하의 빛 (17.5): 주인공, 입구의 햇빛 두 개
+  // 지하의 빛 (17.5): 주인공(침대에서 자는 동안은 없음), 입구의 햇빛 두 개, 켜진 벽난로와 등불
   lights() {
     const P = CONFIG.player.light, S = CONFIG.ug.shaft, sp = this.scene.player.sprite, e = this.world(this.floor.entry.col, this.floor.entry.row), sun = this.sun();
-    const out = [{ x: sp.x, y: sp.y - P.lift, radius: P.radius, color: P.color, alpha: P.alpha }];
+    const out = this.scene.home.bed ? [] : [{ x: sp.x, y: sp.y - P.lift, radius: P.radius, color: P.color, alpha: P.alpha }];
     if (sun > 0) {
       out.push({ x: e.x, y: e.y, radius: S.low.radius, color: S.color, alpha: S.low.alpha * sun });
       out.push({ x: e.x, y: e.y - S.high.lift, radius: S.high.radius, color: S.color, alpha: S.high.alpha * sun });
     }
+    out.push(...this.scene.home.lights());
     return out;
   }
 
@@ -369,6 +395,7 @@ export class Underground {
     }
     this.scene.player.stopAction();
     this.switchTo(!this.active);
+    if (this.active) this.tip();
   }
 
   // (시험용) 주인공 둘레 5×5 를 판다(가장자리는 빼고)

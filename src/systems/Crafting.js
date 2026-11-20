@@ -15,13 +15,17 @@ const HOE      = { id: 'hoe',      type: 'tool',   icon: 'icon_hoe' };
 const CAN      = { id: 'watering_can', type: 'tool', icon: 'icon_watering_can' };
 const FARM     = { id: 'farm',     type: 'farm',   icon: 'icon_farm', name: '밭 갈기' };   // (3단계) 괭이가 있을 때만 (13.3)
 const BURROW   = { id: 'burrow',   type: 'build',  icon: 'icon_burrow' };   // (지하) 17.2
+// (지하) 지하 가구 (17.6). 지하에서 만들기 창을 열면 시설 카드 대신 이 카드들
+const UG_CARDS = ['bed', 'fireplace', 'lantern', 'planter', 'table', 'stool', 'rug', 'chest'].map((id) => ({ id, type: 'build', icon: 'icon_' + id }));
 const REMOVE   = { id: 'remove',   type: 'remove', icon: 'icon_remove', name: '치우기', note: '절반 돌려받음' };
 // 1단계: 6장 한 줄
 export const CARDS = [AXE, PICKAXE, FENCE, CAMPFIRE, TENT, REMOVE];
 // 2단계: 10장 두 줄(11.3). (3단계, 사용자와 정함) 셋째 줄에 문. 농사 카드(Phase 12)도 셋째 줄에 더한다
 export const CARDS2 = [AXE, PICKAXE, GUN, FENCE, WIRE, CAMPFIRE, TENT, WATCH, GUNTOWER, REMOVE, GATE, HOE, CAN, BURROW];
 // tools: 가진 도구. 괭이가 있으면 밭 갈기 카드가 셋째 줄 끝에 생긴다(13.3)
-export function cardsFor(stage, tools = []) {
+// under: (지하) 지하에 있다. 도구 카드, 지하 가구 카드, 치우기 (17.6). 세 줄(5, 5, 4)
+export function cardsFor(stage, tools = [], under = false) {
+  if (under) return [...CARDS2.filter((c) => c.type === 'tool'), ...UG_CARDS, REMOVE];
   if (stage < 2) return CARDS;
   return tools.includes('hoe') ? [...CARDS2, FARM] : CARDS2;
 }
@@ -41,6 +45,12 @@ export function bestTool(owned, group) {
     if (power > 0 && (!best || power > CONFIG.tools[best].power[group])) best = id;
   }
   return best;
+}
+
+// 받침이 있으면 '이', 없으면 '가'
+export function subjectParticle(word) {
+  const code = word.charCodeAt(word.length - 1) - 0xac00;
+  return code >= 0 && code <= 11171 && code % 28 !== 0 ? '이' : '가';
 }
 
 // 받침이 있으면 '을', 없으면 '를'

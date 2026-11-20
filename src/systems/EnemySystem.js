@@ -11,6 +11,8 @@ export class EnemySystem {
     this.defeated = 0;           // 주인공이 물리친 적의 수(결과 창에 보여 준다)
     this.schedule = [];          // 이번 밤에 나올 시각들(밤이 시작된 뒤의 게임 시간, 초)
     this.tentHitAt = -Infinity;  // 텐트가 마지막으로 맞은 때(게임 시간). 한동안 안 맞다가 맞으면 알린다.
+    this.structureHitAt = -Infinity;   // (지하) 시설이 마지막으로 맞은 때. 침대의 빨리 감기를 멈춘다 (17.7)
+    this.newsAt = -Infinity;           // (지하) "땅 위: 캠프가 공격받고 있습니다"를 마지막으로 띄운 때 (17.9)
     this.repathBudget = 0;       // 이번 프레임에 길을 더 찾을 수 있는 좀비 수
     scene.events.on('night', () => this.startNight());
   }
@@ -110,10 +112,13 @@ export class EnemySystem {
   // 시설에 피해 n. 텐트가 공격받기 시작하면 알린다(총잡이의 총알도 이것을 쓴다)
   damageStructure(e, s, n) {
     const scene = this.scene;
-    if (s.type === 'tent') {
+    if (scene.ug.active) {                           // (지하) 땅 위 소식: attackNotice 초에 한 번 이하 (17.9)
+      if (scene.elapsed - this.newsAt >= CONFIG.ug.attackNotice) { scene.surfaceNews('캠프가 공격받고 있습니다'); this.newsAt = scene.elapsed; }
+    } else if (s.type === 'tent') {
       if (scene.elapsed - this.tentHitAt >= CONFIG.build.tent.attackNotice) scene.notice('텐트가 공격받고 있습니다');
       this.tentHitAt = scene.elapsed;
     }
+    this.structureHitAt = scene.elapsed;
     scene.build.damage(s, n, e);
   }
 

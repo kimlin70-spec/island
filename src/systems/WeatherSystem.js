@@ -42,7 +42,8 @@ export class WeatherSystem {
   set(kind) {
     if (kind === this.kind) return;
     this.kind = kind;
-    this.scene.notice(NOTICE[kind]);
+    if (!this.scene.ug.active) this.scene.notice(NOTICE[kind]);
+    else if (kind !== 'clear') this.scene.surfaceNews(NOTICE[kind]);   // (지하) 비나 눈이 오기 시작하면 땅 위 소식 (17.9)
     if (kind === 'rain') this.makePuddles();
     else this.dryPuddles();
     if (kind === 'snow') this.loadSnowGround();

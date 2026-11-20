@@ -1,6 +1,8 @@
 import { CONFIG } from '../config.js';
 import { tileToWorld, worldToTile, worldToTileFloat } from '../iso.js';
 import { isTower } from './TowerSystem.js';
+import { isFurniture } from './UgHome.js';
+import { subjectParticle } from './Crafting.js';
 
 // 짓기와 치우기 (5.4). 시설: 울타리, 모닥불, 텐트, (2단계) 철조망, 망루, 총 타워, (3단계) 문.
 export const REMOVE = 'remove';
@@ -42,13 +44,15 @@ export class BuildSystem {
     this.scene.events.emit('build-changed');
   }
 
-  count(type) { return this.map.structures.filter((s) => s.type === type).length; }
+  count(type) { return isFurniture(type) ? this.scene.home.count(type) : this.map.structures.filter((s) => s.type === type).length; }
+  get furnishing() { return isFurniture(this.mode); }   // (지하) 지하 가구를 놓는 상태인가 (17.6)
   canAfford(type) { return type === TILL || this.scene.inventory.has(CONFIG.build[type].cost); }
   // 텐트는 1개만
   atMax(type) { return type !== TILL && CONFIG.build[type].max !== undefined && this.count(type) >= CONFIG.build[type].max; }
 
   // 포인터가 (wx, wy)에 있을 때 시설이 차지할 칸들. 차지하는 칸 수는 manifest 의 footprint.
   footprint(type, wx, wy) {
+    if (isFurniture(type)) return this.scene.home.footprint(type, wx, wy);
     if (type === TILL) return [worldToTile(wx, wy)];
     const [w, h] = this.map.assets[SPRITE[type]].footprint || [1, 1];
     if (w === 1 && h === 1) return [worldToTile(wx, wy)];
@@ -64,6 +68,7 @@ export class BuildSystem {
   canBuildAt(col, row) {
     const m = this.map, p = this.scene.player;
     if (this.mode === TILL) return this.scene.farm.canTill(col, row);       // 밭 갈기는 갈 수 있는 칸(13.3)
+    if (this.furnishing) return this.scene.home.canPlaceAt(this.mode, col, row);   // (지하) 지하 가구 (17.6)
     if (!m.isOpen(col, row) || m.anyStructureAt(col, row) || this.scene.farm.fieldAt(col, row)) return false;   // 밭 위에는 짓지 않는다
     if (this.scene.characterTiles().some((t) => t.col === col && t.row === row)) return false;
     return Math.hypot(col - p.col, row - p.row) <= CONFIG.build.reach;
@@ -77,13 +82,16 @@ export class BuildSystem {
     this.marks.forEach((mark, i) => {
       const t = tiles[i];
       if (!t) { mark.setVisible(false); return; }
-      const ok = this.canBuildAt(t.col, t.row);
-      const w = tileToWorld(t.col, t.row);
+      // (지하) 벽난로는 벽 옆이어야 한다 (17.6)
+      const ok = this.canBuildAt(t.col, t.row) && !(this.mode === 'fireplace' && !this.scene.home.wallSide(t));
+      const w = this.furnishing ? this.scene.ug.world(t.col, t.row) : tileToWorld(t.col, t.row);
       mark.setTexture(ok ? 'overlay_ok' : 'overlay_no').setPosition(w.x, w.y).setVisible(true);
       all = all && ok;
     });
     if (isTower(this.mode)) this.showRange(tiles[0], this.mode, 0);
     this.spot = { tiles, ok: all };   // 네 칸 모두 지을 수 있어야 한다
+    // 벽에 붙지 않은 벽난로: 칸은 비어 있는데 벽이 없다
+    this.spot.noWall = this.mode === 'fireplace' && this.canBuildAt(tiles[0].col, tiles[0].row) && !this.scene.home.wallSide(tiles[0]);
   }
 
   hideMarks() {
@@ -101,6 +109,7 @@ export class BuildSystem {
 
   // 클릭하거나 손을 뗐을 때: 표시가 overlay_ok 였으면 그 칸에 바로 짓는다. 치우기를 골랐으면 누른 시설을 없앤다.
   commit(wx, wy) {
+    if (this.mode === REMOVE && this.scene.ug.active) { this.scene.home.removeAt(wx, wy); return; }   // (지하) 지하 가구를 치운다
     if (this.mode === REMOVE) {
       const t = worldToTile(wx, wy);
       const s = this.map.pickObject(wx, wy, this.map.structures) || this.map.anyStructureAt(t.col, t.row);
@@ -113,17 +122,24 @@ export class BuildSystem {
     }
     if (!this.building) return;
     this.point(wx, wy);
-    if (!this.spot.ok) return;
+    if (!this.spot.ok) {
+      if (this.spot.noWall) this.scene.error('벽에 붙여 놓으세요');
+      return;
+    }
     if (this.mode === TILL) {                        // 밭 갈기: 그 칸으로 걸어가서 간다. 상태는 그대로(여러 칸을 연달아)
       this.scene.farm.till(this.spot.tiles[0]);
       return;
     }
     const type = this.mode;
     if (!this.scene.inventory.pay(CONFIG.build[type].cost)) return;
-    const s = this.place(type, this.spot.tiles);
-    this.popUp(s);
-    this.scene.sfx.play('construct', { at: s.sprite });
-    this.scene.onBuilt(s);
+    if (this.furnishing) {                           // (지하) 가구: construct 소리와 fx_poof (17.6)
+      this.scene.home.built(this.scene.home.place(type, this.spot.tiles));
+    } else {
+      const s = this.place(type, this.spot.tiles);
+      this.popUp(s);
+      this.scene.sfx.play('construct', { at: s.sprite });
+      this.scene.onBuilt(s);
+    }
     this.point(wx, wy);                              // 방금 지은 칸은 이제 지을 수 없는 칸이다
     // 짓기 상태는 유지된다. 더 지을 수 없게 되면 풀린다.
     if (this.atMax(type)) {
@@ -196,6 +212,8 @@ export class BuildSystem {
     if (this.scene.rest.tent === s) this.scene.rest.exit();
     const fx = this.scene.effects, sp = s.sprite;
     if (broken) {
+      // (지하) 땅 위 소식: "땅 위: 울타리가 부서졌습니다" (17.9)
+      if (this.scene.ug.active) this.scene.surfaceNews(`${s.cfg.name}${subjectParticle(s.cfg.name)} 부서졌습니다`);
       this.scene.sfx.play('collapse', { at: sp });
       fx.burst(BROKEN[s.type] || ['wood1', 'wood2'], CONFIG.fx.chips.broken, sp.x, sp.y - CONFIG.fx.impactHeight.object);
       fx.dust(sp.x, sp.y);
@@ -258,7 +276,7 @@ export class BuildSystem {
     const p = this.scene.player, on = this.building && !p.downed;
     this.reachRing.setVisible(on);
     if (!on) return;
-    const R = CONFIG.build.reach, S = CONFIG.tower.rangeSize, w = tileToWorld(p.col, p.row);
+    const R = CONFIG.build.reach, S = CONFIG.tower.rangeSize, w = p.foot();   // (지하) 지하 자리(yOff)도 발에서
     this.reachRing.setPosition(w.x, w.y).setDisplaySize(S[0] * R, S[1] * R);
   }
 

@@ -20,7 +20,8 @@ import { PetSystem } from '../systems/PetSystem.js';
 import { WeatherSystem } from '../systems/WeatherSystem.js';
 import { HungerSystem } from '../systems/HungerSystem.js';
 import { Underground } from '../systems/Underground.js';
-import { bestTool, cardCost, cardName, objectParticle } from '../systems/Crafting.js';
+import { UgHome } from '../systems/UgHome.js';
+import { bestTool, cardCost, cardName, objectParticle, subjectParticle } from '../systems/Crafting.js';
 import { TODO_ITEMS2, TODO_ITEMS3 } from '../systems/Todo.js';
 
 // 월드: 섬, 사물, 주인공, 적, 카메라, 누르기, 시간. 화면 UI(UIScene)에는 events 로 바뀐 것을 알린다.
@@ -67,7 +68,8 @@ export class GameScene extends Phaser.Scene {
     this.enemies = new EnemySystem(this);
     this.pirates = new PirateSystem(this);
     this.pets = new PetSystem(this);                  // (3단계) 강아지와 고양이 (13.4)
-    this.ug = new Underground(this);                  // (지하) 굴 입구, 오르내리기, 파기 (17장)           // 해적선, 보트, 해적의 상륙 (5.12)
+    this.ug = new Underground(this);                  // (지하) 굴 입구, 오르내리기, 파기 (17장)
+    this.home = new UgHome(this);                     // (지하) 지하 가구, 침대, 의자, 버섯 화분 (17.6~17.8)
     this.resultPending = false;                       // 첫 아침: 화면이 다 밝아지면 결과 창을 띄운다
 
     // 카메라: 주인공을 부드럽게 따라가고, 바닥 그림 밖으로 나가지 않는다
@@ -92,8 +94,9 @@ export class GameScene extends Phaser.Scene {
     // 낮과 밤 (5.5)
     this.events.on('todo-changed', () => this.checkStage3());
     // 소리 (15.3): 저녁, 밤, 아침. 배경 소리는 저녁과 아침에 낮·밤을 서로 바꿔 튼다
-    this.events.on('dusk', () => { this.notice('곧 밤이 됩니다'); this.sfx.play('dusk', { volume: this.eventVolume }); this.setAmbience(true); });
-    this.events.on('night', () => { this.notice('밤이 되었습니다'); this.sfx.play('night_start', { volume: this.eventVolume }); this.setAmbience(true); });
+    // (지하) 지하에 있으면 "땅 위: ..." 소식으로 (17.9)
+    this.events.on('dusk', () => { this.newsOrNotice('곧 밤이 됩니다'); this.sfx.play('dusk', { volume: this.eventVolume }); this.setAmbience(true); });
+    this.events.on('night', () => { this.newsOrNotice('밤이 되었습니다'); this.sfx.play('night_start', { volume: this.eventVolume }); this.setAmbience(true); });
     this.setAmbience(false);
     this.events.on('morning', (day) => this.onMorning(day));
     // 프레임마다 맨 먼저(그림의 애니메이션이 움직이기 전에) 게임 시간을 정한다
@@ -104,13 +107,15 @@ export class GameScene extends Phaser.Scene {
   }
 
   // 게임 시간의 빠르기: 시험용 속도 × (텐트에서 자는 동안 sleepTimeScale. 텐트 둘레에 적이 오면 원래대로).
+  // (지하) 침대에서 자는 동안 ug.bed.sleepTimeScale. 땅 위의 시설이 공격받는 동안은 원래대로 (17.7).
   // 한 프레임은 maxFrameTime 까지만 흐른다. 캐릭터와 효과의 애니메이션, 조각도 이 게임 시간으로 흐르게 한다(12.1).
   beforeUpdate(delta) {
     this.frame += 1;
     this.updating = true;
     const T = CONFIG.build.tent;
     const sleeping = this.rest.resting && !this.enemyNear(this.rest.tent, T.wakeRange);
-    this.speed = this.debugSpeed * (sleeping ? T.sleepTimeScale : 1);
+    const inBed = this.home.bed && !this.surfaceAttacked;
+    this.speed = this.debugSpeed * (sleeping ? T.sleepTimeScale : inBed ? CONFIG.ug.bed.sleepTimeScale : 1);
     const real = delta / 1000;
     this.dt = Math.min(real, CONFIG.screen.maxFrameTime) * this.speed;
     const scale = real > 0 ? this.dt / real : this.speed;
@@ -243,12 +248,14 @@ export class GameScene extends Phaser.Scene {
     return true;
   }
 
-  // 하트가 찼을 때 (12.6): 주인공의 가슴(텐트 안이면 텐트 문)에서 하트 조각이 천천히 오른다
+  // 하트가 찼을 때 (12.6): 주인공의 가슴(텐트 안이면 텐트 문, 침대면 베개)에서 하트 조각이 천천히 오른다
   heartsUp() {
     const F = CONFIG.fx;
     this.sfx.play('heal');
     let x, y;
-    if (this.rest.resting) {
+    if (this.home.bed) {
+      ({ x, y } = this.home.pillow());
+    } else if (this.rest.resting) {
       const s = this.rest.tent, door = this.map.assets.build_tent.door;
       x = s.sprite.x + door[0];
       y = s.sprite.y + door[1];
@@ -350,6 +357,20 @@ export class GameScene extends Phaser.Scene {
   }
 
   notice(text) { this.events.emit('notice', text); }
+  // (지하) 땅 위 소식 (17.9): icon_surface 와 "땅 위: ..."
+  surfaceNews(text) { this.events.emit('notice', '땅 위: ' + text, 'icon_surface'); }
+  newsOrNotice(text) { if (this.ug.active) this.surfaceNews(text); else this.notice(text); }
+  // 땅 위의 시설이 공격받는 중인가: 마지막으로 맞은 뒤 attackHold 초 안 (침대의 빨리 감기를 멈춘다, 17.7)
+  get surfaceAttacked() { return this.elapsed - this.enemies.structureHitAt < CONFIG.ug.attackHold; }
+  // (지하) 땅 위의 작물이 다 자랐다: 작물마다 처음 한 번 "땅 위: 당근이 다 자랐습니다" (17.9)
+  onCropRipe(type) {
+    if (!this.ug.active || this.ug.ripeTold.has(type)) return;
+    this.ug.ripeTold.add(type);
+    const name = CONFIG.farm.crops[type].name;
+    this.surfaceNews(`${name}${subjectParticle(name)} 다 자랐습니다`);
+  }
+  // 자는 중 버튼: 텐트에서 나오거나 침대에서 일어난다
+  wakeUp() { if (this.home.bed) this.home.wake(); else this.rest.exit(); }
   // 할 수 없는 일을 눌렀다: 알림과 ui_error (15.3)
   error(text) {
     this.notice(text);
@@ -374,12 +395,14 @@ export class GameScene extends Phaser.Scene {
   nextGroan() { const [a, b] = CONFIG.sound.groanEvery; return a + Math.random() * (b - a); }
 
   // 매 프레임 소리: 모닥불 곁(가장 가까운 모닥불까지의 거리), 밤 동안의 좀비 신음, 반복 소리 시작
+  // (지하) 지하에서는 켜진 벽난로 곁에서 fire_loop (17.5)
   updateSound(dt) {
     const F = CONFIG.sound.fire, p = this.player;
     let d = Infinity;
-    for (const s of this.map.structures) if (s.type === 'campfire') d = Math.min(d, Math.hypot(s.col - p.col, s.row - p.row));
+    if (this.ug.active) d = this.home.fireDistance(p);
+    else for (const s of this.map.structures) if (s.type === 'campfire') d = Math.min(d, Math.hypot(s.col - p.col, s.row - p.row));
     const v = d <= F.near ? F.volume : d >= F.far ? 0 : F.volume * (F.far - d) / (F.far - F.near);
-    if (d < Infinity || this.sfx.loops.fire_loop) this.sfx.loop('fire_loop', this.ug.active ? 0 : v, false);
+    if (d < Infinity || this.sfx.loops.fire_loop) this.sfx.loop('fire_loop', v, false);
     if (this.clock.isNight) {
       if ((this.groanLeft -= dt) <= 0) {
         this.groanLeft = this.nextGroan();
@@ -451,6 +474,7 @@ export class GameScene extends Phaser.Scene {
     this.build.repairAll();
     this.todo.check(this.stage >= 2 ? 'night' : 'morning');   // 2단계는 "밤을 넘기기"
     if (day === 2) this.resultPending = true;
+    else if (this.ug.active) this.surfaceNews('아침이 되었습니다');   // (지하) 17.9
     else this.notice(`${day}일째 아침입니다`);
   }
 
@@ -506,6 +530,9 @@ export class GameScene extends Phaser.Scene {
   // (지하) 지하로 / 땅 위로, 둘레 5×5 파기 (17.10)
   debugUnderground() { this.ug.jump(); }
   debugDigAround() { this.ug.digAround(); }
+  // (지하) 포자 +5, 버섯 다 자라게 (17.10)
+  debugSpores() { this.inventory.add('spore', CONFIG.ug.debugSpores); }
+  debugMushrooms() { this.home.ripenAll(); }
   // (2단계) 해적 부르기: 밤에만. 해적선과 해적이 바로 나온다 (11.8)
   debugPirates() { if (this.clock.isNight && !this.player.downed) this.pirates.callNow(); }
 
@@ -529,6 +556,7 @@ export class GameScene extends Phaser.Scene {
     this.farm.update(dt);
     this.weather.update(dt);
     this.hunger.update(dt);
+    this.home.update(dt);
     this.ug.update();
     this.build.update(dt);
     const pl = this.player;

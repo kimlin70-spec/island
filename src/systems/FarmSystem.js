@@ -249,6 +249,7 @@ export class FarmSystem {
     this.setWet(f, false);
     this.showCrop(f);
     this.scene.effects.play('fx_sparkle', f.soil.x, f.soil.y - 20, { scale: CONFIG.farm.growSparkleScale });
+    if (c.stage === STAGES.length - 1) this.scene.onCropRipe(c.type);   // (지하) 땅 위 소식 (17.9)
   }
 
   // 젖은 밭의 작물은 stageTime 초(게임 시간)마다 한 단계. 마른 밭에서는 시간이 멈춘다. ripe 가 되면 그만.

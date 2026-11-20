@@ -37,7 +37,10 @@ export const CONFIG = {
     reachCircle: { tint: 0x7fd858, alpha: 0.9 },   // 초록: 탑의 사거리 원(색 없음)과 구별되게   // (사용자 요청) 짓는 동안 주인공 둘레에 지을 수 있는 거리(reach)를 원으로 보여 준다. 그림은 overlay_range
     fence:    { name: '울타리', cost: { wood: 1 }, hp: 6 },
     // (지하) 굴 입구 (17.2, 17.11): 하나만. 적은 공격하지 않는다
-    burrow:   { name: '굴 입구', cost: { wood: 6, stone: 4 }, hp: 20, max: 1 },
+    burrow:   { name: '굴 입구', hp: 20, max: 1 },
+    // (지하) 지하 가구 (17.6). 재료는 ug.cost (아래에서 넣는다). 침대는 하나만. 체력이 없다(적이 오지 않는다)
+    bed: { name: '침대', max: 1 }, fireplace: { name: '벽난로' }, lantern: { name: '등불' }, planter: { name: '버섯 화분' },
+    table: { name: '탁자' }, stool: { name: '의자' }, rug: { name: '깔개' }, chest: { name: '보관 상자' },
     // (3단계) 문 (13.2, 13.6 의 gate). 주인공이 openRange 칸 안에 오면 열리고, closeRange 칸보다 멀어지면 닫힌다
     gate:     { name: '문', cost: { wood: 3 }, hp: 10, openRange: 1.3, closeRange: 1.8 },
     campfire: { name: '모닥불', cost: { wood: 3, stone: 3 }, hp: 10, slowRange: 3, slow: 0.5,
@@ -117,13 +120,21 @@ export const CONFIG = {
   ug: { offsetY: 6000, ambient: 0x403a4c, background: 0x2a2019, fadeMs: 400, climbMs: 800, wallFadeAlpha: 0.35,
         digHits: 4, digHitsIron: 6, stonePerCell: 1, ironPerCell: 2, sporePerCell: 2,
         bed: { healInterval: 6, sleepTimeScale: 4 },
-        mushroom: { growEvery: 60, yield: 3 },
+        mushroom: { growEvery: 60, yield: 3, heal: 1 },   // heal: 배고픔을 끄면 버섯 하나가 채우는 하트(16.2, 열매와 같게)
         cost: { burrow: { wood: 6, stone: 4 }, bed: { wood: 6 }, fireplace: { stone: 8, wood: 2 }, lantern: { wood: 2, iron: 1 },
                 planter: { wood: 3 }, table: { wood: 3 }, stool: { wood: 1 }, rug: { wood: 2 }, chest: { wood: 4, iron: 1 } },
         crouchMs: 300, climbRise: 150,          // 내려가기 전 쪼그려 앉는 시간(ms), 사다리를 오르내리는 높이(px)
         shake: { duration: 60, intensity: 0.002 }, chips: { hit: 2, out: 6, iron: 3 },
         markTint: 0xffe2a0, noMarkTime: 0.4, crackFrontDepth: 1.6, boundsPad: 400, eventVolume: 0.6,
-        shaft: { color: 0xfff7e0, low: { radius: 170, alpha: 0.9 }, high: { radius: 120, alpha: 0.7, lift: 130 }, glowAlpha: 0.55, duskMin: 0.2 } },
+        shaft: { color: 0xfff7e0, low: { radius: 170, alpha: 0.9 }, high: { radius: 120, alpha: 0.7, lift: 130 }, glowAlpha: 0.55, duskMin: 0.2 },
+        // (Phase 18) 지하 살림 17.6~17.9. 아래 값은 17장의 글에 있는 숫자와 화면에 쓰는 숫자
+        fireplace: { light: { radius: 300, color: 0xffedc7, alpha: 1, flicker: 0.03, flickerRates: [11, 27] }, glow: { size: 220, alpha: 0.45 } },
+        lantern:   { light: { radius: 210, color: 0xffedc7, alpha: 0.9 }, glow: { size: 120, alpha: 0.35 } },
+        chestVolume: 0.5,                       // 상자를 열고 닫는 소리(gate_open / gate_close)의 크기
+        zzz: [-24, -56],                        // 침대에서 자는 동안 zzz 의 자리: 침대 기준점에서(px, 베개 위)
+        attackHold: 5,                          // 땅 위의 시설이 마지막으로 맞은 뒤 이만큼(초) 동안은 침대의 빨리 감기를 멈춘다
+        attackNotice: 5,                        // "땅 위: 캠프가 공격받고 있습니다"는 이만큼(초)에 한 번 이하
+        debugSpores: 5 },                       // 시험용 도구 "포자 +5"
   // 배고픔 (16.5). enabled: false 면 배부름이 없고 먹을 것은 하트를 채운다
   hunger: { enabled: true, max: 5, start: 5, drainEvery: 90, starveEvery: 30, warnAt: 1,
             food: { berry: 1, carrot: 1, corn: 2, pumpkin: 3, mushroom: 1 } },
@@ -270,6 +281,9 @@ export const CONFIG = {
     clock: { w: 460, h: 72, iconX: -190, icon: 64, textX: -150, textY: 24, font: 26,
              weatherGap: 14, weatherIcon: 60,   // (날씨) 시계 오른쪽의 비·눈 아이콘 (14.1, preview_rain.png)
              barX: -150, barY: 42, barW: 356, barH: 18, track: 0xc4b8a8, dayFill: 0xf0be54, nightFill: 0x687ac4 },
+    // (지하) 시계 아래의 "지하 1층" 표시 (17.9, preview_underground.png). 지하에서는 알림이 그 아래로 내려간다
+    ugTag: { gap: 12, h: 50, padX: 18, icon: 40, iconGap: 10, font: 26 },
+    noticeIcon: { size: 40, gap: 10 },           // 알림 앞의 아이콘(땅 위 소식의 icon_surface)
     // 아래 가운데: 텐트에서 쉬는 동안의 버튼 "쉬는 중 · 누르면 나옵니다"
     rest: { h: 88, padX: 22, icon: 64, gap: 12, font: 28 },
     // 가운데 위쪽: 알림
@@ -287,3 +301,5 @@ export const CONFIG = {
 // 농사 도구의 재료는 farm 묶음의 값을 쓴다(13.6 에 그렇게 적혀 있다)
 CONFIG.tools.hoe.cost = CONFIG.farm.hoeCost;
 CONFIG.tools.watering_can.cost = CONFIG.farm.canCost;
+// 굴 입구와 지하 가구의 재료는 ug.cost 의 값을 쓴다(17.11)
+for (const [k, cost] of Object.entries(CONFIG.ug.cost)) CONFIG.build[k].cost = cost;

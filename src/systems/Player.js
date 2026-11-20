@@ -22,6 +22,7 @@ export class Player extends Walker {
     this.cooldown = 0;         // 다음에 도구를 쓸 수 있을 때까지 남은 시간(초)
     this.chaseLeft = 0;        // 쫓아가는 적에게 가는 길을 다시 찾을 수 있을 때까지 남은 시간(초)
     this.downLeft = null;      // 쓰러진 뒤 "쓰러졌습니다" 창까지 남은 시간(초). 쓰러지지 않았으면 null
+    this.seat = null;          // (지하) 앉아 있는 의자 { stool, x, y, depth }. 그림만 의자 자리로 옮긴다(칸은 걸어온 칸 그대로, 17.7)
 
     const w = tileToWorld(col, row);
     this.sprite = scene.add.sprite(w.x, w.y, this.key).setOrigin(this.asset.originX, this.asset.originY);
@@ -227,6 +228,7 @@ export class Player extends Walker {
 
   // 하트가 0이 되었다: 하던 것을 멈추고 down 을 보여 준다. downDelay 초 뒤에 GameScene 이 "쓰러졌습니다" 창을 띄운다.
   goDown() {
+    this.seat = null;
     this.stopAction();
     // 그 자리에 멈춘다. 내딛던 걸음은 길에 남겨 둔다(칸 사이에 멈춘 채, 더 걷지는 않는다).
     const midStep = this.path[0] && (this.col !== this.tile.col || this.row !== this.tile.row);
@@ -237,6 +239,7 @@ export class Player extends Walker {
 
   // 발 위치의 y가 클수록 앞에 그린다. y가 같으면 캐릭터가 사물보다 앞이다. 맞아서 밀린 만큼 그림만 옮긴다.
   syncSprite() {
+    if (this.seat) { this.sprite.setPosition(this.seat.x, this.seat.y).setDepth(this.seat.depth); return; }
     const w = this.foot(), o = this.body.offset();
     this.sprite.setPosition(w.x + o.x, w.y + o.y);
     this.sprite.setDepth(CONFIG.depth.objectBase + w.y + CONFIG.depth.charBias);

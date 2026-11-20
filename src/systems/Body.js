@@ -96,6 +96,13 @@ export class Body {
     this.playing = n;
   }
 
+  // (지하) 끝 상태를 푼다(의자에서 일어날 때). 다음 show 에서 늘 하는 것으로 돌아간다
+  clearFinal() {
+    this.final = null;
+    this.finalLeft = 0;
+    this.playing = null;
+  }
+
   // 한 번 하는 것을 시작한다(도구 쓰기, 공격, 눈 깜빡임). at: 늦게 시작할 때 이미 지난 시간(초)
   play(name, at = 0) {
     if (this.final) return null;

@@ -25,6 +25,7 @@ export class UIScene extends Phaser.Scene {
     this.makeSoundButton();
     this.makeHunger();
     this.makeClock();
+    this.makeUgTag();
     this.makeTodo();
     this.makeBag();
     this.makeEquipment();
@@ -41,18 +42,18 @@ export class UIScene extends Phaser.Scene {
     listen('inventory-changed', () => { this.refreshBag(); this.refreshCards(); });
     listen('choose-seed', (f) => this.showSeedWindow(f));
     listen('weather-changed', () => this.refreshWeather());
-    // (지하) 지하에서는 만들기 버튼을 감춘다(지하의 카드는 Phase 18)
-    listen('ug-changed', (down) => { this.craftBtn.setVisible(!down); this.craftIcons.forEach((o) => o.setVisible(!down)); if (down && this.craftOpen) this.toggleCraft(); });
+    // (지하) 만들기 창의 카드가 바뀌고(17.6), 시계 아래에 "지하 1층", 알림은 그 아래로 (17.9)
+    listen('ug-changed', (down) => { this.makeCraftWindow(); this.ugTag.setVisible(down); this.placeNotice(); });
     listen('tools-changed', () => { this.refreshEquipment(); if (this.world.stage >= 2) this.makeCraftWindow(); else this.refreshCards(); this.makeRest(); });
     listen('todo-changed', () => this.refreshTodo());
     listen('build-changed', () => { this.refreshCards(); this.refreshHint(); });
     listen('structures-changed', () => this.refreshCards());
     listen('hearts-changed', () => this.refreshHearts());
     listen('hunger-changed', () => this.refreshHunger());
-    listen('rest-changed', () => this.restBox.setVisible(this.world.rest.resting));
+    listen('rest-changed', () => { this.makeRest(); this.restBox.setVisible(this.world.rest.resting || !!this.world.home.bed); });
     listen('speed-changed', () => this.refreshDebug());
     listen('stage-changed', () => this.onStage());
-    listen('notice', (text) => this.notice(text));
+    listen('notice', (text, icon) => this.notice(text, false, icon));
     listen('down', () => this.showModal('쓰러졌습니다', [], [['다시 시작', () => this.restart(), true]]));
     listen('result', (r) => this.showModal('첫 밤을 넘겼습니다',
       [['물리친 적', `${r.defeated}마리`], ['남은 울타리', `${r.fences}개`], ['남은 하트', `${r.hearts}칸`]],
@@ -215,6 +216,17 @@ export class UIScene extends Phaser.Scene {
     this.refreshClock();
   }
 
+  // (지하) 시계 아래의 "지하 1층" 표시 (17.9, preview_underground.png). 지하에 있는 동안만
+  makeUgTag() {
+    const T = U.ugTag, cx = this.W / 2, y = U.margin + U.clock.h + T.gap;
+    const text = this.label(0, y + T.h / 2, '지하 1층', T.font);
+    const w = T.padX * 2 + T.icon + T.iconGap + text.width, x = cx - w / 2;
+    const bg = this.panel(this.add.graphics(), x, y, w, T.h, T.h / 2);
+    const icon = this.add.image(x + T.padX + T.icon / 2, y + T.h / 2, 'icon_underground').setDisplaySize(T.icon, T.icon);
+    text.setX(x + T.padX + T.icon + T.iconGap);
+    this.ugTag = this.add.container(0, 0, [bg, icon, text]).setVisible(this.world.ug.active);
+  }
+
   refreshWeather() {
     const key = this.world.weather.icon(), C = U.clock;
     this.weatherIcon.setVisible(!!key);
@@ -273,7 +285,7 @@ export class UIScene extends Phaser.Scene {
   // 가방에 보이는 것: 재료(1단계 나무·돌, 2단계부터 철광석도), (3단계) 가진 작물과 씨앗만
   bagItems() {
     const base = this.world.stage >= 2 ? ['wood', 'stone', 'iron'] : ['wood', 'stone'];
-    const extra = ['berry', ...CROPS, ...CROPS.map((c) => 'seed_' + c), 'spore'].filter((it) => this.world.inventory.count(it) > 0);
+    const extra = ['berry', ...CROPS, ...CROPS.map((c) => 'seed_' + c), 'mushroom', 'spore'].filter((it) => this.world.inventory.count(it) > 0);
     return [...base, ...extra];
   }
 
@@ -385,7 +397,7 @@ export class UIScene extends Phaser.Scene {
     const { cy, r } = this.craftPos;
     const stage2 = this.world.stage >= 2;
     const K = stage2 ? { ...U.craft, ...U.craft2 } : U.craft;
-    const list = cardsFor(this.world.stage, this.world.tools), perRow = stage2 ? K.perRow : list.length;
+    const list = cardsFor(this.world.stage, this.world.tools, this.world.ug.active), perRow = stage2 ? K.perRow : list.length;
     const rows = Math.ceil(list.length / perRow), rowGap = K.rowGap || 0;
     const w = K.pad * 2 + perRow * K.cardW + (perRow - 1) * K.cardGap;
     const h = K.pad * 2 + K.titleHeight + rows * K.cardH + (rows - 1) * rowGap;
@@ -506,7 +518,8 @@ export class UIScene extends Phaser.Scene {
       [() => `속도 ×${this.world.debugSpeed}`, () => this.world.debugToggleSpeed()],
       ['날씨 바꾸기', () => this.world.debugWeather()],   // 14.4
       ...(this.world.hunger.enabled ? [['배부름 가득', () => this.world.debugHungerFull()], ['배부름 0', () => this.world.debugHungerZero()]] : []),   // 16.4
-      ...(this.world.stage >= 2 && this.world.ug.exists ? [['지하로 / 땅 위로', () => this.world.debugUnderground()], ['둘레 5×5 파기', () => this.world.debugDigAround()]] : []),   // 17.10
+      ...(this.world.stage >= 2 && this.world.ug.exists ? [['지하로 / 땅 위로', () => this.world.debugUnderground()], ['둘레 5×5 파기', () => this.world.debugDigAround()],
+        ['포자 +' + CONFIG.ug.debugSpores, () => this.world.debugSpores()], ['버섯 다 자라게', () => this.world.debugMushrooms()]] : []),   // 17.10
       ['닫기', () => this.debugWin.setVisible(false)],
     ];
     // 단추가 많아 만들기 버튼까지 내려오면 단추 높이를 줄여 그 위에 맞춘다
@@ -543,12 +556,12 @@ export class UIScene extends Phaser.Scene {
     if (this.restBox) this.restBox.destroy();
     const bg = this.add.graphics();
     const icon = this.add.image(0, 0, 'icon_sleep').setDisplaySize(R.icon, R.icon);
-    const text = this.label(0, 0, '쉬는 중 · 누르면 나옵니다', R.font);
+    const text = this.label(0, 0, this.world.home.bed ? '자는 중 · 누르면 일어납니다' : '쉬는 중 · 누르면 나옵니다', R.font);   // (지하) 침대 (17.7)
     const w = R.padX * 2 + R.icon + R.gap + text.width;
     const equipRight = U.margin + this.bagLayout().w + E.gap + E.pad * 2 + this.world.equipment().length * E.slot;
     const x = Math.max(this.W / 2 - w / 2, equipRight + E.gap), y = this.H - U.margin - R.h;
     this.panel(bg, x, y, w, R.h);
-    bg.on('pointerdown', () => { this.click(); this.world.rest.exit(); });
+    bg.on('pointerdown', () => { this.click(); this.world.wakeUp(); });
     icon.setPosition(x + R.padX + R.icon / 2, y + R.h / 2);
     text.setPosition(x + R.padX + R.icon + R.gap, y + R.h / 2);
     this.restBox = this.add.container(0, 0, [bg, icon, text]).setVisible(visible);
@@ -597,38 +610,49 @@ export class UIScene extends Phaser.Scene {
   makeNotice() {
     this.noticeBg = this.add.graphics();
     this.noticeText = this.label(this.W / 2, U.notice.y, '', U.notice.font, { originX: 0.5 });
-    this.noticeBox = this.add.container(0, 0, [this.noticeBg, this.noticeText]).setDepth(20).setVisible(false);
+    this.noticeIcon = this.add.image(0, 0, 'icon_surface').setVisible(false);   // (지하) 땅 위 소식의 아이콘 (17.9)
+    this.noticeBox = this.add.container(0, 0, [this.noticeBg, this.noticeIcon, this.noticeText]).setDepth(20).setVisible(false);
+    this.placeNotice();
     this.noticeQueue = [];
     this.noticeLeft = 0;     // 떠 있는 알림이 사라질 때까지 남은 시간(초)
     this.hint = null;        // 짓기 상태의 안내. 알림이 없는 동안 계속 떠 있다.
   }
 
-  // 알림 자리에 글을 띄운다
-  showNotice(text) {
-    const N = U.notice, P = U.panel;
+  // 알림의 세로 자리: 지하에서는 "지하 1층" 표시 아래로 내려간다 (17.9)
+  placeNotice() {
+    const N = U.notice, T = U.ugTag;
+    this.noticeBox.y = this.world.ug.active ? U.margin + U.clock.h + T.gap + T.h + T.gap + N.height / 2 - N.y : 0;
+  }
+
+  // 알림 자리에 글을 띄운다. icon: 글 앞의 아이콘(땅 위 소식)
+  showNotice(text, icon = null) {
+    const N = U.notice, P = U.panel, I = U.noticeIcon;
     this.noticeText.setText(text);
-    const w = this.noticeText.width + N.padX * 2;
+    const iw = icon ? I.size + I.gap : 0, w = this.noticeText.width + N.padX * 2 + iw;
+    this.noticeText.setX(this.W / 2 + iw / 2);
+    this.noticeIcon.setVisible(!!icon);
+    if (icon) this.noticeIcon.setTexture(icon).setDisplaySize(I.size, I.size).setPosition(this.W / 2 - w / 2 + N.padX + I.size / 2, N.y);
     this.roundRect(this.noticeBg.clear(), this.W / 2 - w / 2, N.y - N.height / 2, w, N.height, N.height / 2, P.color, P.alpha, P.border, P.borderWidth);
     this.noticeBox.setVisible(true).setAlpha(1);
   }
 
   // 알림은 2.5초 떴다가 사라진다. 새 알림은 떠 있던 것을 바로 바꾼다.
   // queued 가 true 면 떠 있는 알림이 끝난 뒤에 차례로 보여 준다(처음의 안내 세 개).
-  notice(text, queued = false) {
+  notice(text, queued = false, icon = null) {
     if (queued && this.noticeLeft > 0) {
       this.noticeQueue.push(text);
       return;
     }
-    this.showNotice(text);
+    this.showNotice(text, icon);
     this.noticeLeft = U.notice.time;
   }
 
   // 짓기 상태의 안내는 계속 떠 있다: "울타리: 지을 칸을 누르세요"
   refreshHint() {
     const mode = this.world.build.mode;
-    const card = cardsFor(this.world.stage, this.world.tools).find((c) => c && c.id === mode);
-    this.hint = !card ? null : card.type === 'remove' ? '치우기: 없앨 시설을 누르세요'
-      : card.type === 'farm' ? '밭 갈기: 갈 칸을 누르세요' : `${cardName(card)}: 지을 칸을 누르세요`;
+    const card = cardsFor(this.world.stage, this.world.tools, this.world.ug.active).find((c) => c && c.id === mode);
+    this.hint = !card ? null : card.type === 'remove' ? (this.world.ug.active ? '치우기: 없앨 가구를 누르세요' : '치우기: 없앨 시설을 누르세요')
+      : card.type === 'farm' ? '밭 갈기: 갈 칸을 누르세요' : `${cardName(card)}: ${this.world.build.furnishing ? '놓을' : '지을'} 칸을 누르세요`;
     if (this.hint) {                                  // 안내는 바로 띄운다(기다리던 알림은 버린다)
       this.noticeQueue.length = 0;
       this.noticeLeft = 0;
