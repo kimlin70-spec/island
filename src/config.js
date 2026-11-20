@@ -75,7 +75,7 @@ export const CONFIG = {
   zombie: { hp: 3, speed: 1.2, hitInterval: 2.0, firstHitDelay: 1.5, hitDamage: 1,   // hitDamage: 한 번 때릴 때 깎는 하트
             structureDamage: 1, structureInterval: 1.5, breakCost: 8, spawnMinDistance: 12,
             repathInterval: 0.5,     // 길을 다시 찾는 가장 짧은 간격(초) (5.8)
-            repathsPerFrame: 3,      // 한 프레임에 길을 다시 찾는 적(좀비와 해적을 합해) 수의 최대(느린 기기에서 화면이 끊기지 않게)
+            repathsPerFrame: 6,      // 한 프레임에 길을 다시 찾는 적(좀비와 해적을 합해) 수의 최대(느린 기기에서 화면이 끊기지 않게). 좀비 수를 2배로 하며 3 -> 6
             // hp: 6장의 3. (사용자 요청으로 6 으로 올렸다가, 다시 사용자 요청으로 3 으로 되돌리고 대신 wave 의 수를 2배로)
           },
   // 6장은 base 4, perNight 2, max 14. 사용자 요청(좀비 체력을 낮추고 수를 늘려 난이도를 맞춤)으로 2배
