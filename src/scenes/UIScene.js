@@ -46,7 +46,7 @@ export class UIScene extends Phaser.Scene {
     listen('ug-changed', (down) => { this.makeCraftWindow(); this.ugTag.setVisible(down); this.placeNotice(); });
     listen('tools-changed', () => { this.refreshEquipment(); if (this.world.stage >= 2) this.makeCraftWindow(); else this.refreshCards(); this.makeRest(); });
     listen('todo-changed', () => this.refreshTodo());
-    listen('build-changed', () => { this.refreshCards(); this.refreshHint(); });
+    listen('build-changed', () => { this.refreshCards(); this.refreshHint(); this.drawCraftButton(); });
     listen('structures-changed', () => this.refreshCards());
     listen('hearts-changed', () => this.refreshHearts());
     listen('hunger-changed', () => this.refreshHunger());
@@ -428,15 +428,18 @@ export class UIScene extends Phaser.Scene {
     this.makeHunger();
   }
 
+  // 창이 열려 있거나 짓는 중이면 굵은 테두리
   drawCraftButton() {
     const C = U.craftButton, { cx, cy, r } = this.craftPos;
-    const b = this.craftOpen ? C.borderOpen : C.border;
+    const b = this.craftOpen || this.world.build.mode ? C.borderOpen : C.border;
     this.craftBtn.clear().fillStyle(U.yellow, 1).fillCircle(cx, cy, r).lineStyle(b, INK, 1).strokeCircle(cx, cy, r - b / 2);
   }
 
   // 만들기 버튼: 누르면 창이 열리고, 다시 누르면 닫히면서 짓기 상태도 끝난다
   // 2단계의 두 줄 창은 시험용 창과 겹치므로, 2단계에서는 하나를 열면 다른 하나는 닫는다.
+  // (사용자 요청) 창을 접은 채 짓는 중이면: 짓기를 그만둔다(창은 열지 않는다. 다시 누르면 열린다)
   toggleCraft() {
+    if (!this.craftOpen && this.world.build.mode) { this.world.build.setMode(null); this.drawCraftButton(); return; }
     this.craftOpen = !this.craftOpen;
     this.craftWin.setVisible(this.craftOpen);
     if (this.craftOpen && this.debugWin && this.world.stage >= 2) this.debugWin.setVisible(false);
@@ -444,12 +447,22 @@ export class UIScene extends Phaser.Scene {
     if (!this.craftOpen) this.world.build.setMode(null);
   }
 
+  // (사용자 요청) 카드를 골라 짓기·치우기 상태가 되면 만들기 창을 접는다. 짓기 상태는 그대로(안내는 위에 뜬다)
+  minimizeCraft() {
+    this.craftOpen = false;
+    this.craftWin.setVisible(false);
+    this.drawCraftButton();
+  }
+
   // 카드 한 장: 아이콘, 이름, 재료(아이콘과 숫자) 또는 글자("보유", "절반 돌려받음")
   makeCard(card, x, y) {
     const K = this.craftK;
     const box = this.add.container(x, y);
     const bg = this.hitRect(this.add.graphics(), 0, 0, K.cardW, K.cardH);
-    bg.on('pointerdown', () => this.world.pressCard(card));
+    bg.on('pointerdown', () => {
+      this.world.pressCard(card);
+      if (this.world.build.mode === card.id) this.minimizeCraft();   // (사용자 요청) 짓기·치우기·밭 갈기를 고르면 창을 접는다
+    });
     const icon = this.add.image(K.cardW / 2, K.iconY, card.icon).setDisplaySize(K.icon, K.icon);
     const name = this.label(K.cardW / 2, K.nameY, cardName(card), K.nameFont, { originX: 0.5 });
     const status = this.label(K.cardW / 2, K.costY, card.note || '', K.statusFont, { originX: 0.5, regular: true });

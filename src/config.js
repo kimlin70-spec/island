@@ -72,10 +72,12 @@ export const CONFIG = {
     arrowStuckFade: 0.5,     // 목표를 잃고 땅에 꽂힌 화살이 사라지는 데 걸리는 시간(초). 남는 시간은 fx.arrowStuckLife
     missDustScale: 0.4,      // 목표를 잃은 총알이 떨어진 곳의 먼지 크기(배)
   },
-  zombie: { hp: 3, speed: 1.2, hitInterval: 2.0, firstHitDelay: 1.5, hitDamage: 1,   // hitDamage: 한 번 때릴 때 깎는 하트
+  zombie: { hp: 6, speed: 1.2, hitInterval: 2.0, firstHitDelay: 1.5, hitDamage: 1,   // hitDamage: 한 번 때릴 때 깎는 하트
             structureDamage: 1, structureInterval: 1.5, breakCost: 8, spawnMinDistance: 12,
             repathInterval: 0.5,     // 길을 다시 찾는 가장 짧은 간격(초) (5.8)
-            repathsPerFrame: 3 },    // 한 프레임에 길을 다시 찾는 적(좀비와 해적을 합해) 수의 최대(느린 기기에서 화면이 끊기지 않게)
+            repathsPerFrame: 3,      // 한 프레임에 길을 다시 찾는 적(좀비와 해적을 합해) 수의 최대(느린 기기에서 화면이 끊기지 않게)
+            // hp: 6장은 3. 사용자 요청(2배)으로 6. 2단계부터는 stage2.enemyHpScale 배가 더해져 12
+          },
   wave:   { base: 4, perNight: 2, max: 14, spawnWindow: 0.6 },
   pirate: { enabled: true, count: 2, hp: 4, speed: 1.8, hitInterval: 1.6, firstHitDelay: 1.0,   // enabled: Phase 6 에서 켰다
             structureDamage: 1, structureInterval: 1.0, breakCost: 8, shipAt: 0.35, landAt: 0.45,
