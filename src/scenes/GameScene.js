@@ -17,6 +17,7 @@ import { Shots } from '../systems/Shots.js';
 import { Sound } from '../systems/Sound.js';
 import { FarmSystem, CROPS } from '../systems/FarmSystem.js';
 import { PetSystem } from '../systems/PetSystem.js';
+import { WeatherSystem } from '../systems/WeatherSystem.js';
 import { bestTool, cardCost, cardName, objectParticle } from '../systems/Crafting.js';
 import { TODO_ITEMS2 } from '../systems/Todo.js';
 
@@ -52,6 +53,7 @@ export class GameScene extends Phaser.Scene {
     this.map.build();
     this.nodes = new NodeSystem(this);
     this.farm = new FarmSystem(this);                 // (3단계) 씨앗 상자, 밭, 작물 (13.3)
+    this.weather = new WeatherSystem(this);           // 날씨: 맑음, 비, 눈 (14장)
 
     const st = this.mapData.playerStart;
     this.player = new Player(this, this.map, st.col, st.row);
@@ -469,6 +471,8 @@ export class GameScene extends Phaser.Scene {
   debugSeeds() { for (const c of CROPS) this.inventory.add('seed_' + c, CONFIG.farm.debugSeeds); }
   debugRipen() { this.farm.ripenAll(); }
   debugPets() { this.pets.befriendAll(); }
+  // 날씨 바꾸기: 맑음 -> 비 -> 눈 -> 맑음 (14.4)
+  debugWeather() { this.weather.cycle(); }
   // (2단계) 해적 부르기: 밤에만. 해적선과 해적이 바로 나온다 (11.8)
   debugPirates() { if (this.clock.isNight && !this.player.downed) this.pirates.callNow(); }
 
@@ -490,6 +494,7 @@ export class GameScene extends Phaser.Scene {
     this.towers.update(dt);
     this.shots.update(dt);
     this.farm.update(dt);
+    this.weather.update(dt);
     this.build.update(dt);
     const pl = this.player;
     // 쓰러진 뒤 downDelay 초가 지나면 "쓰러졌습니다" 창 (12.3)

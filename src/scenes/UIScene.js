@@ -38,6 +38,7 @@ export class UIScene extends Phaser.Scene {
     };
     listen('inventory-changed', () => { this.refreshBag(); this.refreshCards(); });
     listen('choose-seed', (f) => this.showSeedWindow(f));
+    listen('weather-changed', () => this.refreshWeather());
     listen('tools-changed', () => { this.refreshEquipment(); if (this.world.stage >= 2) this.makeCraftWindow(); else this.refreshCards(); this.makeRest(); });
     listen('todo-changed', () => this.refreshTodo());
     listen('build-changed', () => { this.refreshCards(); this.refreshHint(); });
@@ -167,9 +168,18 @@ export class UIScene extends Phaser.Scene {
     this.panel(this.add.graphics(), cx - C.w / 2, y, C.w, C.h);
     this.clockIcon = this.add.image(cx + C.iconX, y + C.h / 2, 'icon_sun').setDisplaySize(C.icon, C.icon);
     this.clockText = this.label(cx + C.textX, y + C.textY, '', C.font);
+    // (날씨) 맑음이 아니면 시계 오른쪽에 비·눈 아이콘 (14.1)
+    this.weatherIcon = this.add.image(cx + C.w / 2 + C.weatherGap + C.weatherIcon / 2, y + C.h / 2, 'icon_rain').setVisible(false);
+    this.refreshWeather();
     this.clockBar = this.add.graphics();
     this.clockShown = {};    // 지금 그려 둔 것. 바뀔 때만 다시 그린다.
     this.refreshClock();
+  }
+
+  refreshWeather() {
+    const key = this.world.weather.icon(), C = U.clock;
+    this.weatherIcon.setVisible(!!key);
+    if (key) this.weatherIcon.setTexture(key).setDisplaySize(C.weatherIcon, C.weatherIcon);
   }
 
   refreshClock() {
@@ -454,6 +464,7 @@ export class UIScene extends Phaser.Scene {
       ...(this.world.stage >= 2 ? [['해적 부르기', () => this.world.debugPirates()]] : []),
       ...(this.world.stage >= 2 ? [['씨앗 +' + CONFIG.farm.debugSeeds, () => this.world.debugSeeds()], ['작물 다 자라게', () => this.world.debugRipen()], ['동물 모두 친구로', () => this.world.debugPets()]] : []),   // (3단계) 13.5
       [() => `속도 ×${this.world.debugSpeed}`, () => this.world.debugToggleSpeed()],
+      ['날씨 바꾸기', () => this.world.debugWeather()],   // 14.4
       ['닫기', () => this.debugWin.setVisible(false)],
     ];
     const h = D.pad * 2 + items.length * D.itemH + (items.length - 1) * D.itemGap;

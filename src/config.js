@@ -110,6 +110,16 @@ export const CONFIG = {
     ripeSway: { angle: 2, period: 1.5 },      // 다 자란 작물이 흔들리는 각도(도)와 한 번 흔드는 시간(초)
     debugSeeds: 5,                            // 시험용 도구 "씨앗 +5"
   },
+  // 날씨 (14.5). 아래 줄의 값은 14장의 글에 있는 숫자
+  weather: {
+    chance: { clear: 0.6, rain: 0.25, snow: 0.15 }, firstDay: 'clear', fade: 4,
+    rain: { far: { alpha: 0.6, speed: [200, 900] }, near: { alpha: 0.45, scale: 1.7, speed: [330, 1500] }, shade: 0xc7d1e6,
+            splashEvery: 0.06, puddles: 10, puddleIn: 6, puddleOut: 20,
+            puddleRange: 10 },                       // 웅덩이를 놓는 범위: 카메라 가운데에서 ±칸
+    snow: { far: { alpha: 0.8, fall: 50, sway: 20, swayPeriod: 1400 }, near: { alpha: 0.6, scale: 1.7, fall: 90, sway: 30, swayPeriod: 1100 },
+            shade: 0xf0f4ff, coverIn: 40, coverOut: 60,
+            footprintCover: 0.5 },                   // 쌓인 눈이 이보다 진하면 어디서나 발자국과 step_snow
+  },
   // (3단계) 강아지와 고양이 (13.4, 13.6). 아래 두 줄은 13.4 의 글에 있는 숫자와 화면에 쓰는 숫자
   pets: {
     followNear: 1.5, followFar: 3, teleportFar: 12, catSleepAfter: 10,
@@ -201,7 +211,7 @@ export const CONFIG = {
     bodyWidth: 36,           // 캐릭터 몸통의 폭(px)
     inset: 0.15,             // 사물 그림 가장자리의 빈 곳(그림 폭에 대한 비율)
   },
-  depth: { ground: 0, footprint: 2, floor: 3, objectBase: 10, charBias: 0.5, fx: 50000 },   // footprint: 모래 발자국(12.9)
+  depth: { ground: 0, snow: 1, footprint: 2, floor: 3, objectBase: 10, charBias: 0.5, fx: 50000 },   // footprint: 모래 발자국(12.9)
 
   // ── 화면 UI (7장). 위치와 크기는 1920×1200 기준이고 preview 그림의 배치를 따른다 ──
   ui: {
@@ -237,6 +247,7 @@ export const CONFIG = {
     soundButton: { gap: 10, icon: 46 },   // 하트 칸 오른쪽의 동그란 소리 켜고 끄기 버튼(지름은 하트 칸 높이) (15.1)
     // 가운데 위: 해/달 아이콘, "1일째 낮", 진행 막대(낮 노랑, 밤 파랑). x 는 화면 가운데 기준, y 는 패널 위쪽 기준
     clock: { w: 460, h: 72, iconX: -190, icon: 64, textX: -150, textY: 24, font: 26,
+             weatherGap: 14, weatherIcon: 60,   // (날씨) 시계 오른쪽의 비·눈 아이콘 (14.1, preview_rain.png)
              barX: -150, barY: 42, barW: 356, barH: 18, track: 0xc4b8a8, dayFill: 0xf0be54, nightFill: 0x687ac4 },
     // 아래 가운데: 텐트에서 쉬는 동안의 버튼 "쉬는 중 · 누르면 나옵니다"
     rest: { h: 88, padX: 22, icon: 64, gap: 12, font: 28 },

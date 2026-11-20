@@ -254,6 +254,7 @@ export class FarmSystem {
   // 젖은 밭의 작물은 stageTime 초(게임 시간)마다 한 단계. 마른 밭에서는 시간이 멈춘다. ripe 가 되면 그만.
   update(dt) {
     if (this.crateDue) this.tryCrate();
+    if (this.scene.weather.kind === 'snow') return;   // 눈이 오는 동안은 자라지 않는다(14.3)
     for (const f of this.fields.values()) {
       const c = f.crop;
       if (!c || !f.wet || c.stage >= STAGES.length - 1) continue;

@@ -121,8 +121,9 @@ export class Walker {
     const d = this.heading;
     if (!d) return;
     const h = this.here();
-    this.scene.effects.step(this.sprite.x, this.sprite.y, (d.dc - d.dr) * 2, d.dc + d.dr, this.map.isSand(h.col, h.row));
-    this.scene.sfx.play('step', { at: this.sprite, volume: CONFIG.sound.step });   // 발소리 (15.3)
+    const snowy = this.scene.weather.snowy;         // 눈이 쌓였으면 모래가 아닌 곳에도 발자국, 발소리는 step_snow (14.3)
+    this.scene.effects.step(this.sprite.x, this.sprite.y, (d.dc - d.dr) * 2, d.dc + d.dr, snowy || this.map.isSand(h.col, h.row));
+    this.scene.sfx.play(snowy ? 'step_snow' : 'step', { at: this.sprite, volume: CONFIG.sound.step });   // 발소리 (15.3)
   }
 
   // 길을 따라 dt 초 동안 speed(칸/초)로 걷는다
