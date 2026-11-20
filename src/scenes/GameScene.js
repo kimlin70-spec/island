@@ -19,8 +19,9 @@ import { FarmSystem, CROPS } from '../systems/FarmSystem.js';
 import { PetSystem } from '../systems/PetSystem.js';
 import { WeatherSystem } from '../systems/WeatherSystem.js';
 import { HungerSystem } from '../systems/HungerSystem.js';
+import { Underground } from '../systems/Underground.js';
 import { bestTool, cardCost, cardName, objectParticle } from '../systems/Crafting.js';
-import { TODO_ITEMS2 } from '../systems/Todo.js';
+import { TODO_ITEMS2, TODO_ITEMS3 } from '../systems/Todo.js';
 
 // 월드: 섬, 사물, 주인공, 적, 카메라, 누르기, 시간. 화면 UI(UIScene)에는 events 로 바뀐 것을 알린다.
 //   inventory-changed, tools-changed, todo-changed, build-changed, structures-changed,
@@ -65,7 +66,8 @@ export class GameScene extends Phaser.Scene {
     this.rest = new RestSystem(this);
     this.enemies = new EnemySystem(this);
     this.pirates = new PirateSystem(this);
-    this.pets = new PetSystem(this);                  // (3단계) 강아지와 고양이 (13.4)           // 해적선, 보트, 해적의 상륙 (5.12)
+    this.pets = new PetSystem(this);                  // (3단계) 강아지와 고양이 (13.4)
+    this.ug = new Underground(this);                  // (지하) 굴 입구, 오르내리기, 파기 (17장)           // 해적선, 보트, 해적의 상륙 (5.12)
     this.resultPending = false;                       // 첫 아침: 화면이 다 밝아지면 결과 창을 띄운다
 
     // 카메라: 주인공을 부드럽게 따라가고, 바닥 그림 밖으로 나가지 않는다
@@ -90,8 +92,8 @@ export class GameScene extends Phaser.Scene {
     // 낮과 밤 (5.5)
     this.events.on('todo-changed', () => this.checkStage3());
     // 소리 (15.3): 저녁, 밤, 아침. 배경 소리는 저녁과 아침에 낮·밤을 서로 바꿔 튼다
-    this.events.on('dusk', () => { this.notice('곧 밤이 됩니다'); this.sfx.play('dusk'); this.setAmbience(true); });
-    this.events.on('night', () => { this.notice('밤이 되었습니다'); this.sfx.play('night_start'); this.setAmbience(true); });
+    this.events.on('dusk', () => { this.notice('곧 밤이 됩니다'); this.sfx.play('dusk', { volume: this.eventVolume }); this.setAmbience(true); });
+    this.events.on('night', () => { this.notice('밤이 되었습니다'); this.sfx.play('night_start', { volume: this.eventVolume }); this.setAmbience(true); });
     this.setAmbience(false);
     this.events.on('morning', (day) => this.onMorning(day));
     // 프레임마다 맨 먼저(그림의 애니메이션이 움직이기 전에) 게임 시간을 정한다
@@ -121,6 +123,7 @@ export class GameScene extends Phaser.Scene {
   onPress(p) {
     if (!p.wasTouch && p.button !== 0) return;        // 마우스는 왼쪽 버튼만
     if (this.player.downed) return;                   // 쓰러진 뒤 창이 뜨기까지는 누를 수 없다
+    if (this.ug.active) { this.ug.onPress(p.worldX, p.worldY); return; }   // (지하) 17.4
     if (this.build.mode) {                            // 짓기·치우기 상태: 걷지 않는다. 손을 뗄 때 짓는다.
       this.pressing = true;
       this.hovering = true;
@@ -139,6 +142,7 @@ export class GameScene extends Phaser.Scene {
     if (e) this.pressEnemy(e);                        // 적: 다가가서 단검으로 친다 (5.9). 총이 있으면 멀리서 쏜다 (11.6)
     else if (pet) this.pets.press(pet);               // (3단계) 동물: 다가가서 쓰다듬는다 (13.4)
     else if (o && o.kind === 'iron' && this.stage < 2) this.error('아직 캘 수 없습니다');   // 철광석은 2단계부터 캔다 (4장, 11.2)
+    else if (o && o.type === 'burrow') this.ug.pressBurrow(o);   // (지하) 굴 입구: 내려간다 (17.2)
     else if (o && o.kind === 'bush') this.hunger.pressBush(o);   // 덤불: 열매를 딴다 (16.3)
     else if (o && o.kind === 'crate') this.farm.pressCrate(o);   // (3단계) 씨앗 상자 (13.3)
     else if (o && o.node) this.pressNode(o);               // 나무, 돌, 철광석, 그루터기, 돌 부스러기
@@ -178,7 +182,11 @@ export class GameScene extends Phaser.Scene {
 
   // 캐릭터(주인공과 적)가 몸을 걸치고 있는 칸들(Walker.occupiedTiles). 여기에는 시설을 지을 수 없다.
   // 주인공이 텐트 안에 있는 동안에는 들어갔던 칸이다.
-  characterTiles() { return [...this.player.occupiedTiles(), ...this.enemies.occupiedTiles(), ...this.pets.occupiedTiles()]; }
+  // (지하) 지하에 있는 주인공과 동물은 땅 위의 칸을 차지하지 않는다
+  characterTiles() {
+    const out = [...this.enemies.occupiedTiles(), ...this.pets.list.filter((p) => p.map === this.map).flatMap((p) => p.occupiedTiles())];
+    return this.ug.active ? out : [...this.player.occupiedTiles(), ...out];
+  }
 
   // 시설이 생기거나 없어졌다: 걷던 길을 다시 본다
   onMapChanged() {
@@ -226,7 +234,7 @@ export class GameScene extends Phaser.Scene {
   // 적(from)에게 맞았다: 하트가 줄고 타격감(12.4). 0이 되면 쓰러진다(down 을 보여 주고 downDelay 초 뒤에 창).
   // 들어갔으면 true.
   hurtPlayer(n, from) {
-    if (this.rest.resting) return false;              // 텐트 안에서는 공격받지 않는다
+    if (this.rest.resting || this.ug.active) return false;   // 텐트 안·지하에서는 공격받지 않는다
     if (this.player.downed) return false;             // 이미 쓰러졌다(같은 프레임에 여러 마리가 때린 경우도)
     this.hearts.damage(n);
     const down = this.hearts.value <= 0;
@@ -287,11 +295,17 @@ export class GameScene extends Phaser.Scene {
   }
 
   // (3단계) 2단계의 할 일을 모두 마치면 할 일 목록이 3단계로 바뀐다(사용자와 정함). 그때 이미 지은 문이 있으면 "문 달기"를 체크
+  // (지하, 같은 방식) 3단계의 할 일을 모두 마치면 지하 생활의 할 일로 바뀐다(4)
   checkStage3() {
-    if (this.stage !== 2 || !TODO_ITEMS2.every((t) => this.todo.isDone(t.id))) return;
-    this.stage = 3;
-    this.events.emit('stage-changed');
-    if (this.build.count('gate') > 0) this.todo.check('gate');
+    if (this.stage === 2 && TODO_ITEMS2.every((t) => this.todo.isDone(t.id))) {
+      this.stage = 3;
+      this.events.emit('stage-changed');
+      if (this.build.count('gate') > 0) this.todo.check('gate');
+    } else if (this.stage === 3 && TODO_ITEMS3.every((t) => this.todo.isDone(t.id))) {
+      this.stage = 4;
+      this.events.emit('stage-changed');
+      if (this.build.count('burrow') > 0) this.todo.check('burrow');
+    }
   }
 
   // (3단계) 밭이 생기거나 없어졌다: 할 일 "밭 6칸 갈기"(지금 밭의 수)
@@ -330,7 +344,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   showCursor(col, row) {
-    const w = tileToWorld(col, row);
+    const w = this.ug.active ? this.ug.world(col, row) : tileToWorld(col, row);
     this.cursor.setPosition(w.x, w.y).setVisible(true);
     this.cursorLeft = CONFIG.input.cursorTime;
   }
@@ -343,11 +357,19 @@ export class GameScene extends Phaser.Scene {
   }
 
   // 배경 소리 (15.3): 낮 amb_day, 저녁부터 아침까지 amb_night. loopFade 초에 걸쳐 서로 바꾼다.
+  // 지하에서는 땅 위의 배경 대신 amb_underground (17.2)
   setAmbience(night) {
-    const v = CONFIG.sound.ambience;
-    this.sfx.loop('amb_day', night ? 0 : v);
-    this.sfx.loop('amb_night', night ? v : 0);
+    const v = CONFIG.sound.ambience, down = this.ug && this.ug.active;
+    this.sfx.loop('amb_day', !down && !night ? v : 0);
+    this.sfx.loop('amb_night', !down && night ? v : 0);
+    if (down || (this.ug && this.sfx.loops.amb_underground)) this.sfx.loop('amb_underground', down ? v : 0);
   }
+
+  // (지하) 저녁·밤·아침 소리는 지하에서 조금 작게 (17.5)
+  get eventVolume() { return this.ug && this.ug.active ? CONFIG.ug.eventVolume : 1; }
+
+  // 빛 지도의 화면색과 세기: 지하는 늘 어둡다 (17.5)
+  ambient() { return this.ug.active ? { color: CONFIG.ug.ambient, strength: 1 } : this.clock.ambient(); }
 
   nextGroan() { const [a, b] = CONFIG.sound.groanEvery; return a + Math.random() * (b - a); }
 
@@ -357,7 +379,7 @@ export class GameScene extends Phaser.Scene {
     let d = Infinity;
     for (const s of this.map.structures) if (s.type === 'campfire') d = Math.min(d, Math.hypot(s.col - p.col, s.row - p.row));
     const v = d <= F.near ? F.volume : d >= F.far ? 0 : F.volume * (F.far - d) / (F.far - F.near);
-    if (d < Infinity || this.sfx.loops.fire_loop) this.sfx.loop('fire_loop', v, false);
+    if (d < Infinity || this.sfx.loops.fire_loop) this.sfx.loop('fire_loop', this.ug.active ? 0 : v, false);
     if (this.clock.isNight) {
       if ((this.groanLeft -= dt) <= 0) {
         this.groanLeft = this.nextGroan();
@@ -410,6 +432,7 @@ export class GameScene extends Phaser.Scene {
     if (s.type === 'campfire' || s.type === 'tent') this.todo.check(s.type);
     if (isTower(s.type)) this.todo.check(s.type);    // (2단계) 할 일 3번 망루 세우기, 4번 총 타워 세우기
     if (s.type === 'gate' && this.stage >= 3) this.todo.check('gate');   // (3단계) 문 달기
+    if (s.type === 'burrow') this.todo.check('burrow');   // (지하) 굴 입구 짓기
     if (this.build.count('fence') >= CONFIG.todo.fenceCount) this.todo.check('fence');
     this.checkStage2();
   }
@@ -423,7 +446,7 @@ export class GameScene extends Phaser.Scene {
     this.shots.clearHostile();                        // 총잡이가 쏘고 날던 총알도
     this.nightEndHearts = this.hearts.value;          // 결과 창의 "남은 하트": 밤을 넘긴 때의 하트(아침에 차기 전)
     if (!this.hunger.starving && this.hearts.heal(CONFIG.player.morningHeal)) this.heartsUp();   // 굶는 동안은 차지 않는다(16.1)
-    this.sfx.play('morning');
+    this.sfx.play('morning', { volume: this.eventVolume });
     this.setAmbience(false);
     this.build.repairAll();
     this.todo.check(this.stage >= 2 ? 'night' : 'morning');   // 2단계는 "밤을 넘기기"
@@ -436,6 +459,7 @@ export class GameScene extends Phaser.Scene {
 
   // 밤의 빛 (3.7): 월드 좌표의 빛 목록 { x, y, radius, color, alpha }. UIScene 이 빛 지도에 그린다.
   lightSources() {
+    if (this.ug.active) return this.ug.lights();      // (지하) 주인공과 입구의 햇빛 (17.5)
     const out = [];
     const t = this.elapsed;
     for (const s of this.map.structures) {
@@ -479,6 +503,9 @@ export class GameScene extends Phaser.Scene {
   // 배부름 가득, 배부름 0 (16.4)
   debugHungerFull() { this.hunger.set(this.hunger.max); }
   debugHungerZero() { this.hunger.set(0); }
+  // (지하) 지하로 / 땅 위로, 둘레 5×5 파기 (17.10)
+  debugUnderground() { this.ug.jump(); }
+  debugDigAround() { this.ug.digAround(); }
   // (2단계) 해적 부르기: 밤에만. 해적선과 해적이 바로 나온다 (11.8)
   debugPirates() { if (this.clock.isNight && !this.player.downed) this.pirates.callNow(); }
 
@@ -502,12 +529,13 @@ export class GameScene extends Phaser.Scene {
     this.farm.update(dt);
     this.weather.update(dt);
     this.hunger.update(dt);
+    this.ug.update();
     this.build.update(dt);
     const pl = this.player;
     // 쓰러진 뒤 downDelay 초가 지나면 "쓰러졌습니다" 창 (12.3)
     if (pl.downed && pl.downLeft <= 0 && this.scene.isActive()) this.stopGame('down');
     // 가만히 서 있을 때 붙은 칸에 적이 오면 자동으로 공격한다 (5.9). 총이 있으면 사거리 안에서 가장 가까운 적을 쏜다 (11.6)
-    if (!this.rest.resting && !pl.downed && !pl.moving && !pl.action && !pl.swing) {
+    if (!this.rest.resting && !this.ug.active && !pl.downed && !pl.moving && !pl.action && !pl.swing) {
       const e = this.hasGun ? this.enemies.nearestTo(pl.tile, CONFIG.tools.gun.range) : this.enemies.nextTo(pl.tile);
       if (e) this.pressEnemy(e, true);
     }

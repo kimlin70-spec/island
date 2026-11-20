@@ -34,7 +34,7 @@ export class Player extends Walker {
   get downed() { return this.downLeft !== null; }
 
   // 발 위치(월드). 맞아서 밀린 그림이 아니라 규칙의 위치.
-  foot() { return tileToWorld(this.col, this.row); }
+  foot() { const w = tileToWorld(this.col, this.row); return { x: w.x, y: w.y + this.yOff }; }
 
   // (col, row) 칸으로 걸어간다. 하던 행동은 멈춘다. 갈 수 없는 칸이면 아무 일도 하지 않고 false.
   goTo(col, row) {
@@ -77,11 +77,13 @@ export class Player extends Walker {
 
   // 행동하러 갈 곳: 총이면 사거리 안의 칸, 그 밖에는 대상에 붙은 칸
   goalsFor(action) {
+    if (action.goals) return action.goals();          // (지하) 파기: 변을 맞댄 설 수 있는 칸(17.4)
     return action.ranged ? this.rangeTiles(action.target, action.ranged) : this.neighborsOf(action.target.tiles);
   }
 
   // 행동할 수 있는 자리인가: 총(ranged)이면 사거리 안, 그 밖에는 대상에 붙은 칸
   reaches(action, at = this.tile) {
+    if (action.near) return action.near(at);
     return action.ranged ? this.inRange(action.target, action.ranged, at) : this.isNextTo(action.target.tiles, at);
   }
 
@@ -152,6 +154,7 @@ export class Player extends Walker {
 
   update(dt) {
     this.body.tick(dt);
+    if (this.held) return;                            // (지하) 사다리를 오르내리는 중: 그림은 Underground 가 움직인다
     if (this.downed) {                                // 쓰러졌다: 아무것도 하지 않는다. 창은 GameScene 이 띄운다
       this.downLeft -= dt;
       this.syncSprite();
@@ -234,7 +237,7 @@ export class Player extends Walker {
 
   // 발 위치의 y가 클수록 앞에 그린다. y가 같으면 캐릭터가 사물보다 앞이다. 맞아서 밀린 만큼 그림만 옮긴다.
   syncSprite() {
-    const w = tileToWorld(this.col, this.row), o = this.body.offset();
+    const w = this.foot(), o = this.body.offset();
     this.sprite.setPosition(w.x + o.x, w.y + o.y);
     this.sprite.setDepth(CONFIG.depth.objectBase + w.y + CONFIG.depth.charBias);
   }

@@ -41,7 +41,7 @@ class Pet extends Walker {
     this.show();
   }
 
-  foot() { return tileToWorld(this.col, this.row); }
+  foot() { const w = tileToWorld(this.col, this.row); return { x: w.x, y: w.y + this.yOff }; }
   // 주인공이 쓰다듬을 때 붙어야 하는 칸(Player.act)
   get tiles() { return [this.here()]; }
 
@@ -183,27 +183,37 @@ export class PetSystem {
     if (out.length) pet.goTo([out[Math.floor(Math.random() * out.length)]]);
   }
 
-  // 사람이 서 있는 칸인가(동물이 갈 칸을 고를 때 피한다)
-  occupied(col, row) {
+  // 사람이 서 있는 칸인가(동물이 갈 칸을 고를 때 피한다). 지하(map 이 땅 위가 아님)에는 적이 없다
+  occupied(col, row, map = this.map) {
     const p = this.scene.player.tile;
     if (p.col === col && p.row === row) return true;
-    return this.scene.enemies.list.some((e) => e.tile.col === col && e.tile.row === row);
+    return map === this.map && this.scene.enemies.list.some((e) => e.tile.col === col && e.tile.row === row);
   }
 
-  // 칸 t 의 둘레(8칸) 중 걸을 수 있고 비어 있는 칸들
-  freeAround(t) {
+  // 칸 t 의 둘레(8칸) 중 걸을 수 있고 비어 있는 칸들(map: 땅 위 또는 지하)
+  freeAround(t, map = this.map) {
     const out = [];
     for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
       if (!dc && !dr) continue;
       const c = t.col + dc, r = t.row + dr;
-      if (this.map.isWalkable(c, r) && !this.occupied(c, r)) out.push({ col: c, row: r });
+      if (map.isWalkable(c, r) && !this.occupied(c, r, map)) out.push({ col: c, row: r });
     }
     return out;
   }
 
+  // (지하) 따라다니는 동물을 주인공과 함께 옮긴다: 주인공 옆 빈 칸, 먼지 0.5배 (17.2)
+  follow(map, yOff) {
+    for (const p of this.friends) {
+      p.map = map;
+      p.yOff = yOff;
+      p.spot = null;
+      this.teleport(p);
+    }
+  }
+
   // 주인공 옆 빈 칸으로 옮긴다(멀리 떨어졌거나 길이 없을 때). 먼지 0.5배
   teleport(pet) {
-    const around = this.freeAround(this.scene.player.tile);
+    const around = this.freeAround(this.scene.player.tile, pet.map);
     if (!around.length) return;
     const t = around[Math.floor(Math.random() * around.length)];
     pet.path.length = 0;
@@ -273,6 +283,7 @@ export class PetSystem {
   updateWild(p) {
     const pl = this.scene.player;
     if (!p.moving) p.pose = 'sit';
+    if (this.scene.ug.active) return;                // 주인공이 지하에 있다
     if (!p.greeted && Math.hypot(pl.col - p.col, pl.row - p.row) <= CONFIG.pets.greetRange) {
       p.greeted = true;
       p.lookAt(pl.col, pl.row);
@@ -304,7 +315,7 @@ export class PetSystem {
       if (!p.moving || (key !== p.goalKey && p.repathLeft <= 0)) {
         p.goalKey = key;
         p.repathLeft = P.repathInterval;
-        const ok = p.goTo(this.followTiles());
+        const ok = p.goTo(this.followTiles(p.map));
         p.noPath = ok ? 0 : p.noPath + dt;
         if (p.noPath >= P.noPathTeleport) this.teleport(p);
       }
@@ -320,11 +331,11 @@ export class PetSystem {
   }
 
   // 주인공 둘레 followNear 칸 안의 걸을 수 있는 칸(주인공의 칸은 빼고)
-  followTiles() {
+  followTiles(map = this.map) {
     const t = this.scene.player.tile, R = CONFIG.pets.followNear, out = [];
     for (let dr = -2; dr <= 2; dr++) for (let dc = -2; dc <= 2; dc++) {
       if ((!dc && !dr) || Math.hypot(dc, dr) > R) continue;
-      if (this.map.isWalkable(t.col + dc, t.row + dr)) out.push({ col: t.col + dc, row: t.row + dr });
+      if (map.isWalkable(t.col + dc, t.row + dr)) out.push({ col: t.col + dc, row: t.row + dr });
     }
     return out;
   }
@@ -353,7 +364,7 @@ export class PetSystem {
   // 하던 일을 했으면 true(따라오기는 하지 않는다)
   dogGuard(p, dt) {
     const scene = this.scene, D = p.cfg, pl = scene.player;
-    if (!scene.clock.isNight) return false;
+    if (!scene.clock.isNight || p.map !== this.map) return false;   // 지하에는 적이 없다
     const home = scene.rest.resting ? this.centre(scene.rest.tent.tiles) : { col: pl.col, row: pl.row };
     const foes = scene.enemies.list.filter((e) => e.alive && !e.rising);
     const near = foes.filter((e) => Math.hypot(e.col - home.col, e.row - home.row) <= D.barkRange);
@@ -436,7 +447,7 @@ export class PetSystem {
   }
 
   // 문을 여는 것(13.2): 친구가 된 동물의 위치
-  openers() { return this.friends.map((p) => ({ col: p.col, row: p.row })); }
+  openers() { return this.friends.filter((p) => p.map === this.map).map((p) => ({ col: p.col, row: p.row })); }
 
   sprites() { return this.list.map((p) => p.sprite); }
   occupiedTiles() { return this.list.flatMap((p) => p.occupiedTiles()); }

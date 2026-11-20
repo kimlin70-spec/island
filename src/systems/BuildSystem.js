@@ -6,7 +6,7 @@ import { isTower } from './TowerSystem.js';
 export const REMOVE = 'remove';
 export const TILL = 'farm';   // (3단계) 밭 갈기: 짓기 상태처럼 칸 표시를 보여 주고, 누른 칸을 간다(13.3)
 const SPRITE = { fence: 'build_fence_0', campfire: 'build_campfire', tent: 'build_tent', wire: 'build_wire_0',
-                 watchtower: 'build_watchtower', guntower: 'build_guntower', gate: 'build_gate_col' };
+                 watchtower: 'build_watchtower', guntower: 'build_guntower', gate: 'build_gate_col', burrow: 'build_burrow' };
 const TALL = { tent: true, watchtower: true, guntower: true };   // 캐릭터를 가릴 수 있는 키 큰 시설(3.4)
 const BROKEN = { wire: ['iron'], guntower: ['stone1', 'stone2'] };   // 부서질 때의 조각(12.6). 그 밖은 나무
 const OPEN = { wire: true };            // 길을 막지 않는 시설(누구나 지나간다, 11.4)
@@ -237,7 +237,8 @@ export class BuildSystem {
   // 텐트 안의 주인공은 문 곁에 없는 것으로 본다. 친구가 된 동물도 문을 연다.
   updateGates() {
     const G = CONFIG.build.gate, p = this.scene.player, out = this.scene.rest.resting;
-    const who = [...(out ? [] : [{ col: p.col, row: p.row }]), ...this.scene.pets.openers()];   // 주인공과 친구가 된 동물
+    const away = out || this.scene.ug.active;          // 텐트 안이나 지하의 주인공은 문 곁에 없다
+    const who = [...(away ? [] : [{ col: p.col, row: p.row }]), ...this.scene.pets.openers()];   // 주인공과 친구가 된 동물
     for (const s of this.map.structures) {
       if (s.type !== 'gate') continue;
       const d = Math.min(Infinity, ...who.map((w) => Math.hypot(w.col - s.col, w.row - s.row)));

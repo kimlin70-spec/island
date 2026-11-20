@@ -14,6 +14,7 @@ export class Walker {
     this.row = row;
     this.tile = { col, row };
     this.path = [];
+    this.yOff = 0;           // (지하) 월드 y 에 더하는 값. 지하에 있으면 ug.offsetY (17.2)
     this.heading = null;     // 지금 걷는 걸음의 방향(칸) { dc, dr }. 발걸음 먼지를 뒤쪽에 놓을 때 쓴다
     this.newPath = false;    // 길이 막 바뀌었다(첫걸음의 앞뒤를 길 전체가 가는 쪽으로 정한다)
   }

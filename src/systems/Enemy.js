@@ -65,7 +65,9 @@ export class Enemy extends Walker {
   // 물과 나무·돌·덤불은 못 간다.
   costAt(col, row) {
     if (!this.map.isOpen(col, row)) return 0;
-    if (this.map.structureAt(col, row)) return this.cfg.breakCost;
+    const s = this.map.structureAt(col, row);
+    if (s && s.type === 'burrow') return 0;          // (지하) 적은 굴 입구를 공격하지 않는다(지나가지도 않는다) (17.2)
+    if (s) return this.cfg.breakCost;
     return this.map.wireAt(col, row) ? CONFIG.build.wire.pathCost : 1;
   }
 
@@ -267,6 +269,7 @@ export class Enemy extends Walker {
       }
     } else if (standing && this.nextTo(target) && !this.onTarget(target)) {   // 주인공의 칸 위에서는 때리지 않는다(비켜선 뒤에)
       if (target.structure) this.smash(target.structure, dt);
+      else if (target.wander) { this.hitLeft = null; this.smashing = null; }   // (지하) 주인공이 없다: 서성인다
       else this.attackPlayer(dt);
     } else if (blocker) {
       this.smash(blocker, dt);

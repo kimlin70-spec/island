@@ -41,6 +41,8 @@ export class UIScene extends Phaser.Scene {
     listen('inventory-changed', () => { this.refreshBag(); this.refreshCards(); });
     listen('choose-seed', (f) => this.showSeedWindow(f));
     listen('weather-changed', () => this.refreshWeather());
+    // (지하) 지하에서는 만들기 버튼을 감춘다(지하의 카드는 Phase 18)
+    listen('ug-changed', (down) => { this.craftBtn.setVisible(!down); this.craftIcons.forEach((o) => o.setVisible(!down)); if (down && this.craftOpen) this.toggleCraft(); });
     listen('tools-changed', () => { this.refreshEquipment(); if (this.world.stage >= 2) this.makeCraftWindow(); else this.refreshCards(); this.makeRest(); });
     listen('todo-changed', () => this.refreshTodo());
     listen('build-changed', () => { this.refreshCards(); this.refreshHint(); });
@@ -115,7 +117,7 @@ export class UIScene extends Phaser.Scene {
 
   // 매 프레임: 지금 시간의 화면색으로 채우고, 빛마다 light_soft 를 빛 색으로 물들여 그린다. 낮에는 숨긴다.
   drawLightmap() {
-    const amb = this.world.clock.ambient();
+    const amb = this.world.ambient();
     if (amb.color === CONFIG.colors.day && amb.strength <= 0) {
       this.lightmap.setVisible(false);
       return;
@@ -271,7 +273,7 @@ export class UIScene extends Phaser.Scene {
   // 가방에 보이는 것: 재료(1단계 나무·돌, 2단계부터 철광석도), (3단계) 가진 작물과 씨앗만
   bagItems() {
     const base = this.world.stage >= 2 ? ['wood', 'stone', 'iron'] : ['wood', 'stone'];
-    const extra = ['berry', ...CROPS, ...CROPS.map((c) => 'seed_' + c)].filter((it) => this.world.inventory.count(it) > 0);
+    const extra = ['berry', ...CROPS, ...CROPS.map((c) => 'seed_' + c), 'spore'].filter((it) => this.world.inventory.count(it) > 0);
     return [...base, ...extra];
   }
 
@@ -373,8 +375,8 @@ export class UIScene extends Phaser.Scene {
     this.craftBtn.setInteractive(new Phaser.Geom.Circle(cx, cy, r), Phaser.Geom.Circle.Contains);
     this.craftBtn.on('pointerdown', () => { this.click(); this.toggleCraft(); });
     this.drawCraftButton();
-    this.add.image(cx, cy + C.iconY, 'icon_craft').setDisplaySize(C.icon, C.icon);
-    this.label(cx, cy + C.textY, '만들기', C.font, { originX: 0.5 });
+    this.craftIcons = [this.add.image(cx, cy + C.iconY, 'icon_craft').setDisplaySize(C.icon, C.icon),
+      this.label(cx, cy + C.textY, '만들기', C.font, { originX: 0.5 })];
     this.makeCraftWindow();
   }
 
@@ -504,18 +506,23 @@ export class UIScene extends Phaser.Scene {
       [() => `속도 ×${this.world.debugSpeed}`, () => this.world.debugToggleSpeed()],
       ['날씨 바꾸기', () => this.world.debugWeather()],   // 14.4
       ...(this.world.hunger.enabled ? [['배부름 가득', () => this.world.debugHungerFull()], ['배부름 0', () => this.world.debugHungerZero()]] : []),   // 16.4
+      ...(this.world.stage >= 2 && this.world.ug.exists ? [['지하로 / 땅 위로', () => this.world.debugUnderground()], ['둘레 5×5 파기', () => this.world.debugDigAround()]] : []),   // 17.10
       ['닫기', () => this.debugWin.setVisible(false)],
     ];
-    const h = D.pad * 2 + items.length * D.itemH + (items.length - 1) * D.itemGap;
+    // 단추가 많아 만들기 버튼까지 내려오면 단추 높이를 줄여 그 위에 맞춘다
+    const { cy, r } = this.craftPos, room = cy - r - D.gap - this.debugAt.y, n = items.length;   // 만들기 버튼 위까지
+    const itemH = Math.min(D.itemH, Math.floor((room - D.pad * 2 - (n - 1) * D.itemGap) / n));
+    const font = Math.min(D.itemFont, Math.round(D.itemFont * itemH / D.itemH));
+    const h = D.pad * 2 + n * itemH + (n - 1) * D.itemGap;
     this.debugWin = this.add.container(this.debugAt.x, this.debugAt.y).setDepth(10).setVisible(open);
     this.debugWin.add(this.panel(this.add.graphics(), 0, 0, D.w, h));
     this.debugLabels = [];
     items.forEach(([text, onPress], i) => {
-      const y = D.pad + i * (D.itemH + D.itemGap), w = D.w - D.pad * 2;
-      const g = this.hitRect(this.add.graphics(), D.pad, y, w, D.itemH);
-      this.roundRect(g, D.pad, y, w, D.itemH, D.radius, U.cardColor, 1, INK, U.panel.borderWidth);
+      const y = D.pad + i * (itemH + D.itemGap), w = D.w - D.pad * 2;
+      const g = this.hitRect(this.add.graphics(), D.pad, y, w, itemH);
+      this.roundRect(g, D.pad, y, w, itemH, D.radius, U.cardColor, 1, INK, U.panel.borderWidth);
       g.on('pointerdown', () => { this.click(); onPress(); });
-      const label = this.label(D.w / 2, y + D.itemH / 2, '', D.itemFont, { originX: 0.5 });
+      const label = this.label(D.w / 2, y + itemH / 2, '', font, { originX: 0.5 });
       this.debugLabels.push({ label, text });
       this.debugWin.add([g, label]);
     });

@@ -25,6 +25,14 @@ export class EnemySystem {
   // 지금 적이 노리는 것: 주인공. 주인공이 텐트 안에 있으면 텐트.
   target() {
     const s = this.scene;
+    // (지하) 주인공이 지하에 있으면 없는 것으로 친다: 가까운 시설을 노리고(굴 입구는 빼고), 없으면 굴 입구 둘레를 돌아다닌다 (17.2)
+    if (s.ug.active) {
+      const b = s.ug.burrow, at = b || s.player;
+      const list = s.map.structures.filter((x) => x.blocks && x.type !== 'burrow');
+      list.sort((a, c) => Math.hypot(a.col - at.col, a.row - at.row) - Math.hypot(c.col - at.col, c.row - at.row));
+      if (list.length) return { tiles: list[0].tiles, structure: list[0] };
+      return { tiles: b ? b.tiles : [{ col: s.ug.surfaceSpot.col, row: s.ug.surfaceSpot.row }], structure: null, wander: true };
+    }
     if (s.rest.resting) return { tiles: s.rest.tent.tiles, structure: s.rest.tent };
     return { tiles: [s.player.here()], structure: null };
   }
@@ -32,7 +40,7 @@ export class EnemySystem {
   // 나오는 자리: map.zombieSpawns 중 주인공에게서 spawnMinDistance 칸(직선거리) 이상 떨어진 곳에서 무작위.
   // 그런 곳이 없으면 가장 먼 곳. 시설을 지어 막힌 자리는 쓰지 않는다.
   spawnPoint() {
-    const p = this.scene.player, min = CONFIG.zombie.spawnMinDistance;
+    const ug = this.scene.ug, p = ug.active ? (ug.burrow || ug.surfaceSpot) : this.scene.player, min = CONFIG.zombie.spawnMinDistance;
     const free = this.scene.mapData.zombieSpawns.filter((t) => this.map.isPassable(t.col, t.row));
     if (!free.length) return null;
     const dist = (t) => Math.hypot(t.col - p.col, t.row - p.row);

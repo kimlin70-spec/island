@@ -28,7 +28,7 @@ export class WeatherSystem {
     scene.events.on('morning', () => this.newDay());
   }
 
-  get snowy() { return this.cover > CONFIG.weather.snow.footprintCover; }   // 디딜 때 발자국과 step_snow
+  get snowy() { return !this.scene.ug.active && this.cover > CONFIG.weather.snow.footprintCover; }   // 디딜 때 발자국과 step_snow
 
   // 아침: 그날의 날씨를 chance 로 정한다
   newDay() {
@@ -106,7 +106,7 @@ export class WeatherSystem {
       this.splashLeft -= dt;
       while (this.splashLeft <= 0) {
         this.splashLeft += R.splashEvery;
-        if (Math.random() < rl) this.splash();
+        if (Math.random() < rl && !scene.ug.active) this.splash();
       }
     }
     // 눈: 아래로 천천히, 좌우로 흔들며. 화면을 밝게.
@@ -131,14 +131,14 @@ export class WeatherSystem {
     // 비가 오는 동안 모든 밭은 젖어 있다
     if (this.kind === 'rain') for (const f of scene.farm.fields.values()) if (!f.wet) scene.farm.setWet(f, true);
     // 소리: 비 rain_loop, 눈 wind_loop (15.3. 배경 소리라 ambience 를 곱한다)
-    const amb = CONFIG.sound.ambience;
+    const amb = scene.ug.active ? 0 : CONFIG.sound.ambience;   // (지하) 비와 바람 소리는 들리지 않는다
     if (rl > 0 || scene.sfx.loops.rain_loop) scene.sfx.loop('rain_loop', rl * amb, false);
     if (sl > 0 || scene.sfx.loops.wind_loop) scene.sfx.loop('wind_loop', sl * amb, false);
   }
 
   // 무늬와 어둡게 하기의 진하기 = 정해진 투명도 × 세기
   show(L, level, P) {
-    const on = level > 0;
+    const on = level > 0 && !this.scene.ug.active;     // (지하) 날씨 무늬는 감춘다 (17.2)
     L.shade.setVisible(on).setAlpha(level);
     L.far.setVisible(on).setAlpha(P.far.alpha * level);
     L.near.setVisible(on).setAlpha(P.near.alpha * level);

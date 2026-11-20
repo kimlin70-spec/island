@@ -36,6 +36,8 @@ export const CONFIG = {
     reach: 7, refundRate: 0.5,
     reachCircle: { tint: 0x7fd858, alpha: 0.9 },   // 초록: 탑의 사거리 원(색 없음)과 구별되게   // (사용자 요청) 짓는 동안 주인공 둘레에 지을 수 있는 거리(reach)를 원으로 보여 준다. 그림은 overlay_range
     fence:    { name: '울타리', cost: { wood: 1 }, hp: 6 },
+    // (지하) 굴 입구 (17.2, 17.11): 하나만. 적은 공격하지 않는다
+    burrow:   { name: '굴 입구', cost: { wood: 6, stone: 4 }, hp: 20, max: 1 },
     // (3단계) 문 (13.2, 13.6 의 gate). 주인공이 openRange 칸 안에 오면 열리고, closeRange 칸보다 멀어지면 닫힌다
     gate:     { name: '문', cost: { wood: 3 }, hp: 10, openRange: 1.3, closeRange: 1.8 },
     campfire: { name: '모닥불', cost: { wood: 3, stone: 3 }, hp: 10, slowRange: 3, slow: 0.5,
@@ -94,7 +96,8 @@ export const CONFIG = {
            groanEvery: [8, 15] },      // 밤 동안 좀비 하나가 신음하는 간격(초) (15.3)
   todo:   { fenceCount: 8 },
   todo2:  { iron: 5, wire: 6 },
-  todo3:  { farm: 6 },                 // (3단계) 할 일: 간 밭 수 (13.5)
+  todo3:  { farm: 6 },
+  todo4:  { dig: 10 },                 // (지하) 할 일: 판 칸 수 (17.10)                 // (3단계) 할 일: 간 밭 수 (13.5)
   // (3단계) 농사 (13.3, 13.6). 아래 줄의 값은 13.3 의 글에 있는 숫자
   farm: {
     hoeCost: { wood: 3 }, canCost: { wood: 2, stone: 2 }, reach: 7, tillTerrain: [2, 3, 4],
@@ -110,6 +113,17 @@ export const CONFIG = {
     ripeSway: { angle: 2, period: 1.5 },      // 다 자란 작물이 흔들리는 각도(도)와 한 번 흔드는 시간(초)
     debugSeeds: 5,                            // 시험용 도구 "씨앗 +5"
   },
+  // 지하 생활 (17.11). 아래 줄의 값은 17장의 글에 있는 숫자와 화면에 쓰는 숫자
+  ug: { offsetY: 6000, ambient: 0x403a4c, background: 0x2a2019, fadeMs: 400, climbMs: 800, wallFadeAlpha: 0.35,
+        digHits: 4, digHitsIron: 6, stonePerCell: 1, ironPerCell: 2, sporePerCell: 2,
+        bed: { healInterval: 6, sleepTimeScale: 4 },
+        mushroom: { growEvery: 60, yield: 3 },
+        cost: { burrow: { wood: 6, stone: 4 }, bed: { wood: 6 }, fireplace: { stone: 8, wood: 2 }, lantern: { wood: 2, iron: 1 },
+                planter: { wood: 3 }, table: { wood: 3 }, stool: { wood: 1 }, rug: { wood: 2 }, chest: { wood: 4, iron: 1 } },
+        crouchMs: 300, climbRise: 150,          // 내려가기 전 쪼그려 앉는 시간(ms), 사다리를 오르내리는 높이(px)
+        shake: { duration: 60, intensity: 0.002 }, chips: { hit: 2, out: 6, iron: 3 },
+        markTint: 0xffe2a0, noMarkTime: 0.4, crackFrontDepth: 1.6, boundsPad: 400, eventVolume: 0.6,
+        shaft: { color: 0xfff7e0, low: { radius: 170, alpha: 0.9 }, high: { radius: 120, alpha: 0.7, lift: 130 }, glowAlpha: 0.55, duskMin: 0.2 } },
   // 배고픔 (16.5). enabled: false 면 배부름이 없고 먹을 것은 하트를 채운다
   hunger: { enabled: true, max: 5, start: 5, drainEvery: 90, starveEvery: 30, warnAt: 1,
             food: { berry: 1, carrot: 1, corn: 2, pumpkin: 3, mushroom: 1 } },
