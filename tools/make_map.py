@@ -22,6 +22,14 @@ IRON_CENTER = (46, 31)          # 2단계: 동쪽 철광 지대
 START = (37, 39)
 SEED_CRATE = (43, 43)           # 3단계: 바닷가에 떠밀려 온 씨앗 상자(열 때까지 그 칸을 막는다)
 PETS = {'dog': (44, 42), 'cat': (27, 41)}     # 3단계: 강아지는 상자 옆 바닷가, 고양이는 서쪽 돌밭
+# 17장: 지하 1층(땅 위와 따로인 28x28칸 격자. 맨 가장자리 한 줄은 못 파는 바위)
+UG_N = 28
+UG_ENTRY = (13, 13)                                   # 사다리 칸(처음 방의 맨 위 모서리)
+UG_ROOM = [(c, r) for c in range(13, 16) for r in range(13, 16)]
+UG_CHAMBER = [(22, 9), (23, 9), (22, 10), (23, 10)]   # 막힌 구멍이 있는 작은 굴(처음부터 파여 있지만 어둠 속에 있다)
+UG_HOLE = (23, 10)
+UG_IRON = [(14, 12), (16, 10), (17, 10), (17, 11), (18, 11), (18, 12), (9, 16), (10, 16), (10, 17), (11, 18), (19, 15), (7, 12)]
+UG_SPORE = [(12, 14), (16, 17), (10, 13), (18, 16), (11, 20)]   # (14,12) 철과 (12,14) 버섯은 처음 방 벽에 바로 보인다
 
 
 def radius(th):
@@ -180,6 +188,21 @@ def main():
         assert isl(c, r) and (c, r) not in blocked and (c, r) != START, (name, c, r)
     assert reachable(blocked | {SEED_CRATE}) == n_land - len(blocked) - 1, 'seed crate blocks a path'
 
+    # 17장: 지하 1층 검사
+    dug0 = set(UG_ROOM) | set(UG_CHAMBER)
+    inner = lambda c, r: 1 <= c < UG_N - 1 and 1 <= r < UG_N - 1
+    assert UG_ENTRY in UG_ROOM and UG_HOLE in UG_CHAMBER
+    assert all(inner(c, r) for c, r in list(dug0) + UG_IRON + UG_SPORE)
+    assert not (set(UG_IRON) & set(UG_SPORE)) and not ((set(UG_IRON) | set(UG_SPORE)) & dug0)
+    assert len(set(UG_IRON)) == len(UG_IRON) and len(set(UG_SPORE)) == len(UG_SPORE)
+    assert min(abs(a[0] - b[0]) + abs(a[1] - b[1]) for a in UG_ROOM for b in UG_CHAMBER) >= 4, 'chamber too close'
+    underground = dict(floors=[dict(
+        name='지하 1층', cols=UG_N, rows=UG_N, entry=dict(col=UG_ENTRY[0], row=UG_ENTRY[1]),
+        startDug=[dict(col=c, row=r) for c, r in sorted(dug0)],
+        ores=[dict(col=c, row=r, type='iron') for c, r in UG_IRON],
+        spores=[dict(col=c, row=r) for c, r in UG_SPORE],
+        sealedHole=dict(col=UG_HOLE[0], row=UG_HOLE[1]))])
+
     data = dict(
         cols=N, rows=N, tileWidth=80, tileHeight=40,
         terrainLegend={"0": "water", "1": "sand", "2": "grass", "3": "forest", "4": "dirt", "5": "ironsoil"},
@@ -192,6 +215,7 @@ def main():
         seedCrate=dict(col=SEED_CRATE[0], row=SEED_CRATE[1]),
         pets={k: dict(col=c, row=r) for k, (c, r) in PETS.items()},
         objects=objects,
+        underground=underground,
     )
     parts = []
     for key, v in data.items():

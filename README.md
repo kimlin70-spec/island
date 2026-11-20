@@ -9,16 +9,17 @@
 - **날씨 (Phase 14)**: 비와 눈. 비가 오면 밭에 물이 차고, 눈이 오면 땅이 하얗게 덮인다.
 - **효과음 (Phase 15)**: 타격음, 밤과 아침 소리, 농사·동물·날씨 소리 44개. Phase 5 이후 아무 때나.
 - **배고픔 (Phase 16)**: 배부름(밥그릇 5개)이 천천히 줄고, 덤불 열매와 작물을 먹어 채운다. 설정에서 끌 수 있다.
+- **지하 생활 (Phase 17~18)**: 굴 입구를 짓고 땅속으로 내려가 곡괭이로 한 칸씩 파서 방을 넓힌다. 철과 버섯 포자를 얻고, 침대·벽난로·등불·버섯 화분 같은 가구를 놓고 산다. 그동안에도 땅 위의 시간은 흐른다.
 
 ## 들어 있는 것
 
 | 파일/폴더 | 내용 |
 |---|---|
-| `DEMO_SPEC.md` | Claude Code가 읽고 만드는 지시문 (2단계는 11장, 다듬기는 12장, 3단계는 13장, 날씨는 14장, 효과음은 15장) |
+| `DEMO_SPEC.md` | Claude Code가 읽고 만드는 지시문 (2단계는 11장, 다듬기는 12장, 3단계는 13장, 날씨는 14장, 효과음은 15장, 배고픔은 16장, 지하 생활은 17장) |
 | `CLAUDE.md` | Claude Code가 매번 자동으로 읽는 작업 규칙 |
-| `assets/` | 그림 145장, 바닥 그림 15조각과 눈 덮인 바닥 15조각, 효과음 44개(`assets/sfx`), 목록(`manifest.json`, 애니메이션 순서와 시간, 효과음 목록 포함) |
-| `data/map.json` | 섬 맵(64×64칸, 동쪽에 철광 지대, 바닷가의 씨앗 상자와 동물 자리) |
-| `preview/` | 완성 모습 미리보기. 1단계 4장, 2단계 3장(`preview_iron`, `preview_defense_day`, `preview_defense_night`), 3단계와 날씨 3장(`preview_farm`, `preview_rain`, `preview_snow`), 움직이는 미리보기 2개(`preview_motion.gif`, `preview_farm.gif`), 그림 모음 |
+| `assets/` | 그림 188장(지하 조각은 `assets/underground`), 바닥 그림 15조각과 눈 덮인 바닥 15조각, 효과음 47개(`assets/sfx`), 목록(`manifest.json`, 애니메이션 순서와 시간, 효과음 목록 포함) |
+| `data/map.json` | 섬 맵(64×64칸, 동쪽에 철광 지대, 바닷가의 씨앗 상자와 동물 자리)과 지하 1층(28×28칸, 처음 방, 철과 버섯 칸, 막힌 구멍) |
+| `preview/` | 완성 모습 미리보기. 1단계 4장, 2단계 3장(`preview_iron`, `preview_defense_day`, `preview_defense_night`), 3단계와 날씨 3장(`preview_farm`, `preview_rain`, `preview_snow`), 지하 1장(`preview_underground`), 움직이는 미리보기 3개(`preview_motion.gif`, `preview_farm.gif`, `preview_underground.gif`), 그림 모음 |
 | `lib/phaser.min.js` | 게임 엔진 Phaser 3.90.0 (MIT 라이선스) |
 | `tools/` | 그림, 맵, 효과음을 다시 만드는 스크립트, 확인용 페이지, 효과음 들어 보기(`sound_test.html`) |
 
@@ -38,6 +39,7 @@ DEMO_SPEC.md를 읽고 Phase 1만 진행해줘. 끝나면 실행 방법과 내�
 7. 3단계(문, 농사, 동물)는 1단계가 끝난 뒤 `Phase 11 진행해줘`로 시작한다. 2단계와 순서는 상관없다. 날씨는 `Phase 14 진행해줘`.
 8. 효과음은 Phase 5가 끝난 뒤 아무 때나 `Phase 15 진행해줘`로 한다.
 9. 배고픔은 Phase 5가 끝난 뒤 아무 때나 `Phase 16 진행해줘`로 한다. 농사(Phase 12)와 함께 하면 좋다.
+10. 지하 생활은 1단계가 끝난 뒤 원할 때 `Phase 17 진행해줘`(굴 입구와 파기) → `Phase 18 진행해줘`(가구, 침대, 버섯)로 한다.
 
 ## 이미 Claude Code로 작업을 시작했다면 (이번 업데이트 적용)
 
@@ -46,7 +48,15 @@ DEMO_SPEC.md를 읽고 Phase 1만 진행해줘. 끝나면 실행 방법과 내�
 - `assets/`, `data/`, `preview/`, `tools/` 폴더
 - `DEMO_SPEC.md`, `CLAUDE.md`, `README.md`
 
-이번 업데이트(문, 농사, 동물, 날씨, 효과음)에서 바뀐 것
+이번 업데이트(지하 생활)에서 바뀐 것
+
+- 그림 43개가 새로 생겼다: 지하 칸 조각 15개(`assets/underground`: 바닥 3, 벽 8, 단면 2, 윗면, 기둥), 사다리, 막힌 구멍, 햇빛 기둥, 굴 입구, 가구 8개(침대, 벽난로, 등불, 버섯 화분, 탁자, 의자, 깔개, 보관 상자), 파기 표시 2개, 아이콘 14개.
+- 주인공 시트(`char_player`)에 사다리 오르기 2장과 앉기 1장이 뒤에 붙어 시트가 한 줄 늘었다(높이 630 → 756). 프레임 크기와 기준점, 예전 프레임의 번호는 그대로다.
+- 맵에 `underground`(지하 1층)가 더해졌다. 섬은 그대로다.
+- 효과음 3개(`dig_dirt`, `ladder`, `amb_underground`)가 더해져 47개가 되었다. 예전 소리는 그대로다.
+- 지시문에 17장과 Phase 17, 18이 더해졌다. 배고픔(16장)의 먹을 것에 버섯이 더해졌다.
+
+그 전 업데이트(문, 농사, 동물, 날씨, 효과음)에서 바뀐 것
 
 - 그림 36개가 새로 생겼다(문, 밭과 작물, 씨앗 상자, 강아지와 고양이, 농사 효과, 비와 눈, 아이콘). 바닥 그림에 눈 덮인 조각 15장이 더해졌다(보통 바닥은 그대로).
 - 주인공 시트(`char_player`)에 농사 동작 13장(괭이질, 물 주기, 쪼그려 앉기, 먹기)이 뒤에 붙어 시트가 한 줄 늘었다. 프레임 크기와 기준점, 예전 프레임의 번호는 그대로다.
@@ -58,10 +68,10 @@ DEMO_SPEC.md를 읽고 Phase 1만 진행해줘. 끝나면 실행 방법과 내�
 덮어쓴 뒤 Claude Code에게 이렇게 말한다.
 
 ```
-DEMO_SPEC.md가 바뀌었어. 0장과 13~15장을 읽고, 지금까지 만든 것이 새 그림과 맵에서 문제없이 도는지 확인해줘. 기능은 아직 더하지 마.
+DEMO_SPEC.md가 바뀌었어. 0장과 17장을 읽고, 지금까지 만든 것이 새 그림과 맵에서 문제없이 도는지 확인해줘. 기능은 아직 더하지 마.
 ```
 
-문제없으면 원할 때 `Phase 11 진행해줘`(문부터), `Phase 15 진행해줘`(효과음)라고 한다.
+문제없으면 원할 때 `Phase 17 진행해줘`(굴 입구와 파기)라고 한다. 아직 안 한 Phase(문, 농사, 효과음, 배고픔 등)가 있으면 그것부터 해도 된다.
 
 ## 숫자를 바꾸고 싶을 때
 
@@ -86,10 +96,11 @@ http://localhost:8000/tools/reference_map.html?mode=motion
 http://localhost:8000/tools/reference_map.html?mode=farm
 http://localhost:8000/tools/reference_map.html?mode=farm&weather=rain
 http://localhost:8000/tools/reference_map.html?mode=farm&weather=snow
+http://localhost:8000/tools/reference_map.html?mode=underground
 http://localhost:8000/tools/sound_test.html
 ```
 
-`mode=defense`에서는 망루와 총 타워가 캠프 둘레를 도는 좀비를 따라 돌며 화살과 총알을 쏜다. `mode=motion`에서는 캐릭터의 애니메이션 전부와 효과, 조각이 엔진에서 실제로 움직인다. `mode=farm`에서는 주인공이 문을 지나 밭까지 오가고(문이 열리고 닫힘), `weather=rain`, `snow`를 붙이면 비와 눈이 온다. 화면을 누르면 효과음을 차례로 들려준다. `sound_test.html`에서는 효과음을 하나씩 골라 들을 수 있다.
+`mode=defense`에서는 망루와 총 타워가 캠프 둘레를 도는 좀비를 따라 돌며 화살과 총알을 쏜다. `mode=motion`에서는 캐릭터의 애니메이션 전부와 효과, 조각이 엔진에서 실제로 움직인다. `mode=farm`에서는 주인공이 문을 지나 밭까지 오가고(문이 열리고 닫힘), `weather=rain`, `snow`를 붙이면 비와 눈이 온다. 화면을 누르면 효과음을 차례로 들려준다. `mode=underground`에서는 지하 처음 방이 나오고, 벽이나 앞쪽 어둠을 누르면 곡괭이로 파서 칸이 열린다. 사다리를 누르면 오르는 모습을 보여 준다. `sound_test.html`에서는 효과음을 하나씩 골라 들을 수 있다.
 
 ## 그림이나 맵을 바꾸고 싶을 때 (선택)
 
@@ -103,9 +114,12 @@ python tools/make_assets.py      사물, 캐릭터, 탑, 아이콘 다시 만들
 python tools/render_preview.py   미리보기 다시 만들기
 python tools/render_motion.py    움직이는 미리보기(preview_motion.gif) 다시 만들기
 python tools/render_farm.py      3단계와 날씨 미리보기(preview_farm, preview_rain, preview_snow, preview_farm.gif)
+python tools/render_underground.py  지하 미리보기(preview_underground.png, preview_underground.gif)
 python tools/make_sounds.py      효과음 다시 만들기(assets/sfx)
 python tools/contact_sheet.py    그림 모음 한 장 다시 만들기
 python tools/check_bundle.py     그림, 맵, 지시문이 서로 맞는지 점검
 ```
 
 그림의 모양은 `tools/artlib.py`, 수채화 느낌(번짐, 연필선, 색)은 `tools/wc.py`에서 정한다. 캐릭터는 자세(팔, 다리, 몸 기울기)를 숫자로 정해 그리고(`artlib.py`의 `pose`, `figure`), 애니메이션의 프레임 순서와 시간은 `tools/make_assets.py`의 `PLAYER_ANIMS` 등에 있다. 망루의 쇠뇌와 총 타워의 총은 간단한 3D 모양을 16방향으로 돌려 그린 것이라(`artlib.py`의 `crossbow`, `swivel_gun`), 모양을 고치면 16방향이 함께 바뀐다.
+
+지하 조각(바닥, 벽, 단면)은 옆 칸과 이어 붙어야 해서 `wc.py`의 `tile_sprite`로 굽는다(가장자리 번짐과 연필 테두리 없이 도형 경계 그대로 자른다). 벽을 어떤 칸에 어떤 그림으로 세우는지는 `tools/render_underground.py`의 `ug_plan`이 게임과 같은 규칙으로 보여 준다.

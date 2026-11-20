@@ -15,6 +15,7 @@
 //          mode = day(낮 화면 예시) | night(밤 화면 예시) | full(섬 전체) | defense(2단계: 탑, 철조망, 화살과 총알)
 //                 | motion(움직임과 효과: manifest 의 anims 를 모두 만들어 틀고, 조각 효과를 흩뿌린다)
 //                 | farm(3단계: 문, 밭, 동물)  &weather=rain | snow 를 붙이면 비, 눈. 화면을 누르면 효과음이 난다
+//                 | underground(17장: 지하. 안 판 칸을 누르면 파고, 사다리를 누르면 오르내린다)
 // 바닥 그림 깔기, 좌표 변환, 겹침 순서, 울타리 연결, 밤의 '빛 지도'를 어떻게 하는지 보여 준다.
 // 게임 코드는 이 파일을 늘려 가지 말고 DEMO_SPEC.md 2장의 구성대로 새로 짠다.
 const HW = 40, HH = 20;
@@ -28,15 +29,16 @@ function fenceMask(col, row, has) {
 }
 const Q = new URLSearchParams(location.search);
 const MODE = Q.get('mode') || 'day';
-const DEF = MODE === 'defense', MOTION = MODE === 'motion', FARM = MODE === 'farm';
+const DEF = MODE === 'defense', MOTION = MODE === 'motion', FARM = MODE === 'farm', UGM = MODE === 'underground';
 const WEATHER = Q.get('weather') || 'clear';
-const NIGHT = MODE === 'night' || DEF, FULL = MODE === 'full';
+const NIGHT = MODE === 'night' || DEF || UGM, FULL = MODE === 'full';
 // 포탑 방향 번호: 땅 위의 방향 = 화면 방향에서 세로를 2배로 편 각도. 16등분해서 가장 가까운 번호.
 function turretIndex(x, y, tx, ty, n) {
   const a = Math.atan2((ty - y) * 2, tx - x);
   return ((Math.round(a / (Math.PI * 2 / n)) % n) + n) % n;
 }
 const NIGHT_COLOR = 0x6670b8;          // 밤의 바탕색(빛 지도를 이 색으로 채운다)
+const UG_COLOR = 0x403a4c;             // 17장: 지하의 화면색(낮밤과 상관없이 늘 이 색)
 const LIGHTS = [];                     // { x, y, r, color, alpha }  월드 좌표
 
 class Boot extends Phaser.Scene {
@@ -48,10 +50,8 @@ class Boot extends Phaser.Scene {
   create() {
     const man = this.cache.json.get('manifest');
     for (const ch of man.meta.ground.chunks) this.load.image(ch.key, '../assets/' + ch.file);
-    if (FARM) {                                   // 3단계: 눈 덮인 바닥 조각과 효과음
-      for (const ch of man.meta.ground.snowChunks) this.load.image(ch.key, '../assets/' + ch.file);
-      for (const [k, v] of Object.entries(man.sounds || {})) this.load.audio('sfx_' + k, '../assets/' + v.file);
-    }
+    if (FARM) for (const ch of man.meta.ground.snowChunks) this.load.image(ch.key, '../assets/' + ch.file);   // 3단계: 눈 덮인 바닥 조각
+    if (FARM || UGM) for (const [k, v] of Object.entries(man.sounds || {})) this.load.audio('sfx_' + k, '../assets/' + v.file);   // 효과음
     for (const [k, v] of Object.entries(man.assets)) {
       if (v.frameWidth) this.load.spritesheet(k, '../assets/' + v.file, { frameWidth: v.frameWidth, frameHeight: v.frameHeight });
       else this.load.image(k, '../assets/' + v.file);
@@ -90,6 +90,7 @@ class Game extends Phaser.Scene {
     window.__anims = buildAnims(this, A);
     if (MOTION) { this.setupMotion(A, G); return; }
     if (FARM) { this.setupFarm(man, map); return; }
+    if (UGM) { this.setupUnderground(man, map); return; }
 
     // 1) 바닥: 큰 그림 한 장을 조각으로 나눈 것. 각 조각의 왼쪽 위를 월드 좌표 (x, y)에 놓고,
     //    가장자리 여유분 1px을 뺀 안쪽 1022x1022만 그린다. setCrop을 빼면 카메라가 움직일 때 조각 사이에 가는 줄이 보인다.
@@ -358,6 +359,170 @@ class Game extends Phaser.Scene {
     window.__turrets = [];
   }
 
+  // ---------------------------------------------------------------- 17장 확인: 지하(칸 단위 파기, 조각 고르기, 가구, 빛, 사다리)
+  // 이 페이지는 지하만 그리므로 월드 y 를 옮기지 않았다(게임에서는 ug.offsetY 만큼 아래에 만든다, 17.2).
+  setupUnderground(man, map) {
+    const A = man.assets, F = map.underground.floors[0];
+    this.cameras.main.setBackgroundColor('#2a2019');                    // 안 판 곳(어둠) = 바탕색
+    const K = (c, r) => c + ',' + r;
+    const dug = new Set(F.startDug.map(p => K(p.col, p.row)));
+    const ores = new Set(F.ores.map(p => K(p.col, p.row))), spores = new Set(F.spores.map(p => K(p.col, p.row)));
+    const isDug = (c, r) => dug.has(K(c, r));
+    const tall = (c, r) => !isDug(c, r) && (isDug(c + 1, r) || isDug(c, r + 1) || isDug(c + 1, r + 1));   // 벽이 서는 흙 덩어리
+    const solid = (c, r) => isDug(c, r) || tall(c, r);
+    const pieces = [];
+    const place = (k, c, r, depth) => {
+      const w = tileToWorld(c, r), v = A[k];
+      const s = this.add.image(w.x, w.y, k).setOrigin(v.originX, v.originY).setDepth(depth);
+      pieces.push(s);
+      return s;
+    };
+    // 17.3 조각 고르기: 파낸 칸이 바뀔 때마다 다시 고른다(여기서는 전부 지우고 다시 놓는다)
+    const rebuild = () => {
+      pieces.forEach(s => s.destroy());
+      pieces.length = 0;
+      for (let r = -1; r <= F.rows; r++) for (let c = -1; c <= F.cols; c++) {
+        const y = tileToWorld(c, r).y;
+        if (isDug(c, r)) place('ug_floor_' + ((c * 7 + r * 3) % 3 + 1), c, r, 1);
+        if (solid(c, r)) {
+          if (!solid(c, r + 1)) place('ug_cut_l', c, r, 1.5);
+          if (!solid(c + 1, r)) place('ug_cut_r', c, r, 1.5);
+        }
+        if (tall(c, r)) {
+          Object.assign(place('ug_cap', c, r, 10 + y - 1.5), { target: [c, r], tallPiece: true });
+          for (const [side, fc, fr] of [['l', c + 1, r], ['r', c, r + 1]]) {
+            if (tall(fc, fr)) continue;
+            const kind = ores.has(K(c, r)) ? 'iron' : spores.has(K(c, r)) ? 'mush'
+              : (isDug(fc, fr) && (c * 7 + r * 13 + (side === 'l' ? 3 : 0)) % 5 === 0) ? 'b' : 'a';
+            Object.assign(place('ug_wall_' + side + '_' + kind, fc, fr, 10 + tileToWorld(fc, fr).y - 21), { target: [c, r], tallPiece: true });
+          }
+        }
+        if (isDug(c, r) && tall(c - 1, r) && tall(c, r - 1)) Object.assign(place('ug_pillar', c, r, 10 + y - 20.5), { tallPiece: true });
+      }
+      window.__ug = { dug: dug.size, pieces: pieces.length, walls: pieces.filter(s => s.texture.key.startsWith('ug_wall')).length };
+    };
+    rebuild();
+
+    // 가구와 사다리(처음 방 3x3: col 13~15, row 13~15)
+    const put = (key, col, row, frame, depth) => {
+      const w = tileToWorld(col, row), v = A[key];
+      const s = frame === undefined ? this.add.image(w.x, w.y, key) : this.add.sprite(w.x, w.y, key, v.frames.indexOf(frame));
+      return s.setOrigin(v.originX, v.originY).setDepth(depth === undefined ? 10 + w.y : depth);
+    };
+    const E = F.entry, ladder = put('ug_ladder', E.col, E.row);
+    put('build_bed', 14.5, 13, 'empty');
+    const fire = put('build_fireplace', 13, 15, 'burn1').play('build_fireplace:burn');
+    put('build_rug', 14.5, 14.5, undefined, 2);
+    put('build_chest', 15, 14, 'closed');
+    const lamp = put('build_lantern', 15, 15, 'on');
+    put('ug_hole', F.sealedHole.col, F.sealedHole.row, 'locked');
+    const p = put('char_player', 14, 14, 'idle').play('char_player:idle');
+    // 빛: 벽난로(일렁임), 등불, 입구의 햇빛 기둥, 주인공
+    const fl = A.build_fireplace.flame, lp = A.build_lantern.lamp;                 // 기준점에서 불꽃·등불까지(뒤집으면 x 를 반대로)
+    this.add.image(fire.x + fl[0], fire.y + fl[1], 'glow_warm').setBlendMode(Phaser.BlendModes.ADD).setAlpha(0.45).setDisplaySize(220, 220).setDepth(fire.depth + 1);
+    LIGHTS.push({ x: fire.x + fl[0], y: fire.y + fl[1], r: 300, color: 0xffedc7, alpha: 1 });
+    LIGHTS.push({ x: lamp.x + lp[0], y: lamp.y + lp[1], r: 210, color: 0xffedc7, alpha: 0.9 });
+    const sh = A.glow_shaft;
+    this.add.image(ladder.x, ladder.y, 'glow_shaft').setOrigin(sh.originX, sh.originY).setBlendMode(Phaser.BlendModes.ADD).setAlpha(0.55).setDepth(ladder.depth + 1);
+    LIGHTS.push({ x: ladder.x, y: ladder.y, r: 170, color: 0xfff7e0, alpha: 0.9 }, { x: ladder.x, y: ladder.y - 130, r: 120, color: 0xfff7e0, alpha: 0.7 });
+    LIGHTS.push({ x: p.x, y: p.y - 24, r: 150, color: 0xebf0ff, alpha: 0.6, follow: p });
+    const cam = this.cameras.main, c0 = tileToWorld(14, 14);
+    cam.centerOn(c0.x, c0.y - 40);
+    const say = (m) => this.scene.get('ui').events.emit('say', m);
+
+    // 누른 것 찾기: 벽·덮개는 그림의 투명하지 않은 곳(depth 큰 것부터), 아니면 바닥 칸
+    const hitPiece = (wx, wy) => {
+      const c = pieces.filter(s => s.target && s.getBounds().contains(wx, wy)).sort((a, b) => b.depth - a.depth);
+      for (const s of c) {
+        const a = this.textures.getPixelAlpha(Math.floor(wx - s.x + s.displayOriginX), Math.floor(wy - s.y + s.displayOriginY), s.texture.key);
+        if (a > 40) return s.target;
+      }
+      return null;
+    };
+    const n4 = (c, r) => [[c - 1, r], [c, r - 1], [c, r + 1], [c + 1, r]];
+    const canDig = (c, r) => !isDug(c, r) && c >= 1 && r >= 1 && c < F.cols - 1 && r < F.rows - 1 && n4(c, r).some(([a, b]) => isDug(a, b));
+    let busy = false, pc = [14, 14];
+    const at = (s, col, row) => { const w = tileToWorld(col, row); return s.setPosition(w.x, w.y).setDepth(10 + w.y); };
+    this.input.on('pointerdown', (ptr) => {
+      if (busy) return;
+      const lb = ladder.getBounds();
+      if (lb.contains(ptr.worldX, ptr.worldY) && ptr.worldY < ladder.y - 10) {          // 사다리: 오르는 모습만 보여 주고 다시 내려온다
+        busy = window.__busy = true;
+        at(p, E.col, E.row + 0.12).setFlipX(false).setDepth(ladder.depth + 1).play('char_player:climb');
+        const step = this.time.addEvent({ delay: 460, loop: true, callback: () => this.sfx('ladder') });
+        this.tweens.add({ targets: p, y: p.y - 150, alpha: 0, duration: 1400, yoyo: true, hold: 500, onComplete: () => {
+          step.remove(); at(p, E.col + 0.6, E.row + 0.6).play('char_player:idle'); pc = [14, 14]; busy = window.__busy = false; window.__climbed = true;
+        } });
+        say('사다리: climb 애니메이션, 위로 올라가며 흐려진다(실제 게임은 여기서 땅 위로 바뀐다)');
+        return;
+      }
+      let t = hitPiece(ptr.worldX, ptr.worldY);
+      if (!t) { const tt = worldToTile(ptr.worldX, ptr.worldY); t = [tt.col, tt.row]; }
+      const [tc, tr] = t;
+      if (!canDig(tc, tr)) {
+        if (!isDug(tc, tr)) {
+          const w = tileToWorld(tc, tr), no = this.add.image(w.x, w.y, 'overlay_no').setDepth(3);
+          this.time.delayedCall(400, () => no.destroy());
+          this.sfx('ui_error');
+        }
+        return;
+      }
+      // 서서 팔 칸: 목표와 변을 맞댄 파낸 칸 중 주인공에게 가까운 곳. 방향: 위쪽 두 칸이면 뒷모습, 화면 왼쪽이면 뒤집기
+      const stands = n4(tc, tr).filter(([a, b]) => isDug(a, b)).sort((a, b) => ((a[0] - pc[0]) ** 2 + (a[1] - pc[1]) ** 2) - ((b[0] - pc[0]) ** 2 + (b[1] - pc[1]) ** 2));
+      const [sc, sr] = stands[0], dc = tc - sc, dr = tr - sr;
+      const back = dc < 0 || dr < 0, side = dc < 0 ? 'l' : dr < 0 ? 'r' : 'f';
+      pc = [sc, sr];
+      busy = window.__busy = true;
+      at(p, sc, sr).setFlipX(dc - dr < 0);
+      const walls = pieces.filter(s => s.target && s.target[0] === tc && s.target[1] === tr && s.texture.key.startsWith('ug_wall'));
+      walls.forEach(s => s.setTint(0xffe2a0));
+      const ov = side === 'f' ? this.add.image(tileToWorld(tc, tr).x, tileToWorld(tc, tr).y, 'overlay_dig').setDepth(3) : null;
+      const crack = side === 'f' ? put('fx_dig_crack', tc, tr, 'f1', 1.6) : put('fx_dig_crack', sc, sr, side + '1', 10 + tileToWorld(sc, sr).y - 20.5);
+      crack.setVisible(false);
+      let hits = 0;
+      const swing = () => {
+        p.play(back ? 'char_player:bpick' : 'char_player:pick');
+        this.time.delayedCall(190, () => {                       // pick1(190ms) 다음 = 내려치는 순간(hit 프레임)
+          hits++;
+          this.sfx('dig_dirt');
+          this.cameras.main.shake(60, 0.002);
+          if (hits < 4) {
+            crack.setVisible(true).setFrame(A.fx_dig_crack.frames.indexOf(side + hits));
+            this.time.delayedCall(260, swing);
+            return;
+          }
+          crack.destroy(); if (ov) ov.destroy();
+          dug.add(K(tc, tr));
+          rebuild();
+          this.sfx('rock_break');
+          const what = ores.has(K(tc, tr)) ? '철 +2, 돌 +1' : spores.has(K(tc, tr)) ? '포자 +2, 돌 +1' : '돌 +1';
+          const w = tileToWorld(tc, tr);
+          const tx = this.add.text(w.x, w.y - 60, what, { fontFamily: 'sans-serif', fontSize: '30px', fontStyle: 'bold', color: '#fffcf0', stroke: '#4a3d38', strokeThickness: 6 }).setOrigin(0.5).setDepth(50000);
+          this.tweens.add({ targets: tx, y: tx.y - 50, alpha: 0, delay: 500, duration: 700, onComplete: () => tx.destroy() });
+          this.time.delayedCall(250, () => { this.sfx('pickup'); p.play('char_player:' + (back ? 'bidle' : 'idle')); busy = window.__busy = false; });
+          window.__lastDug = [tc, tr];
+          say('판 칸: col ' + tc + ', row ' + tr + ' (' + what + ')  지금 파낸 칸 ' + dug.size + '개');
+        });
+      };
+      swing();
+    });
+    // 키 큰 조각(벽, 덮개, 기둥)이 주인공을 가리면 반투명하게
+    this.events.on('update', () => {
+      const pb = p.getBounds();
+      let faded = 0;
+      for (const s of pieces) {
+        if (!s.tallPiece) continue;
+        const hide = s.depth > p.depth && Phaser.Geom.Intersects.RectangleToRectangle(s.getBounds(), pb);
+        s.setAlpha(hide ? 0.35 : 1);
+        faded += hide ? 1 : 0;
+      }
+      window.__faded = faded;
+    });
+    const amb = () => this.sound.play('sfx_amb_underground', { loop: true, volume: 0.6 });   // 지하 배경 소리(처음 누를 때 브라우저가 허락)
+    if (this.sound.locked) this.sound.once('unlocked', amb); else amb();
+    this.time.delayedCall(400, () => { window.__ready = true; });
+  }
+
   update() {
     if (!this.towers) return;
     // 시간은 씬 시계(this.time.now)로 잰다. 트윈, delayedCall 과 같은 시계라서 빨리 감기(timeScale)에도 함께 맞춰진다.
@@ -422,7 +587,8 @@ class UI extends Phaser.Scene {
     }
     const style = { fontFamily: '"Apple SD Gothic Neo","Malgun Gothic","Noto Sans CJK KR",sans-serif', fontSize: '28px', fontStyle: 'bold', color: '#4a3d38',
       backgroundColor: '#fbf6ea', padding: { x: 14, y: 8 } };
-    const tapText = this.add.text(24, H - 70, FARM ? '화면을 누르면 효과음을 차례로 들려줍니다' : '땅을 누르면 칸 번호가 나옵니다', style);
+    const tapText = this.add.text(24, H - 70, FARM ? '화면을 누르면 효과음을 차례로 들려줍니다' : UGM ? '벽이나 앞쪽 어둠(안 판 칸)을 누르면 파고, 사다리를 누르면 오릅니다' : '땅을 누르면 칸 번호가 나옵니다', style);
+    this.events.on('say', (msg) => tapText.setText(msg));
     this.events.on('tap', (t) => { if (!FARM) tapText.setText('누른 칸: col ' + t.col + ', row ' + t.row); });
     this.events.on('sound', (n) => tapText.setText('효과음: ' + n));
     this.add.text(24, 24, '확인용 페이지  mode=' + MODE, style);
@@ -430,7 +596,7 @@ class UI extends Phaser.Scene {
   update(time) {
     if (!this.lightmap) return;
     const cam = this.scene.get('game').cameras.main, rt = this.lightmap;
-    rt.fill(NIGHT_COLOR);
+    rt.fill(UGM ? UG_COLOR : NIGHT_COLOR);
     for (const L of LIGHTS) {
       if (L.follow) { L.x = L.follow.x; L.y = L.follow.y - 24; }
       const flicker = L.r >= 300 ? 1 + 0.03 * Math.sin(time / 90) + 0.02 * Math.sin(time / 37) : 1;      // 모닥불만 살짝 일렁임

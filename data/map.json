@@ -357,5 +357,6 @@
     {"kind": "palm", "sprite": "obj_palm_2", "col": 47, "row": 40},
     {"kind": "rock", "sprite": "obj_rock_m", "col": 51, "row": 38},
     {"kind": "palm", "sprite": "obj_palm_1", "col": 49, "row": 42}
-  ]
+  ],
+  "underground": {"floors": [{"name": "지하 1층", "cols": 28, "rows": 28, "entry": {"col": 13, "row": 13}, "startDug": [{"col": 13, "row": 13}, {"col": 13, "row": 14}, {"col": 13, "row": 15}, {"col": 14, "row": 13}, {"col": 14, "row": 14}, {"col": 14, "row": 15}, {"col": 15, "row": 13}, {"col": 15, "row": 14}, {"col": 15, "row": 15}, {"col": 22, "row": 9}, {"col": 22, "row": 10}, {"col": 23, "row": 9}, {"col": 23, "row": 10}], "ores": [{"col": 14, "row": 12, "type": "iron"}, {"col": 16, "row": 10, "type": "iron"}, {"col": 17, "row": 10, "type": "iron"}, {"col": 17, "row": 11, "type": "iron"}, {"col": 18, "row": 11, "type": "iron"}, {"col": 18, "row": 12, "type": "iron"}, {"col": 9, "row": 16, "type": "iron"}, {"col": 10, "row": 16, "type": "iron"}, {"col": 10, "row": 17, "type": "iron"}, {"col": 11, "row": 18, "type": "iron"}, {"col": 19, "row": 15, "type": "iron"}, {"col": 7, "row": 12, "type": "iron"}], "spores": [{"col": 12, "row": 14}, {"col": 16, "row": 17}, {"col": 10, "row": 13}, {"col": 18, "row": 16}, {"col": 11, "row": 20}], "sealedHole": {"col": 23, "row": 10}}]}
 }

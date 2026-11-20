@@ -2258,3 +2258,599 @@ def icon_hunger(name):
     if name == 'berry':
         return _berries()
     raise KeyError(name)
+
+
+# ================================================================== 17장: 지하 생활
+# 지하 조각은 모두 '칸 가운데'가 기준점이다. 뒷벽은 칸의 왼쪽 위 변(wall_l) / 오른쪽 위 변(wall_r)에 서고,
+# 앞쪽(왼쪽 아래 변, 오른쪽 아래 변)은 잘라 낸 단면(cut_l, cut_r)만 보인다(인형의 집처럼).
+# 바닥·벽·단면·덮개는 옆 칸과 이어 붙어야 하므로 wc.tile_sprite 로 굽고, 이음매가 안 보이게 EXT 만큼 겹쳐 그린다.
+UG_H, UG_D, UG_T, EXT = 150.0, 30.0, 0.16, 0.025     # 벽 높이, 바닥 두께(마스터 px), 벽 두께, 겹침(칸 비율)
+UG_PAL = {   # 면 방향별 흙층(아래 -> 위). l = 오른쪽 아래를 보는 면(어두움), r = 왼쪽 아래를 보는 면(밝음)
+    'l': ('earth_dd', 'earth_d', 'earth', 'earth_d', 'earth', 'earth_d'),
+    'r': ('earth_d', 'earth', 'earth_l', 'clay', 'earth_l', 'earth'),
+}
+UG_BANDS = (0.0, 14.0, 42.0, 74.0, 90.0, 126.0, UG_H)   # 층 경계 높이(가운데 값). 경계는 칸마다 같은 물결이라 옆 칸과 이어진다.
+
+
+def _wave(u, i):
+    """층 경계의 물결(칸 양 끝에서 값이 같아 이웃 칸과 맞물린다)"""
+    return 3.2 * math.sin(2 * math.pi * u + i * 1.7) + 1.4 * math.sin(4 * math.pi * u + i * 0.9)
+
+
+def _face_pts(a, b, z0, z1, i0=None, i1=None, n=14):
+    """밑변 a -> b(화면 좌표) 위의 z0~z1 띠. i0/i1 이 있으면 그 경계는 물결."""
+    lo = [(a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n - z0 - (_wave(k / n, i0) if i0 is not None else 0)) for k in range(n + 1)]
+    hi = [(a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n - z1 - (_wave(k / n, i1) if i1 is not None else 0)) for k in range(n + 1)]
+    return lo + hi[::-1]
+
+
+def _wall_ends(side, ext=EXT):
+    """벽 면의 밑변 양 끝(화면 좌표)과, 물결 위상을 이웃과 맞추기 위한 u 범위"""
+    if side == 'l':      # x = -0.5 면, y 가 +0.5 -> -0.5
+        return iso(-0.5, 0.5 + ext), iso(-0.5, -0.5 - ext)
+    return iso(-0.5 - ext, -0.5), iso(0.5 + ext, -0.5)
+
+
+def _at(a, b, u, z):
+    return (a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u - z)
+
+
+def ug_floor(v):
+    """다진 흙바닥 한 칸(3가지). 칸보다 EXT 만큼 크게 그려 이웃과 겹친다."""
+    rng = random.Random(900 + v)
+    k = 0.5 + EXT
+    out = [P([iso(-k, -k), iso(k, -k), iso(k, k), iso(-k, k)], 'earth_l')]
+    for _ in range(5):
+        cx, cy = iso(rng.uniform(-0.3, 0.3), rng.uniform(-0.3, 0.3))
+        out.append(E(cx, cy, rng.uniform(12, 22), rng.uniform(6, 10), rng.choice(('clay', 'earth')), op=0.32))
+    for _ in range(4 + v):
+        cx, cy = iso(rng.uniform(-0.36, 0.36), rng.uniform(-0.36, 0.36))
+        r = rng.uniform(1.8, 3.4)
+        out += [E(cx, cy + 0.8, r * 1.35, r * 0.8, 'earth_d', op=0.6), E(cx, cy, r * 1.25, r * 0.72, rng.choice(('rock', 'rock_l')))]
+    if v == 1:
+        a = iso(-0.28, 0.12)
+        out.append(L([a, (a[0] + 13, a[1] - 3), (a[0] + 22, a[1] + 3), (a[0] + 33, a[1] + 1)], 1.3, 'earth_d', op=0.85))
+    if v == 2:
+        a = iso(0.22, -0.22)
+        out.append(L([a, (a[0] - 9, a[1] + 3), (a[0] - 16, a[1] + 2)], 1.4, 'root', op=0.85))
+        out.append(L([(a[0] - 9, a[1] + 3), (a[0] - 11, a[1] + 7)], 1.1, 'root', op=0.8))
+    return out
+
+
+def _stones(a, b, seed, n, zlo=16, zhi=120):
+    rng = random.Random(seed)
+    out = []
+    for _ in range(n):
+        x, y = _at(a, b, rng.uniform(0.14, 0.86), rng.uniform(zlo, zhi))
+        r = rng.uniform(2.2, 4.6)
+        out += [E(x + 0.6, y + 1.0, r * 1.3, r, 'earth_dd', op=0.55), E(x, y, r * 1.2, r * 0.9, rng.choice(('rock', 'rock_d', 'rock_l')), rng.uniform(-25, 25))]
+    return out
+
+
+def ug_wall(side, kind='a'):
+    """뒷벽 한 칸. side 'l' = 칸의 왼쪽 위 변(오른쪽 아래를 봄, 어두운 면), 'r' = 오른쪽 위 변(왼쪽 아래를 봄, 밝은 면).
+    kind 'a' 흙벽, 'b' 버팀목, 'iron' 철 광맥(그 뒤 칸에 철이 묻혀 있을 때)."""
+    a, b = _wall_ends(side)
+    keys = UG_PAL[side]
+    seed = {'a': 11, 'b': 12, 'iron': 13}[kind] + (0 if side == 'l' else 50)
+    out = []
+    for i, key in enumerate(keys):                           # 흙층(경계는 물결)
+        z0, z1 = UG_BANDS[i], UG_BANDS[i + 1]
+        out.append(P(_face_pts(a, b, z0, z1 + 0.8, i if 0 < i else None, i + 1 if i + 1 < len(keys) else None), key))
+    out.append(P(_face_pts(a, b, 0, 9), 'earth_dd', op=0.45))  # 바닥과 만나는 그늘
+    out += _stones(a, b, seed, 7 if kind == 'a' else 5)
+    if kind == 'b':                                          # 버팀목: 기둥 하나 + 머리 받침
+        u0, u1 = 0.44, 0.57
+        out.append(P([_at(a, b, u0, 0), _at(a, b, u1, 0), _at(a, b, u1, UG_H - 16), _at(a, b, u0, UG_H - 16)], 'wood'))
+        out.append(P([_at(a, b, u0, 0), _at(a, b, u0 + 0.035, 0), _at(a, b, u0 + 0.035, UG_H - 16), _at(a, b, u0, UG_H - 16)], 'wood_l', op=0.8))
+        out.append(P([_at(a, b, 0.3, UG_H - 22), _at(a, b, 0.71, UG_H - 22), _at(a, b, 0.71, UG_H - 9), _at(a, b, 0.3, UG_H - 9)], 'wood_d'))
+        out.append(P([_at(a, b, 0.3, UG_H - 13), _at(a, b, 0.71, UG_H - 13), _at(a, b, 0.71, UG_H - 9), _at(a, b, 0.3, UG_H - 9)], 'wood', op=0.9))
+        for u in (0.36, 0.65):
+            out.append(E(*_at(a, b, u, UG_H - 15.5), 1.6, 1.6, 'metal_d'))
+    if kind == 'iron':                                       # 철 광맥(돌 덩이 속 붉은 녹)
+        rng = random.Random(seed + 7)
+        for u, z, r in ((0.27, 56, 10), (0.56, 88, 12), (0.74, 42, 8), (0.42, 116, 7)):
+            x, y = _at(a, b, u, z)
+            out += [E(x + 1, y + 1.5, r * 1.3, r * 1.02, 'earth_dd', op=0.6), E(x, y, r * 1.25, r, 'iron_d', rng.uniform(-30, 30)),
+                    E(x - 1, y - 1, r * 0.95, r * 0.74, 'iron'), E(x - 2.4, y - 3, r * 0.42, r * 0.3, 'rust_l'),
+                    E(x + 3, y + 1.5, r * 0.36, r * 0.28, 'rust')]
+    rng = random.Random(seed + 3)
+    for _ in range(3 if kind != 'b' else 1):                 # 위에서 늘어진 뿌리
+        u = rng.uniform(0.12, 0.88)
+        if kind == 'b' and 0.28 < u < 0.74:
+            u = 0.15
+        x, y = _at(a, b, u, UG_H)
+        ln = rng.uniform(14, 34)
+        out.append(L([(x, y + 1), (x + rng.uniform(-3, 3), y + ln * 0.55), (x + rng.uniform(-5, 5), y + ln)], 1.7, 'root', op=0.9))
+    if side == 'l':                                          # 벽 두께(잘린 윗면)
+        t = [iso(-0.5 - UG_T, 0.5 + EXT, UG_H), iso(-0.5 - UG_T, -0.5 - EXT, UG_H), iso(-0.5, -0.5 - EXT, UG_H), iso(-0.5, 0.5 + EXT, UG_H)]
+    else:
+        t = [iso(-0.5 - EXT, -0.5 - UG_T, UG_H), iso(0.5 + EXT, -0.5 - UG_T, UG_H), iso(0.5 + EXT, -0.5, UG_H), iso(-0.5 - EXT, -0.5, UG_H)]
+    out.append(P(t, 'earth_dd'))
+    return out
+
+
+def ug_pillar():
+    """뒷벽 두 면이 만나는 안쪽 모서리의 나무 기둥(칸의 위 꼭짓점)"""
+    c = v3(-0.5 + 0.05, -0.5 + 0.05, (UG_H + 4) / 2)
+    return box3(c, v3(0.055, 0), v3(0, 0.055), (0.0, 0.0, (UG_H + 4) / 2), 'wood_l', ('wood_l', 'wood', 'wood_d')) + \
+        box3(v3(-0.5 + 0.05, -0.5 + 0.05, UG_H + 6), v3(0.08, 0), v3(0, 0.08), (0.0, 0.0, 3.0), 'wood_l', ('wood_l', 'wood', 'wood_d'))
+
+
+def ug_cut(side, v=0):
+    """앞쪽 단면(바닥 두께). 'l' = 칸의 왼쪽 아래 변(밝은 면), 'r' = 오른쪽 아래 변(어두운 면).
+    아래 가장자리는 부스러진 흙 모양이지만 양 끝 높이가 같아 이웃과 이어진다."""
+    if side == 'l':
+        a, b = iso(-0.5 - EXT, 0.5), iso(0.5 + EXT, 0.5)
+        top, mid, bot = 'earth_l', 'earth', 'earth_d'
+    else:
+        a, b = iso(0.5, 0.5 + EXT), iso(0.5, -0.5 - EXT)
+        top, mid, bot = 'earth', 'earth_d', 'earth_dd'
+    rng = random.Random(70 + v + (0 if side == 'l' else 9))
+    n = 12
+    jag = []
+    for k in range(n + 1):
+        u = k / n
+        d = 0 if k in (0, n) else rng.uniform(-2, 6) * math.sin(math.pi * u) ** 0.5
+        jag.append((a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u + UG_D + d))
+    edge = [(a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n) for k in range(n + 1)]
+    out = [P(edge + jag[::-1], mid)]
+    out.append(P(edge + [(x, y + 7) for x, y in edge[::-1]], top))
+    out.append(P([(x, y - 9) for x, y in jag] + jag[::-1], bot))
+    out += _stones((a[0], a[1] - 0.0), b, 120 + v + (0 if side == 'l' else 5), 3, -UG_D + 10, -10)
+    out.append(L(edge, 2.0, 'earth_l' if side == 'l' else 'earth', op=0.9))
+    return out
+
+
+def ug_cap(key='cavetop'):
+    """흙 덩어리(안 판 칸 중 벽이 서는 칸)의 윗면. 그 뒤에 있는 것을 가린다."""
+    k = 0.5 + EXT
+    out = [P([iso(-k, -k, UG_H), iso(k, -k, UG_H), iso(k, k, UG_H), iso(-k, k, UG_H)], key)]
+    if key != 'cave':
+        rng = random.Random(77)
+        for _ in range(4):
+            cx, cy = iso(rng.uniform(-0.3, 0.3), rng.uniform(-0.3, 0.3), UG_H)
+            out.append(E(cx, cy, rng.uniform(8, 16), rng.uniform(4, 8), 'cave', op=0.35))
+    return out
+
+
+UG_WALL_KINDS = ('a', 'b', 'iron', 'mush')   # mush = 버섯 포자가 있는 흙(그 칸을 파면 포자를 얻는다)
+
+
+def _wall_mush(a, b):
+    """벽 면에 돋은 작은 버섯 무리(포자가 있는 칸)"""
+    out = []
+    for u, z, s in ((0.24, 34, 1.0), (0.31, 30, 0.7), (0.62, 70, 1.15), (0.7, 64, 0.75), (0.55, 104, 0.85), (0.47, 99, 0.6)):
+        x, y = _at(a, b, u, z)
+        out += [L([(x, y + 1), (x, y - 7 * s)], 3.2 * s, 'mush_l'),
+                P([(x - 7 * s, y - 6 * s), (x - 5 * s, y - 11 * s), (x, y - 13 * s), (x + 5 * s, y - 11 * s), (x + 7 * s, y - 6 * s)], 'mush'),
+                E(x - 2 * s, y - 10 * s, 1.4 * s, 1.0 * s, 'mush_l'), E(x + 2.6 * s, y - 8 * s, 1.1 * s, 0.9 * s, 'mush_l')]
+    return out
+
+
+_ug_wall_base = ug_wall
+
+
+def ug_wall(side, kind='a'):
+    """뒷벽 한 칸(kind 'mush' 는 흙벽 + 버섯)"""
+    if kind != 'mush':
+        return _ug_wall_base(side, kind)
+    out = _ug_wall_base(side, 'a')
+    a, b = _wall_ends(side)
+    top = out[-1]                       # 벽 두께(윗면)는 맨 위에 그대로
+    return out[:-1] + _wall_mush(a, b) + [top]
+
+
+# ---- 파기 표시와 금
+def dig_crack(name):
+    """파는 중인 칸의 금. l1~3 / r1~3 = 뒷벽 면(그 벽 너머 칸을 팔 때, 벽이 선 칸 자리에 놓는다), f1~3 = 바닥 높이의 앞쪽 빈칸."""
+    side, stage = name[0], int(name[1])
+    rng = random.Random(80 + stage + (0 if side == 'l' else 20 if side == 'r' else 40))
+    out = []
+    if side in ('l', 'r'):
+        a, b = _wall_ends(side, 0.0)
+        for i in range(1 + stage * 2):
+            x, y = _at(a, b, rng.uniform(0.18, 0.82), rng.uniform(26, 118))
+            pts = [(x, y)]
+            for _ in range(3):
+                x, y = x + rng.uniform(-10, 10), y + rng.uniform(-10, 10)
+                pts.append((x, y))
+            out.append(L(pts, 2.0, 'earth_dd'))
+        if stage >= 2:
+            for _ in range(stage + 1):
+                x, y = _at(a, b, rng.uniform(0.25, 0.75), rng.uniform(30, 110))
+                out.append(E(x, y, rng.uniform(4, 7), rng.uniform(3, 5), 'cave', op=0.75))
+        return out
+    out.append(P(_square(0.42, 0.06, 3), 'earth_dd', op=0.18 + 0.16 * stage))
+    for _ in range(2 + stage * 2):
+        x, y = iso(rng.uniform(-0.28, 0.28), rng.uniform(-0.28, 0.28))
+        out.append(L([(x, y), (x + rng.uniform(-12, 12), y + rng.uniform(-4, 4)), (x + rng.uniform(-18, 18), y + rng.uniform(-7, 7))], 1.8, 'earth_l', op=0.85))
+    return out
+
+
+# ---- 굴 입구(땅 위 1x1칸) / 사다리 / 바닥 구멍
+def _frame_ring(k_out, k_in, z, key, key_d):
+    """칸 가운데의 네모난 나무 틀(위에서 본 모습)"""
+    o = [iso(-k_out, -k_out, z), iso(k_out, -k_out, z), iso(k_out, k_out, z), iso(-k_out, k_out, z)]
+    i = [iso(-k_in, -k_in, z), iso(k_in, -k_in, z), iso(k_in, k_in, z), iso(-k_in, k_in, z)]
+    out = [P([(x, y + 5) for x, y in o], key_d)]
+    for j in range(4):
+        out.append(P([o[j], o[(j + 1) % 4], i[(j + 1) % 4], i[j]], key if j in (0, 3) else key_d if j == 1 else key))
+    for j in range(4):
+        out.append(L([o[j], i[j]], 1.4, 'wood_d', op=0.7))
+    return out
+
+
+def burrow(state='closed'):
+    """굴 입구(땅 위). 흙더미 둘레 + 나무 틀 + 뚜껑. open 이면 뚜껑이 뒤로 젖혀지고 사다리 끝이 보인다."""
+    out = [S(4, 6, 62, 22, 4)]
+    rng = random.Random(5)
+    for k in range(14):                                   # 파낸 흙더미
+        t = 2 * math.pi * k / 14
+        x, y = 0.47 * math.cos(t), 0.47 * math.sin(t)
+        cx, cy = iso(x * 0.75 + y * 0.75, -x * 0.75 + y * 0.75)
+        if cy < 4:
+            out.append(E(cx, cy - 3, rng.uniform(16, 21), rng.uniform(8, 11), rng.choice(('earth', 'earth_l'))))
+    out.append(P(_square(0.4, 0.08, 3), 'earth_d'))
+    out += _frame_ring(0.33, 0.23, 4, 'wood_l', 'wood')
+    if state == 'closed':
+        lid = [iso(-0.23, -0.23, 5), iso(0.23, -0.23, 5), iso(0.23, 0.23, 5), iso(-0.23, 0.23, 5)]
+        out.append(P(lid, 'wood'))
+        for f in (-0.115, 0.0, 0.115):
+            out.append(L([iso(-0.23, f, 5), iso(0.23, f, 5)], 1.6, 'wood_d', op=0.85))
+        out.append(L([iso(-0.17, -0.2, 5), iso(-0.17, 0.2, 5)], 3.2, 'wood_d'))
+        out.append(L([iso(0.17, -0.2, 5), iso(0.17, 0.2, 5)], 3.2, 'wood_d'))
+        rx, ry = iso(0.05, 0.12, 6)
+        out += [E(rx, ry, 6, 3.4, 'metal_d'), E(rx, ry - 0.6, 3.6, 1.8, 'wood')]
+    else:
+        out.append(P([iso(-0.23, -0.23, 3), iso(0.23, -0.23, 3), iso(0.23, 0.23, 3), iso(-0.23, 0.23, 3)], 'cave'))
+        for x in (-0.12, 0.12):                           # 사다리 끝
+            out.append(L([iso(x, 0.1, 0), iso(x, 0.08, 26)], 4, 'wood_l'))
+        out.append(L([iso(-0.12, 0.09, 14), iso(0.12, 0.09, 14)], 3, 'wood'))
+        out.append(L([iso(-0.12, 0.1, 0), iso(0.12, 0.1, 0)], 3, 'wood_d'))
+        lid = [iso(-0.23, -0.23, 5), iso(0.23, -0.23, 5), iso(0.23, -0.31, 50), iso(-0.23, -0.31, 50)]   # 뒤로 젖힌 뚜껑(안쪽 면)
+        out.append(P(lid, 'wood_d'))
+        out.append(L([lerp(lid[0], lid[3], 0.25), lerp(lid[1], lid[2], 0.25)], 3.2, 'wood'))
+        out.append(L([lerp(lid[0], lid[3], 0.75), lerp(lid[1], lid[2], 0.75)], 3.2, 'wood'))
+        out.append(L([lerp(lid[0], lid[1], 0.5), lerp(lid[3], lid[2], 0.5)], 1.4, 'ink', op=0.4))
+    return out
+
+
+UG_LADDER_TOP = UG_H + 70
+
+
+def ug_ladder():
+    """입구 칸에 선 사다리(위로 갈수록 흐려지는 것은 make_assets 에서 처리)"""
+    out = [S(0, 4, 30, 9)]
+    rails = [(-0.2, -0.24), (0.2, -0.24)]
+    for x, y in rails:
+        out += [L([iso(x, y + 0.02, 0), iso(x, y, UG_LADDER_TOP)], 5.2, 'wood_d'), L([iso(x - 0.01, y + 0.02, 0), iso(x - 0.01, y, UG_LADDER_TOP)], 2.2, 'wood_l')]
+    for z in range(16, int(UG_LADDER_TOP), 22):
+        out.append(L([iso(-0.2, -0.24, z), iso(0.2, -0.24, z)], 4.2, 'wood'))
+        out.append(L([iso(-0.2, -0.24, z - 1.6), iso(0.2, -0.24, z - 1.6)], 1.4, 'wood_l', op=0.8))
+    return out
+
+
+def ug_hole(state='locked'):
+    """바닥 구멍(아래층으로). locked = 널빤지로 막고 자물쇠, open = 사다리가 보이는 구멍"""
+    out = []
+    rim = [iso(0.36 * math.cos(t) + 0.0, 0.36 * math.sin(t)) for t in [2 * math.pi * i / 20 for i in range(20)]]
+    out.append(P(rim, 'stone_d'))
+    out.append(P([iso(0.3 * math.cos(t), 0.3 * math.sin(t)) for t in [2 * math.pi * i / 20 for i in range(20)]], 'cave'))
+    for i in range(10):
+        t = 2 * math.pi * i / 10
+        x, y = iso(0.34 * math.cos(t), 0.34 * math.sin(t))
+        out.append(E(x, y - 1, 7, 4.5, 'stone' if i % 2 else 'stone_l'))
+    if state == 'locked':
+        for f in (-0.17, 0.0, 0.17):                       # 널빤지 세 장(+col 방향)
+            q = [iso(-0.37, f - 0.075, 5), iso(0.37, f - 0.075, 5), iso(0.37, f + 0.075, 5), iso(-0.37, f + 0.075, 5)]
+            out.append(P([(x, y + 4) for x, y in q], 'wood_d'))
+            out.append(P(q, 'wood' if f else 'wood_l'))
+            out.append(L([lerp(q[0], q[3], 0.5), lerp(q[1], q[2], 0.5)], 1.2, 'wood_d', op=0.5))
+        for x in (-0.24, 0.24):                            # 가로대
+            q = [iso(x - 0.06, -0.33, 9), iso(x + 0.06, -0.33, 9), iso(x + 0.06, 0.33, 9), iso(x - 0.06, 0.33, 9)]
+            out.append(P([(a, b + 3) for a, b in q], 'wood_d'))
+            out.append(P(q, 'wood_l'))
+            for y in (-0.17, 0.17):
+                out.append(E(*iso(x, y, 10), 1.8, 1.5, 'metal_d'))
+        cx, cy = iso(0.02, 0.05, 12)
+        out += [L([(cx - 8, cy - 8), (cx - 8, cy - 18), (cx, cy - 23), (cx + 8, cy - 18), (cx + 8, cy - 8)], 4.2, 'metal'),
+                P([(cx - 12, cy - 9), (cx + 12, cy - 9), (cx + 12, cy + 9), (cx - 12, cy + 9)], 'brass'),
+                P([(cx + 4, cy - 9), (cx + 12, cy - 9), (cx + 12, cy + 9), (cx + 4, cy + 9)], 'sun_d', op=0.5),
+                E(cx, cy - 1.5, 2.6, 2.6, 'ink'), P([(cx - 1.6, cy), (cx + 1.6, cy), (cx + 2, cy + 6), (cx - 2, cy + 6)], 'ink')]
+    else:
+        for x in (-0.11, 0.11):
+            out.append(L([iso(x, 0.05, -40), iso(x, 0.03, 20)], 4.5, 'wood_d'))
+        for z in (-10, 8):
+            out.append(L([iso(-0.11, 0.04, z), iso(0.11, 0.04, z)], 3.4, 'wood'))
+    return out
+
+
+# ---- 지하 가구
+def bed(state='empty'):
+    """침대 1x2칸(긴 쪽이 +col). 기준점 = 두 칸 사이 가운데. 머리 쪽이 -col(화면 왼쪽 위)."""
+    out = [S(4, 8, 96, 30, 26)]
+    L0, L1, W = 0.92, 0.36, 0.38
+    for x, y in ((-L0 + 0.06, -W + 0.06), (L0 - 0.06, -W + 0.06), (-L0 + 0.06, W - 0.06), (L0 - 0.06, W - 0.06)):
+        out += box3(v3(x, y, 8), v3(0.04, 0), v3(0, 0.04), (0.0, 0.0, 8.0), 'wood', ('wood_l', 'wood', 'wood_d'))
+    out += box3(v3(0, 0, 21), v3(L0, 0), v3(0, W), (0.0, 0.0, 6.0), 'wood_l', ('wood_l', 'wood', 'wood_d'))       # 틀
+    out += box3(v3(0.02, 0, 32), v3(L0 - 0.06, 0), v3(0, W - 0.04), (0.0, 0.0, 6.0), 'canvas_l', ('canvas', 'canvas_d', 'canvas_dd'))  # 매트
+    out += box3(v3(-L0 - 0.02, 0, 38), v3(0.04, 0), v3(0, W + 0.02), (0.0, 0.0, 38.0), 'wood_l', ('wood_l', 'wood', 'wood_d'))   # 머리판
+    out.append(line3([v3(-L0 + 0.02, -W, 62), v3(-L0 + 0.02, W, 62)], 2.0, 'wood_d', op=0.6))
+    out += box3(v3(L0 + 0.02, 0, 27), v3(0.035, 0), v3(0, W + 0.02), (0.0, 0.0, 27.0), 'wood_l', ('wood_l', 'wood', 'wood_d'))   # 발판
+    # 베개
+    pc = pr(v3(-0.68, 0, 42))
+    out += [E(pc[0], pc[1] + 2, 26, 12, 'canvas_d'), E(pc[0], pc[1], 25, 11, 'canvas_l')]
+    if state == 'sleep':
+        hx, hy = pc[0] + 3, pc[1] - 8
+        out += [E(hx, hy, 15, 14, 'skin'), P([(hx - 16, hy - 1), (hx - 15, hy - 10), (hx - 6, hy - 16), (hx + 6, hy - 16), (hx + 15, hy - 8),
+                                             (hx + 16, hy - 1), (hx + 9, hy - 6), (hx - 2, hy - 7), (hx - 10, hy - 4)], 'hair'),
+                L([(hx - 7, hy + 3), (hx - 4, hy + 4.4), (hx - 1, hy + 3)], 1.6, 'ink'), L([(hx + 4, hy + 3), (hx + 7, hy + 4.4), (hx + 10, hy + 3)], 1.6, 'ink'),
+                E(hx - 9, hy + 8, 3, 2, 'blush', op=0.7), E(hx + 12, hy + 8, 3, 2, 'blush', op=0.7)]
+    # 이불(머리 쪽 1/4 은 비움). 잘 때는 몸 모양으로 불룩
+    bump = 9 if state == 'sleep' else 0
+    q0 = [v3(-0.42, -W + 0.02, 38), v3(L0 - 0.02, -W + 0.02, 38), v3(L0 - 0.02, W + 0.02, 38), v3(-0.42, W + 0.02, 38)]
+    top = [pr(p) for p in q0]
+    if bump:
+        mid = pr(v3(0.15, 0.02, 38 + bump))
+        out.append(P([top[0], lerp(top[0], top[1], 0.5), top[1], top[2], top[3]], 'rug_d'))
+        out.append(P([top[0], (mid[0] - 30, mid[1] - 6), mid, (mid[0] + 34, mid[1] + 8), top[1], top[2], top[3]], 'rug'))
+    else:
+        out.append(P(top, 'rug'))
+    side = [pr(v3(-0.42, W + 0.02, 38)), pr(v3(L0 - 0.02, W + 0.02, 38)), pr(v3(L0 - 0.02, W + 0.02, 24)), pr(v3(-0.42, W + 0.02, 24))]
+    out.append(P(side, 'rug_d'))
+    fold = [pr(v3(-0.42, -W + 0.02, 38.5)), pr(v3(-0.28, -W + 0.02, 38.5)), pr(v3(-0.28, W + 0.02, 38.5)), pr(v3(-0.42, W + 0.02, 38.5))]
+    out.append(P(fold, 'rug_l'))
+    for f in (0.15, 0.55):
+        out.append(line3([v3(f, -W + 0.02, 38.4), v3(f, W + 0.02, 38.4)], 2.4, 'rug_l', op=0.85))
+    return out
+
+
+def fireplace(frame='off'):
+    """돌 벽난로. 칸의 왼쪽 위 벽(wall_l)에 붙고 입구가 오른쪽 아래를 본다(오른쪽 위 벽에 붙일 때는 좌우 뒤집기)."""
+    out = [S(10, 6, 46, 16, 26)]
+    SL, SD = ('stone', 'stone_d', 'rock_d'), 'rock_d'
+    out += box3(v3(-0.32, 0, 34), v3(0.18, 0), v3(0, 0.36), (0.0, 0.0, 34.0), 'stone', SL)                          # 아궁이
+    out += box3(v3(-0.37, 0, 72), v3(0.16, 0), v3(0, 0.27), (0.0, 0.0, 5.0), 'wood_l', ('wood_l', 'wood', 'wood_d'))   # 나무 선반
+    out += box3(v3(-0.42, 0, 92), v3(0.1, 0), v3(0, 0.22), (0.0, 0.0, 15.0), 'stone_d', SL)                         # 굴뚝 아래(넓게)
+    out += box3(v3(-0.44, 0, (107 + UG_H) / 2), v3(0.08, 0), v3(0, 0.15), (0.0, 0.0, (UG_H - 107) / 2), SD, SL)        # 굴뚝
+    rng = random.Random(3)                                          # 돌 무늬
+    for i in range(10):
+        y, z = rng.uniform(-0.3, 0.3), rng.uniform(6, 62)
+        if abs(y) < 0.2 and z < 50:
+            continue
+        cx, cy = pr(v3(-0.14, y, z))
+        out.append(E(cx, cy, rng.uniform(5, 8), rng.uniform(3, 5), 'rock_d', op=0.6))
+    for i in range(5):
+        cx, cy = pr(v3(-0.36, rng.uniform(-0.1, 0.1), rng.uniform(110, UG_H - 8)))
+        out.append(E(cx, cy, rng.uniform(4, 6), rng.uniform(3, 4), 'stone', op=0.5))
+    for x, y in ((-0.3, -0.12), (-0.33, 0.1)):                     # 선반 위 물건(냄비, 병)
+        cx, cy = pr(v3(x, y, 77))
+        out += [E(cx, cy, 7, 3, 'metal_d'), P([(cx - 7, cy), (cx - 6, cy - 9), (cx + 6, cy - 9), (cx + 7, cy)], 'metal'), E(cx, cy - 9, 6, 2.4, 'metal_l')] if y < 0 else \
+            [P([(cx - 3, cy), (cx - 3, cy - 10), (cx - 1.5, cy - 14), (cx + 1.5, cy - 14), (cx + 3, cy - 10), (cx + 3, cy)], 'leafA_d'), E(cx, cy, 3, 1.4, 'leafA_d')]
+    # 아치 입구(+col 면)
+    arch = [pr(v3(-0.139, y, z)) for y, z in ((-0.2, 0), (-0.2, 30), (-0.14, 42), (0, 47), (0.14, 42), (0.2, 30), (0.2, 0))]
+    out.append(P(arch, 'cave'))
+    out.append(L(arch, 3, 'stone_d'))
+    logs = [pr(v3(-0.2, -0.12, 6)), pr(v3(-0.2, 0.12, 6))]
+    out += [L(logs, 9, 'wood_d'), L([(logs[0][0] + 2, logs[0][1] - 5), (logs[1][0] - 2, logs[1][1] - 3)], 8, 'wood')]
+    if frame != 'off':
+        fo, fy = FLAMES[int(frame[-1]) - 1]
+        base = pr(v3(-0.2, 0, 6))
+        out.append(P([(base[0] + x * 0.62, base[1] + y * 0.62) for x, y in fo], 'fire_o'))
+        out.append(P([(base[0] + x * 0.62, base[1] + y * 0.62) for x, y in fy], 'fire_y', soft=True))
+    else:
+        base = pr(v3(-0.2, 0, 8))
+        out += [E(base[0] - 4, base[1], 6, 3, 'soot'), E(base[0] + 5, base[1] + 1, 4, 2.4, 'ember', op=0.8)]
+    return out
+
+
+def table():
+    out = [S(4, 6, 46, 16, 26)]
+    T, H = 0.34, 34
+    for x, y in ((-T + 0.05, -T + 0.05), (T - 0.05, -T + 0.05), (-T + 0.05, T - 0.05), (T - 0.05, T - 0.05)):
+        out += box3(v3(x, y, (H - 4) / 2), v3(0.035, 0), v3(0, 0.035), (0.0, 0.0, (H - 4) / 2), 'wood', ('wood_l', 'wood', 'wood_d'))
+    out += box3(v3(0, 0, H), v3(T, 0), v3(0, T), (0.0, 0.0, 4.0), 'wood_l', ('wood_l', 'wood', 'wood_d'))
+    for f in (-0.12, 0.12):
+        out.append(line3([v3(-T, f, H + 4), v3(T, f, H + 4)], 1.4, 'wood_d', op=0.7))
+    mc = pr(v3(0.06, -0.08, H + 4))                                   # 머그잔
+    out += [P([(mc[0] - 6, mc[1]), (mc[0] - 6, mc[1] - 12), (mc[0] + 6, mc[1] - 12), (mc[0] + 6, mc[1])], 'canvas'),
+            E(mc[0], mc[1] - 12, 6, 2.6, 'wood_d'), E(mc[0], mc[1], 6, 2.4, 'canvas'), L([(mc[0] + 6, mc[1] - 9), (mc[0] + 10, mc[1] - 7), (mc[0] + 6, mc[1] - 3)], 2, 'canvas_d')]
+    pc = pr(v3(-0.14, 0.12, H + 4))                                   # 빵 접시
+    out += [E(pc[0], pc[1], 12, 5.5, 'canvas_l'), E(pc[0], pc[1] - 3, 8, 4.5, 'wood_l'), E(pc[0] - 1, pc[1] - 4.5, 4.5, 2, 'canvas', op=0.8)]
+    return out
+
+
+def stool():
+    out = [S(3, 4, 22, 8, 0)]
+    for t in (90, 210, 330):
+        a = math.radians(t)
+        out.append(line3([v3(0.14 * math.cos(a), 0.14 * math.sin(a), 0), v3(0.08 * math.cos(a), 0.08 * math.sin(a), 11)], 4.5, 'wood_d'))
+    out += cyl(v3(0, 0, 11), v3(0, 0, 16), 18, 18, 'wood', cap='wood_l')
+    return out
+
+
+def lantern_post(state='on'):
+    """세워 두는 등불(나무 기둥 + 매단 등). 기준점 = 기둥 밑."""
+    out = [S(4, 3, 18, 6, 0)]
+    out += box3(v3(0, 0, 3), v3(0.12, 0), v3(0, 0.12), (0.0, 0.0, 3.0), 'wood', ('wood_l', 'wood', 'wood_d'))
+    out += [L([(0, -4), (0, -96)], 6, 'wood_d'), L([(-1.5, -4), (-1.5, -96)], 2, 'wood_l', op=0.8), L([(0, -94), (18, -94)], 4.5, 'wood_d')]
+    x, y = 18, -72
+    out.append(L([(x, -94), (x, y - 14)], 1.6, 'ink'))
+    out.append(P([(x - 8, y - 12), (x + 8, y - 12), (x + 9, y + 9), (x - 9, y + 9)], 'lamp' if state == 'on' else 'smoke'))
+    if state == 'on':
+        out.append(E(x, y + 1, 3.2, 6, 'fire_o'))
+        out.append(E(x, y + 2, 1.8, 3.6, 'fire_y'))
+    out += [L([(x - 9, y + 9), (x + 9, y + 9)], 2.6, 'ink'), L([(x - 8, y - 12), (x + 8, y - 12)], 2.6, 'ink'),
+            P([(x - 6, y - 12), (x, y - 17), (x + 6, y - 12)], 'ink'), L([(x, y - 12), (x, y + 9)], 1.2, 'ink', op=0.6)]
+    return out
+
+
+def rug():
+    """2x2칸 깔개(바닥 장식). 기준점 = 네 칸 한가운데"""
+    k = 0.82
+    edge = [iso(-k, -k + 0.12), iso(-k + 0.12, -k), iso(k - 0.12, -k), iso(k, -k + 0.12), iso(k, k - 0.12), iso(k - 0.12, k), iso(-k + 0.12, k), iso(-k, k - 0.12)]
+    out = [P(edge, 'rug_d')]
+    k2 = 0.72
+    out.append(P([iso(-k2, -k2), iso(k2, -k2), iso(k2, k2), iso(-k2, k2)], 'rug'))
+    k3 = 0.5
+    out.append(P([iso(-k3, -k3), iso(k3, -k3), iso(k3, k3), iso(-k3, k3)], 'rug_l', op=0.9))
+    out.append(P([iso(0, -0.36), iso(0.36, 0), iso(0, 0.36), iso(-0.36, 0)], 'rug_d'))
+    out.append(P([iso(0, -0.18), iso(0.18, 0), iso(0, 0.18), iso(-0.18, 0)], 'canvas_l'))
+    for i in range(-3, 4):
+        f = i * 0.2
+        for x, y in ((f, -k), (f, k), (-k, f), (k, f)):
+            ex, ey = iso(x * 1.06, y * 1.06) if abs(x) == k or abs(y) == k else iso(x, y)
+            out.append(E(ex, ey, 3.4, 2, 'canvas_d'))
+    for f in (-0.62, 0.62):
+        out.append(L([iso(f, -0.62), iso(f, 0.62)], 2, 'rug_l', op=0.8))
+        out.append(L([iso(-0.62, f), iso(0.62, f)], 2, 'rug_l', op=0.8))
+    return out
+
+
+PLANTER_STAGES = ('empty', 'seed', 'grow', 'ripe')
+
+
+def _mushroom(x, y, s, cap='mush', cap_l='mush_l', spots=True):
+    out = [P([(x - 4 * s, y), (x - 3 * s, y - 13 * s), (x + 3 * s, y - 13 * s), (x + 4 * s, y)], 'mush_l'),
+           E(x, y, 4.2 * s, 1.8 * s, 'canvas_d'),
+           P([(x - 12 * s, y - 11 * s), (x - 9 * s, y - 19 * s), (x, y - 23 * s), (x + 9 * s, y - 19 * s), (x + 12 * s, y - 11 * s), (x, y - 9 * s)], cap)]
+    if spots:
+        out += [E(x - 5 * s, y - 17 * s, 2.2 * s, 1.6 * s, cap_l), E(x + 4 * s, y - 19 * s, 1.8 * s, 1.3 * s, cap_l), E(x + 7 * s, y - 13.5 * s, 1.5 * s, 1.1 * s, cap_l)]
+    return out
+
+
+def planter(stage='empty'):
+    """버섯 화분(나무 상자 + 퇴비). empty -> seed(포자) -> grow -> ripe"""
+    out = [S(4, 6, 44, 15, 26)]
+    out += box3(v3(0, 0, 11), v3(0.34, 0), v3(0, 0.3), (0.0, 0.0, 11.0), 'soil_dd', ('wood_l', 'wood', 'wood_d'))
+    for f in (-0.5, 0.0, 0.5):
+        out.append(line3([v3(0.34, f * 0.3, 1), v3(0.34, f * 0.3, 21)], 1.5, 'wood_d', op=0.7))
+        out.append(line3([v3(f * 0.34, 0.3, 1), v3(f * 0.34, 0.3, 21)], 1.5, 'wood_d', op=0.7))
+    rim = [pr(v3(-0.3, -0.26, 22)), pr(v3(0.3, -0.26, 22)), pr(v3(0.3, 0.26, 22)), pr(v3(-0.3, 0.26, 22))]
+    out.append(P(rim, 'soil_d'))
+    rng = random.Random(4)
+    for _ in range(9):
+        cx, cy = pr(v3(rng.uniform(-0.24, 0.24), rng.uniform(-0.2, 0.2), 22))
+        out.append(E(cx, cy, rng.uniform(2, 4), rng.uniform(1.2, 2), rng.choice(('soil_l', 'wood_d', 'soil_dd'))))
+    spots = [(-0.14, -0.1), (0.12, -0.12), (-0.02, 0.06), (0.16, 0.12), (-0.18, 0.14)]
+    if stage == 'seed':
+        for x, y in spots:
+            cx, cy = pr(v3(x, y, 22))
+            out += [E(cx, cy, 2.2, 1.4, 'canvas_l'), E(cx + 3, cy + 1, 1.4, 1, 'canvas_l')]
+    elif stage == 'grow':
+        for i, (x, y) in enumerate(spots):
+            cx, cy = pr(v3(x, y, 22))
+            out += _mushroom(cx, cy, 0.42 + 0.06 * (i % 2), spots=False)
+    elif stage == 'ripe':
+        order = sorted(spots, key=lambda t: t[0] + t[1])
+        for i, (x, y) in enumerate(order):
+            cx, cy = pr(v3(x, y, 22))
+            if i % 2:
+                out += _mushroom(cx, cy, 0.85, 'brownmush', 'canvas', spots=False)
+            else:
+                out += _mushroom(cx, cy, 1.0)
+    return out
+
+
+def chest(state='closed'):
+    """보관 상자(쇠띠 두른 나무 궤짝). open 이면 뚜껑이 뒤로 열리고 안이 보인다."""
+    out = [S(4, 6, 46, 15, 26)]
+    hx, hy, H = 0.32, 0.22, 24
+    out += box3(v3(0, 0, H / 2), v3(hx, 0), v3(0, hy), (0.0, 0.0, H / 2), 'cave' if state == 'open' else 'wood', ('wood_l', 'wood', 'wood_d'))
+    for f in (-0.62, 0.62):                                         # 쇠띠
+        out.append(line3([v3(f * hx, hy, 0.5), v3(f * hx, hy, H)], 3.6, 'metal_d'))
+        out.append(line3([v3(hx, f * hy, 0.5), v3(hx, f * hy, H)], 3.6, 'metal_d'))
+    if state == 'closed':
+        n = 8
+        arc = [(math.cos(math.pi * i / n), math.sin(math.pi * i / n)) for i in range(n + 1)]      # 둥근 뚜껑(+row 쪽에서 본 단면)
+        front = [pr(v3(-hx, hy * c, H + 14 * s)) for c, s in arc]
+        back = [pr(v3(hx, hy * c, H + 14 * s)) for c, s in arc]
+        out.append(P(hull(front + back), 'wood'))
+        out.append(P([pr(v3(hx, hy * c, H + 14 * s)) for c, s in arc], 'wood_d'))
+        for f in (-0.62, 0.62):
+            out.append(L([pr(v3(f * hx, hy * c, H + 14 * s)) for c, s in arc], 3.6, 'metal_d'))
+        out.append(line3([v3(-hx, -hy * 0.1, H + 14), v3(hx, -hy * 0.1, H + 14)], 2, 'wood_l', op=0.7))
+        lc = pr(v3(hx, 0, H - 4))
+        out += [P([(lc[0] - 4, lc[1] - 5), (lc[0] + 4, lc[1] - 7), (lc[0] + 4, lc[1] + 3), (lc[0] - 4, lc[1] + 5)], 'brass'), E(lc[0], lc[1] - 1, 1.3, 1.3, 'ink')]
+    else:
+        rng = random.Random(9)
+        for _ in range(4):
+            cx, cy = pr(v3(rng.uniform(-0.2, 0.2), rng.uniform(-0.12, 0.12), H - 2))
+            out.append(E(cx, cy, rng.uniform(6, 9), rng.uniform(3, 5), rng.choice(('wood_l', 'iron', 'canvas', 'mush'))))
+        lid = [pr(v3(-hx, -hy, H)), pr(v3(hx, -hy, H)), pr(v3(hx, -hy - 0.06, H + 30)), pr(v3(-hx, -hy - 0.06, H + 30))]
+        out.append(P(lid, 'wood_d'))
+        for f in (-0.62, 0.62):
+            out.append(L([pr(v3(f * hx, -hy, H)), pr(v3(f * hx, -hy - 0.06, H + 30))], 3.6, 'metal_d'))
+    return out
+
+
+def icon_ug(name):
+    """17장 아이콘"""
+    noshadow = lambda ps: [p for p in ps if p[-1].get('tag') != 'shadow']
+    if name == 'burrow':
+        return noshadow(burrow('open'))
+    if name == 'bed':
+        return noshadow(bed('empty'))
+    if name == 'fireplace':
+        return noshadow(fireplace('burn1'))
+    if name == 'table':
+        return noshadow(table())
+    if name == 'stool':
+        return noshadow(stool())
+    if name == 'lantern':
+        return noshadow(lantern_post('on'))
+    if name == 'rug':
+        return rug()
+    if name == 'planter':
+        return noshadow(planter('ripe'))
+    if name == 'chest':
+        return noshadow(chest('closed'))
+    if name == 'mushroom':
+        return _mushroom(-8, 26, 2.6) + _mushroom(22, 30, 1.6, 'brownmush', 'canvas', spots=False)
+    if name == 'spore':                                      # 포자 주머니
+        bag = [(-20, -6), (-26, 14), (-18, 32), (0, 38), (18, 32), (26, 14), (20, -6), (8, -14), (-8, -14)]
+        out = [P(bag, 'canvas'), P([(4, -12), (20, -6), (26, 14), (18, 32), (6, 36)], 'canvas_d', soft=True),
+               L([(-10, -14), (10, -14)], 4, 'rope'), P([(-8, -14), (-12, -26), (0, -20), (12, -26), (8, -14)], 'canvas')]
+        for x, y, r in ((-6, 10, 4), (8, 4, 3.4), (2, 22, 3.6), (-12, 24, 2.6), (14, 20, 2.6)):
+            out.append(E(x, y, r, r, 'mush_l'))
+            out.append(E(x - 0.8, y - 0.8, r * 0.4, r * 0.4, 'white'))
+        return out
+    if name in ('surface', 'underground'):
+        ground = [P([(-44, 6), (44, 6), (44, 40), (-44, 40)], 'earth'), P([(-44, 16), (44, 16), (44, 24), (-44, 24)], 'clay', op=0.8),
+                  P([(-44, -4), (44, -4), (44, 8), (-44, 8)], 'leafA')]
+        if name == 'surface':
+            arrow = [P([(0, -46), (22, -20), (9, -20), (9, 12), (-9, 12), (-9, -20), (-22, -20)], 'sun_d'), P([(0, -40), (16, -22), (5, -22), (5, 8), (-5, 8), (-5, -22), (-16, -22)], 'sun')]
+        else:
+            arrow = [P([(0, 44), (22, 18), (9, 18), (9, -36), (-9, -36), (-9, 18), (-22, 18)], 'ink'), P([(0, 37), (16, 20), (5, 20), (5, -32), (-5, -32), (-5, 20), (-16, 20)], 'white')]
+        return ground + arrow
+    if name == 'lock':
+        return [L([(-16, -2), (-16, -24), (-8, -36), (8, -36), (16, -24), (16, -2)], 8, 'metal'),
+                P([(-26, -4), (26, -4), (26, 34), (-26, 34)], 'brass'), P([(10, -4), (26, -4), (26, 34), (10, 34)], 'sun_d', op=0.6, soft=True),
+                E(0, 10, 5, 5, 'ink'), P([(-3, 12), (3, 12), (4, 24), (-4, 24)], 'ink')]
+    raise KeyError(name)
+
+
+# ---- 주인공: 사다리 오르기(뒷모습), 앉기
+POSES.update(climb1=pose(view='b', legs=(-2, 14, 3, 0), bob=-3, near=168, far=150),
+             climb2=pose(view='b', legs=(-2, 0, 3, 14), bob=-3, near=150, far=168),
+             sit=pose(bob=8, lean=-2, near=40, far=28))
+
+
+def _bent_leg(hip, knee, foot, key, shoe):
+    return [L([hip, knee], 9.2, key), L([knee, foot], 8.6, key), E(foot[0] + 2.5, foot[1] + 1.5, 6.5, 3.6, shoe)]
+
+
+_survivor_base = survivor
+
+
+def survivor(name='idle'):
+    """sit 는 무릎을 굽힌 다리로 바꿔 그린다(의자 높이 16)"""
+    if name != 'sit':
+        return _survivor_base(name)
+    K = SURVIVOR
+    body = figure(KITS['player'], POSES['sit'])
+    legs_at = next(i for i, p in enumerate(body) if p[0] == 'P' and p[2] in (K['pants'], K['pants_d']))
+    body = [p for p in body if not ((p[0] == 'P' and p[2] in (K['pants'], K['pants_d'])) or (p[0] == 'E' and p[2] == K['shoe']))]
+    legs = _bent_leg((-5, -17), (9, -17), (11, -3), K['pants_d'], K['shoe']) + _bent_leg((5, -17), (19, -16), (21, -3), K['pants'], K['shoe'])
+    return body[:legs_at] + legs + body[legs_at:]

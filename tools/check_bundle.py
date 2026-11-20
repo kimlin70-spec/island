@@ -52,7 +52,7 @@ def main():
             for f in v['muzzle']:
                 if f not in v.get('frames', []):
                     bad(f'{k}: muzzle 의 프레임 이름 {f} 가 없음')
-        if not (0 <= v['originX'] <= 1 and 0 <= v['originY'] <= 1):
+        if not (0 <= v['originX'] <= 1 and 0 <= v['originY'] <= 1) and v['kind'] != 'ug':     # 지하 덮개·기둥은 칸 가운데가 그림 밖(아래)
             bad(f'{k}: 기준점이 그림 밖')
         for name, a in v.get('anims', {}).items():               # 애니메이션: 프레임 이름, 시간, hit, swing
             names = [f for f, ms in a['frames']]
@@ -139,6 +139,33 @@ def main():
     for k, v in M['pets'].items():
         if (v['col'], v['row']) not in seen:
             bad(f'{k} 자리에 갈 수 없음')
+    ug = M.get('underground', {}).get('floors', [])                      # 17장: 지하
+    for F in ug:
+        n_c, n_r = F['cols'], F['rows']
+        inner = lambda c, r: 1 <= c < n_c - 1 and 1 <= r < n_r - 1
+        dug = {(p['col'], p['row']) for p in F['startDug']}
+        ores = {(p['col'], p['row']) for p in F['ores']}
+        spores = {(p['col'], p['row']) for p in F['spores']}
+        if not all(inner(*p) for p in dug | ores | spores):
+            bad(f'{F["name"]}: 가장자리나 격자 밖에 있는 칸이 있음')
+        if (F['entry']['col'], F['entry']['row']) not in dug or (F['sealedHole']['col'], F['sealedHole']['row']) not in dug:
+            bad(f'{F["name"]}: 사다리 칸이나 막힌 구멍이 파낸 칸이 아님')
+        if (ores | spores) & dug or ores & spores or any(p.get('type') != 'iron' for p in F['ores']):
+            bad(f'{F["name"]}: 철·버섯 칸이 파낸 칸과 겹치거나 종류가 잘못됨')
+        e = (F['entry']['col'], F['entry']['row'])
+        room, q3 = {e}, deque([e])
+        while q3:
+            c, r = q3.popleft()
+            for n in ((c + 1, r), (c - 1, r), (c, r + 1), (c, r - 1)):
+                if n in dug and n not in room:
+                    room.add(n)
+                    q3.append(n)
+        if len(room) < 9:
+            bad(f'{F["name"]}: 사다리가 있는 처음 방이 3x3보다 작음')
+    for side in 'lr':                                                    # 지하 벽 조각이 종류별로 다 있는지
+        for kind in ('a', 'b', 'iron', 'mush'):
+            if f'ug_wall_{side}_{kind}' not in A:
+                bad(f'지하 벽 조각이 없음: ug_wall_{side}_{kind}')
     for k in ('ship', 'boat'):
         p = M['pirates'][k]
         if T[int(round(p['row']))][int(round(p['col']))] != 0:
@@ -151,16 +178,18 @@ def main():
                 if not (G['x'] + 40 <= x <= G['x'] + G['width'] - 40 and G['y'] + 130 <= y <= G['y'] + G['height'] - 20):
                     bad(f'땅 칸이 바닥 그림 가장자리에 너무 가깝거나 밖에 있음: {(c, r)}')
     print(f'   땅 {sum(1 for row in T for v in row if v)}칸, 사물 {len(M["objects"])}개, 걸을 수 있는 칸 {total}칸 모두 이어짐')
+    for F in ug:
+        print(f'   {F["name"]}: {F["cols"]}x{F["rows"]}, 처음 파낸 칸 {len(F["startDug"])}, 철 {len(F["ores"])}, 버섯 {len(F["spores"])}')
 
     print('3) 지시문(DEMO_SPEC.md)에 나오는 이름')
     keys = set(A) | {c['key'] for c in G['chunks']}
     names = set()
     for token in re.findall(r'`([^`\n]+)`', spec):
         for part in re.split(r'[,\s/·→]+', token):
-            m = re.fullmatch(r'((?:obj|build|char|icon|overlay|fx|light|glow|ground|turret|proj|farm|crop|decal)_[a-z0-9_]*?)(\d+)~([a-z]?)(\d+)', part)
+            m = re.fullmatch(r'((?:obj|build|char|icon|overlay|fx|light|glow|ground|turret|proj|farm|crop|decal|ug)_[a-z0-9_]*?)(\d+)~([a-z]?)(\d+)', part)
             if m:                                           # obj_tree_a1~a3, build_fence_0~15 같은 범위 표기
                 names.update(f'{m.group(1)}{i}' for i in range(int(m.group(2)), int(m.group(4)) + 1))
-            elif re.fullmatch(r'(obj|build|char|icon|overlay|fx|light|glow|ground|turret|proj|farm|crop|decal)_[a-z0-9_]+', part):
+            elif re.fullmatch(r'(obj|build|char|icon|overlay|fx|light|glow|ground|turret|proj|farm|crop|decal|ug)_[a-z0-9_]+', part):
                 names.add(part)
     for n in sorted(names):
         if n not in keys:

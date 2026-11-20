@@ -147,7 +147,9 @@ PLAYER_ANIMS = dict(
     hoe=swing3('', 'hoe', (190, 90, 150), 'heavy'), bhoe=swing3('b', 'hoe', (190, 90, 150), 'bheavy'),
     water=anim([('water1', 150), ('water2', 450)], hit='water2'), bwater=anim([('bwater1', 150), ('bwater2', 450)], hit='bwater2'),
     crouch=anim([('crouch', 450)], hit='crouch'), bcrouch=anim([('bcrouch', 450)], hit='bcrouch'),
-    eat=anim([('eat', 280), ('idle', 120), ('eat', 280)]))
+    eat=anim([('eat', 280), ('idle', 120), ('eat', 280)]),
+    # 17장: 지하
+    climb=anim([('climb1', 230), ('climb2', 230)], True), sit=anim([('sit', 1000)], True))
 ZOMBIE_ANIMS = dict(
     idle=anim([('idle', 500), ('idle2', 500)], True), walk=walk('', 160), bwalk=walk('b', 160),
     attack=anim([('attack0', 260), ('attack', 220)], hit='attack'), battack=anim([('battack0', 260), ('battack', 220)], hit='battack'),
@@ -242,6 +244,81 @@ def make_stage3():
         save(img, 'fx', f'decal_puddle_{i}', anchor, 'decal')
     save(rain_sheet(), 'fx', 'overlay_rain', (256, 256), 'weather', tile=True)
     save(snow_sheet(), 'fx', 'overlay_snow', (256, 256), 'weather', tile=True)
+
+
+def tile(key, prims):
+    """이어 붙는 지하 조각(가장자리 번짐 없이 도형 경계 그대로)."""
+    img, anchor = wc.tile_sprite(prims, key)
+    save(img, 'underground', key, anchor, 'ug')
+
+
+def fade_top(img, anchor, z_from, z_to):
+    """사다리처럼 위로 길게 뻗은 그림을 위쪽에서 흐리게(구멍 속으로 사라지는 느낌). z 는 기준점 위 높이(마스터 px)."""
+    a = np.asarray(img).copy()
+    y0, y1 = anchor[1] - z_to * A.SCALE, anchor[1] - z_from * A.SCALE
+    ys = np.arange(a.shape[0], dtype=np.float32)
+    k = np.clip((ys - y0) / max(1.0, y1 - y0), 0, 1)[:, None]
+    a[..., 3] = (a[..., 3] * k).astype(np.uint8)
+    return Image.fromarray(a)
+
+
+def shaft_glow(w=130, h=330):
+    """입구 구멍에서 내려오는 햇빛 기둥(ADD 로 겹쳐 그린다). 기준점 = 바닥 빛 웅덩이 가운데."""
+    ys, xs = np.mgrid[0:h, 0:w].astype(np.float32)
+    cx, foot = w / 2, h - 26
+    t = np.clip(ys / foot, 0, 1)                                       # 0 = 위, 1 = 바닥
+    half = 30 + 12 * t                                                  # 아래로 갈수록 살짝 넓게
+    beam = np.clip(1 - (np.abs(xs - cx) / half) ** 2, 0, 1) ** 1.4 * (0.75 - 0.35 * t)
+    beam *= np.clip(ys / 40, 0, 1)                                      # 맨 위는 부드럽게 시작
+    beam *= np.clip((foot + 6 - ys) / 18, 0, 1)
+    pool = np.clip(1 - np.hypot((xs - cx) / 52, (ys - foot) / 22), 0, 1) ** 1.6 * 0.85
+    a = np.clip(np.maximum(beam, pool), 0, 1)
+    arr = np.zeros((h, w, 4), np.uint8)
+    arr[..., 0], arr[..., 1], arr[..., 2] = 255, 238, 196
+    arr[..., 3] = (a * 255).astype(np.uint8)
+    return Image.fromarray(arr), (cx, foot)
+
+
+def make_underground():
+    """17장: 지하 생활(굴 입구, 칸 단위 파기 조각, 가구, 버섯 화분, 아이콘)"""
+    for v in (1, 2, 3):
+        tile(f'ug_floor_{v}', A.ug_floor(v - 1))
+    for side in ('l', 'r'):
+        for kind in A.UG_WALL_KINDS:
+            tile(f'ug_wall_{side}_{kind}', A.ug_wall(side, kind))
+        tile(f'ug_cut_{side}', A.ug_cut(side))
+    tile('ug_cap', A.ug_cap())
+    img, anchor = wc.sprite(A.ug_pillar(), 'ug_pillar', wobble=0.5)
+    save(img, 'underground', 'ug_pillar', anchor, 'ug')
+    img, anchor = wc.sprite(A.ug_ladder(), 'ug_ladder', wobble=0.5)
+    save(fade_top(img, anchor, A.UG_H - 10, A.UG_LADDER_TOP), 'underground', 'ug_ladder', anchor, 'ug')
+    sheet('underground', 'ug_hole', [A.ug_hole('locked'), A.ug_hole('open')], ['locked', 'open'], 'ug')
+    img, anchor = shaft_glow()
+    save(img, 'fx', 'glow_shaft', anchor, 'light')
+    # 지을 것(땅 위 굴 입구 + 지하 가구)
+    sheet('build', 'build_burrow', [A.burrow('closed'), A.burrow('open')], ['closed', 'open'], 'build')
+    sheet('build', 'build_bed', [A.bed('empty'), A.bed('sleep')], ['empty', 'sleep'], 'build', size=[2, 1])
+    sheet('build', 'build_fireplace', [A.fireplace(f) for f in ('off', 'burn1', 'burn2', 'burn3')], ['off', 'burn1', 'burn2', 'burn3'],
+          'build', wobble=0.5, anims={'burn': anim([('burn1', 140), ('burn2', 140), ('burn3', 140)], True)},
+          flame=px(A.pr(A.v3(-0.2, 0, 26))), note='왼쪽 위 벽(wall_l)에 붙는 모습. 오른쪽 위 벽에 붙일 때는 setFlipX(true), flame 의 x 도 반대로')
+    one('build', 'build_table', A.table(), 'build')
+    one('build', 'build_stool', A.stool(), 'build')
+    sheet('build', 'build_lantern', [A.lantern_post('off'), A.lantern_post('on')], ['off', 'on'], 'build', lamp=px((18, -70)))
+    img, anchor = wc.sprite(A.rug(), 'build_rug', pencil=0.4, wobble=0.6)
+    save(img, 'build', 'build_rug', anchor, 'decal', size=[2, 2])
+    sheet('build', 'build_planter', [A.planter(st) for st in A.PLANTER_STAGES], list(A.PLANTER_STAGES), 'build')
+    sheet('build', 'build_chest', [A.chest('closed'), A.chest('open')], ['closed', 'open'], 'build')
+    # 파기 표시
+    names = [f'{s}{i}' for s in 'lrf' for i in (1, 2, 3)]
+    sheet('fx', 'fx_dig_crack', [A.dig_crack(n) for n in names], names, 'fx', cols=3, pencil=0.0, wobble=0.5,
+          note='l = 왼쪽 위 벽 면, r = 오른쪽 위 벽 면(둘 다 벽이 선 칸 자리에), f = 앞쪽 빈칸의 바닥 높이(그 칸 자리에)')
+    save(overlay((255, 196, 92, 150), None), 'ui', 'overlay_dig', (45, 25), 'overlay')
+    box = (-64, -64, 64, 64)
+    for name in ('burrow', 'bed', 'fireplace', 'table', 'stool', 'lantern', 'rug', 'planter', 'chest', 'mushroom', 'spore',
+                 'surface', 'underground', 'lock'):
+        prims = A.fit(A.icon_ug(name), 94, enlarge=True)
+        img, anchor = wc.sprite(prims, 'icon_' + name, box=box, keep_box=True)
+        save(img, 'ui', 'icon_' + name, (img.width / 2, img.height / 2), 'icon')
 
 
 def _wrap_draw(size, draw_one, items):
@@ -388,6 +465,7 @@ def main():
     make_fx()
     make_motion_fx()
     make_stage3()
+    make_underground()
     ground = json.load(open(os.path.join(ASSETS, 'ground', 'ground.json'), encoding='utf-8'))
     meta = dict(tileWidth=LY.HW * 2, tileHeight=LY.HH * 2, viewWidth=LY.VIEW_W, viewHeight=LY.VIEW_H, ground=ground, turretDirections=A.TURRET_DIRS,
                 note='originX/originY = 그림에서 발이 닿는 점. 이 점을 칸 중심의 월드 좌표에 맞춘다.')

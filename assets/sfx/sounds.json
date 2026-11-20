@@ -262,5 +262,23 @@
   "duration": 0.094,
   "loop": false,
   "note": "발소리(눈)"
+ },
+ "dig_dirt": {
+  "file": "sfx/dig_dirt.wav",
+  "duration": 0.288,
+  "loop": false,
+  "note": "흙벽을 찍을 때(지하 파기 한 번)"
+ },
+ "ladder": {
+  "file": "sfx/ladder.wav",
+  "duration": 0.25,
+  "loop": false,
+  "note": "사다리를 오르내릴 때(두 프레임에 한 번)"
+ },
+ "amb_underground": {
+  "file": "sfx/amb_underground.wav",
+  "duration": 7.5,
+  "loop": true,
+  "note": "지하 배경(반복, 낮은 울림과 물방울)"
  }
 }

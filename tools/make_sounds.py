@@ -567,6 +567,37 @@ def s_step_snow():
                      (0, lp(noise(0.08, 272), 1200) * dec(0.08, 0.03), 0.4)), -25)
 
 
+
+# ---- 17장: 지하
+def s_dig_dirt():
+    """곡괭이로 흙벽을 찍을 때: 둔탁한 퍽 + 흙 부스러기(작은 스피커에서도 들리게 300~3000Hz 를 살린다)"""
+    d = 0.42
+    thud = bp(noise(0.08, 291), 250, 1400) * dec(0.08, 0.022)
+    body = mix(0.16, (0, tone(92, 0.16, 0.05), 0.3), (0, tone(185, 0.12, 0.035), 0.8), (0, tone(290, 0.08, 0.02), 0.6))
+    crumble = grains(0.3, 22, 0.26, 600, 3600, (0.004, 0.02), seed=292)
+    return level(mix(d, (0, thud, 1.3), (0, body, 0.6), (0.025, crumble, 1.4)), -15)
+
+
+def s_ladder():
+    """사다리 한 칸: 나무 똑 + 짧은 삐걱"""
+    knock = mix(0.12, (0, partials(410, 0.12, (1, 2.4, 4.1), (0.04, 0.025, 0.015), (1, 0.45, 0.25)), 1),
+                (0, bp(noise(0.004, 301), 1500, 6000) * dec(0.004, 0.0015), 0.7))
+    return level(mix(0.3, (0, knock, 1), (0.05, creak(0.2, 180, 150, 302), 0.35)), -21)
+
+
+def s_amb_underground():
+    """지하 배경(반복): 낮은 웅웅거림 + 가끔 물방울"""
+    d = 8.0
+    t = T(d)
+    rumble = lp(brown(d, 311), 140) * (0.75 + 0.25 * np.sin(2 * np.pi * t / d * 2))     # 8초에 두 번 -> 이음매 없음
+    air = bp(noise(d, 312), 260, 700) * (0.8 + 0.2 * np.sin(2 * np.pi * t / d * 4)) * 0.22
+    parts = [(0, rumble * 0.55 + air, 1)]
+    for at, f0 in ((1.1, 980), (3.05, 1240), (4.7, 860), (6.35, 1120)):                 # 물방울(이음매에서 먼 곳)
+        n = 0.09
+        drip = osc(glide(n, (0, f0), (0.016, f0 * 1.7), (n, f0 * 1.75))) * dec(n, 0.03, 0.001)
+        parts.append((at, reverb(drip, 0.7, 0.45, seed=313), 0.6))
+    return level(loopify(mix(d, *parts), 0.5), -28)
+
 SOUNDS = {
     # 화면 UI
     'ui_click': (s_ui_click, False, '버튼, 카드를 누를 때'),
@@ -619,6 +650,10 @@ SOUNDS = {
     'amb_night': (s_amb_night, True, '밤 배경(반복, 풀벌레)'),
     'step': (s_step, False, '발소리(풀, 모래)'),
     'step_snow': (s_step_snow, False, '발소리(눈)'),
+    # 17장: 지하
+    'dig_dirt': (s_dig_dirt, False, '흙벽을 찍을 때(지하 파기 한 번)'),
+    'ladder': (s_ladder, False, '사다리를 오르내릴 때(두 프레임에 한 번)'),
+    'amb_underground': (s_amb_underground, True, '지하 배경(반복, 낮은 울림과 물방울)'),
 }
 
 

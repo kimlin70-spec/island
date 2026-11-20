@@ -60,6 +60,11 @@ PAL = {
     'can_l': '#b9dcd3', 'can': '#82b9ac', 'can_d': '#60998c', 'packet': '#f7efde', 'packet_d': '#e0d2b6',
     'dog': '#fbf6ec', 'dog_d': '#e3d6c1', 'dogp': '#c98f5f', 'dogp_d': '#a7734a', 'collar': '#4f86c6', 'tongue': '#ef8b8b',
     'cat': '#f3a85f', 'cat_d': '#da8c47', 'cat_l': '#fde8cc', 'cat_s': '#c87336', 'zzz': '#8ea6d8', 'note': '#8a79b8',
+    # 17장: 지하
+    'cave': '#2a2019', 'earth_l': '#b08c69', 'earth': '#957454', 'earth_d': '#775b43', 'earth_dd': '#55412f',
+    'clay': '#b98e66', 'root': '#6e5139', 'mush': '#d75a4f', 'mush_d': '#ad4339', 'mush_l': '#f6e7d2',
+    'brownmush': '#b98a62', 'rug': '#c9644f', 'rug_d': '#a64e3e', 'rug_l': '#eebd72', 'flame': '#ffc65c', 'flame_l': '#fff1b8',
+    'soot': '#4a4440', 'cavetop': '#3b2d23',
 }
 PENCIL = np.array([84, 70, 64], np.float32) / 255
 SHADOW_ALPHA = 0.30
@@ -143,7 +148,7 @@ def displace(a, dx, dy):
 
 
 # ------------------------------------------------------------------ 수채화 효과
-def watercolor(img, seed, pencil=1.0, wobble=1.0):
+def watercolor(img, seed, pencil=1.0, wobble=1.0, pool=True, blot=1.0):
     a = np.asarray(img, np.float32) / 255.0
     h, w = a.shape[:2]
     pm = a.copy()
@@ -157,9 +162,10 @@ def watercolor(img, seed, pencil=1.0, wobble=1.0):
     alpha = np.clip(pm[..., 3], 0, 1)
     rgb = pm[..., :3] / np.maximum(alpha[..., None], 1e-4)
     lum = rgb @ np.array([0.3, 0.59, 0.11], np.float32)
-    rgb *= (1 + 0.075 * noise(h, w, 34, seed + 4) + 0.04 * noise(h, w, 8, seed + 5))[..., None]      # 물감 농도 얼룩
-    pool = alpha * (1 - ndi.gaussian_filter(alpha, 3.4))                                              # 가장자리 고임
-    rgb *= (1 - 0.6 * np.clip(pool * 2.2, 0, 1))[..., None]
+    rgb *= (1 + (0.075 * noise(h, w, 34, seed + 4) + 0.04 * noise(h, w, 8, seed + 5)) * blot)[..., None]  # 물감 농도 얼룩
+    if pool:
+        pl = alpha * (1 - ndi.gaussian_filter(alpha, 3.4))                                            # 가장자리 고임
+        rgb *= (1 - 0.6 * np.clip(pl * 2.2, 0, 1))[..., None]
     if pencil:
         gx, gy = ndi.sobel(lum * alpha, 1), ndi.sobel(lum * alpha, 0)
         inner = np.clip(np.hypot(gx, gy) * 1.6 - 0.18, 0, 1) * (ndi.gaussian_filter(alpha, 1.5) > 0.93)
@@ -189,10 +195,10 @@ def paint(prims, box, seed, pencil=1.0, wobble=1.0, shadow_alpha=SHADOW_ALPHA):
     return out
 
 
-def shrink(img, scale=A.SCALE):
+def shrink(img, scale=A.SCALE, flt=Image.LANCZOS):
     w, h = img.size
     nw, nh = max(1, int(round(w * scale))), max(1, int(round(h * scale)))
-    return img.convert('RGBa').resize((nw, nh), Image.LANCZOS).convert('RGBA')
+    return img.convert('RGBa').resize((nw, nh), flt).convert('RGBA')
 
 
 def trim(img, anchor, pad=2):
@@ -239,3 +245,41 @@ def sprite_layers(spec, name, box, pencil=1.0, wobble=1.0):
     out.alpha_composite(Image.fromarray(a))
     out.alpha_composite(over)
     return out, anchor
+
+
+def _bleed(a, r=10):
+    """투명한 곳을 가장 가까운 칠한 색으로 r 픽셀까지 채운다(번짐 효과가 가장자리를 갉아먹지 않게)."""
+    solid = a[..., 3] > 0.5
+    if solid.all() or not solid.any():
+        return a
+    dist, (iy, ix) = ndi.distance_transform_edt(~solid, return_indices=True)
+    out = a[iy, ix].copy()
+    out[..., 3] = (dist <= r).astype(np.float32)
+    return out
+
+
+def tile_paint(prims, box, seed, pencil=0.35, wobble=0.7, blot=0.55):
+    """이어 붙는 조각용: 안쪽은 수채화 질감, 바깥 경계는 도형 그대로(옆 조각과 이음매 없이 맞물린다)."""
+    layers = render_layers(prims, box)
+    w, h = box[2] - box[0], box[3] - box[1]
+    out = Image.new('RGBA', (w, h), (0, 0, 0, 0))
+    for key, sd in (('ground', 50), ('body', 0)):
+        lay = layers[key]
+        if lay is None:
+            continue
+        a = np.asarray(lay, np.float32) / 255.0
+        mask = a[..., 3].copy()
+        img = watercolor(Image.fromarray((_bleed(a) * 255).astype(np.uint8)), seed + sd, pencil, wobble, pool=False, blot=blot)
+        b = np.asarray(img, np.float32) / 255.0
+        b[..., 3] = mask
+        out.alpha_composite(Image.fromarray((np.clip(b, 0, 1) * 255).astype(np.uint8)))
+    return out
+
+
+def tile_sprite(prims, name, box=None, pencil=0.35, wobble=0.7, blot=0.55):
+    """tile_paint 판 sprite(): (저장 크기 그림, 기준점)."""
+    box = box or A.bbox(prims, 12)
+    img = shrink(tile_paint(prims, box, seed_of(name), pencil, wobble, blot), flt=Image.BOX)   # BOX: 가장자리 울림(밝은 줄) 없음
+    k = img.width / (box[2] - box[0])
+    anchor = (-box[0] * k, -box[1] * img.height / (box[3] - box[1]))
+    return trim(img, anchor)
