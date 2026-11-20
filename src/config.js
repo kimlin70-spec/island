@@ -109,6 +109,17 @@ export const CONFIG = {
     growSparkleScale: 0.5,                    // 한 단계 자랄 때의 반짝임 크기(배)
     ripeSway: { angle: 2, period: 1.5 },      // 다 자란 작물이 흔들리는 각도(도)와 한 번 흔드는 시간(초)
     debugSeeds: 5,                            // 시험용 도구 "씨앗 +5"
+  },
+  // (3단계) 강아지와 고양이 (13.4, 13.6). 아래 두 줄은 13.4 의 글에 있는 숫자와 화면에 쓰는 숫자
+  pets: {
+    followNear: 1.5, followFar: 3, teleportFar: 12, catSleepAfter: 10,
+    dog: { speed: 3.8, barkRange: 6, barkEvery: 5, biteRange: 1.2, biteInterval: 1.2, biteDamage: 1, chaseMax: 3 },
+    cat: { speed: 2.6, petsToBefriend: 3, gift: { carrot: 0.5, corn: 0.35, pumpkin: 0.15 },
+           hop: [1, 2] },                     // 처음 두 번 쓰다듬은 뒤 옮겨 앉는 거리(칸)
+    greetRange: 4, noPathTeleport: 3, teleportDust: 0.5,   // 처음 반기는 거리(칸), 길이 없을 때 옮기기까지(초), 옮길 때의 먼지(배)
+    emote: { time: 0.8, rise: 6 },            // alert, heart, note 가 떠오르며 흐려지는 시간(초)과 높이(px)
+    repathInterval: 0.5,                      // 따라갈 때 길을 다시 찾는 가장 짧은 간격(초)
+    biteSlack: 0.3,                           // 물기의 hit 프레임에 적이 이만큼(칸) 더 멀어져도 맞는다
   },        // (2단계) 할 일: 캔 철광석 수, 깐 철조망 수 (11.1)
 
   // ── 아래는 6장에 없는, 화면과 조작에 쓰는 숫자 ──

@@ -16,6 +16,7 @@ import { TowerSystem, isTower } from '../systems/TowerSystem.js';
 import { Shots } from '../systems/Shots.js';
 import { Sound } from '../systems/Sound.js';
 import { FarmSystem, CROPS } from '../systems/FarmSystem.js';
+import { PetSystem } from '../systems/PetSystem.js';
 import { bestTool, cardCost, cardName, objectParticle } from '../systems/Crafting.js';
 import { TODO_ITEMS2 } from '../systems/Todo.js';
 
@@ -59,7 +60,8 @@ export class GameScene extends Phaser.Scene {
     this.build = new BuildSystem(this);
     this.rest = new RestSystem(this);
     this.enemies = new EnemySystem(this);
-    this.pirates = new PirateSystem(this);           // 해적선, 보트, 해적의 상륙 (5.12)
+    this.pirates = new PirateSystem(this);
+    this.pets = new PetSystem(this);                  // (3단계) 강아지와 고양이 (13.4)           // 해적선, 보트, 해적의 상륙 (5.12)
     this.resultPending = false;                       // 첫 아침: 화면이 다 밝아지면 결과 창을 띄운다
 
     // 카메라: 주인공을 부드럽게 따라가고, 바닥 그림 밖으로 나가지 않는다
@@ -129,7 +131,9 @@ export class GameScene extends Phaser.Scene {
       return;
     }
     const e = this.enemies.pickAt(p.worldX, p.worldY);
+    const pet = e ? null : this.pets.pickAt(p.worldX, p.worldY);
     if (e) this.pressEnemy(e);                        // 적: 다가가서 단검으로 친다 (5.9). 총이 있으면 멀리서 쏜다 (11.6)
+    else if (pet) this.pets.press(pet);               // (3단계) 동물: 다가가서 쓰다듬는다 (13.4)
     else if (o && o.kind === 'iron' && this.stage < 2) this.error('아직 캘 수 없습니다');   // 철광석은 2단계부터 캔다 (4장, 11.2)
     else if (o && o.kind === 'crate') this.farm.pressCrate(o);   // (3단계) 씨앗 상자 (13.3)
     else if (o && o.node) this.pressNode(o);               // 나무, 돌, 철광석, 그루터기, 돌 부스러기
@@ -169,7 +173,7 @@ export class GameScene extends Phaser.Scene {
 
   // 캐릭터(주인공과 적)가 몸을 걸치고 있는 칸들(Walker.occupiedTiles). 여기에는 시설을 지을 수 없다.
   // 주인공이 텐트 안에 있는 동안에는 들어갔던 칸이다.
-  characterTiles() { return [...this.player.occupiedTiles(), ...this.enemies.occupiedTiles()]; }
+  characterTiles() { return [...this.player.occupiedTiles(), ...this.enemies.occupiedTiles(), ...this.pets.occupiedTiles()]; }
 
   // 시설이 생기거나 없어졌다: 걷던 길을 다시 본다
   onMapChanged() {
@@ -265,6 +269,7 @@ export class GameScene extends Phaser.Scene {
   startStage2() {
     this.stage = 2;
     this.farm.placeCrate();                           // (사용자와 정함) 농사 카드와 함께 씨앗 상자도 2단계부터
+    this.pets.spawn();                                // 동물도 2단계부터
     this.events.emit('stage-changed');
     this.checkStage2();
   }
@@ -463,6 +468,7 @@ export class GameScene extends Phaser.Scene {
   // (3단계) 씨앗 +5(세 가지 모두), 작물 다 자라게 (13.5)
   debugSeeds() { for (const c of CROPS) this.inventory.add('seed_' + c, CONFIG.farm.debugSeeds); }
   debugRipen() { this.farm.ripenAll(); }
+  debugPets() { this.pets.befriendAll(); }
   // (2단계) 해적 부르기: 밤에만. 해적선과 해적이 바로 나온다 (11.8)
   debugPirates() { if (this.clock.isNight && !this.player.downed) this.pirates.callNow(); }
 
@@ -479,6 +485,7 @@ export class GameScene extends Phaser.Scene {
     this.rest.update(dt);
     this.player.update(dt);
     this.enemies.update(dt);
+    this.pets.update(dt);
     this.pirates.update(dt);
     this.towers.update(dt);
     this.shots.update(dt);
@@ -502,7 +509,7 @@ export class GameScene extends Phaser.Scene {
       p.updateWorldPoint(this.cameras.main);
       this.build.point(p.worldX, p.worldY);
     }
-    const chars = [...this.enemies.sprites(), ...this.effects.corpses];   // 쓰러지고 있는 적도 나무 뒤에 있으면 보이게
+    const chars = [...this.enemies.sprites(), ...this.effects.corpses, ...this.pets.sprites()];   // 쓰러지고 있는 적도 나무 뒤에 있으면 보이게
     if (this.player.sprite.visible) chars.push(this.player.sprite);
     this.map.updateOcclusion(chars, dt);
     if (this.cursorLeft > 0) {

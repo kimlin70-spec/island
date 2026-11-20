@@ -452,7 +452,7 @@ export class UIScene extends Phaser.Scene {
       ['아침으로 넘기기', () => this.world.debugMorning()],
       ['좀비 1마리 부르기', () => this.world.debugZombie()],
       ...(this.world.stage >= 2 ? [['해적 부르기', () => this.world.debugPirates()]] : []),
-      ...(this.world.stage >= 2 ? [['씨앗 +' + CONFIG.farm.debugSeeds, () => this.world.debugSeeds()], ['작물 다 자라게', () => this.world.debugRipen()]] : []),   // (3단계) 13.5
+      ...(this.world.stage >= 2 ? [['씨앗 +' + CONFIG.farm.debugSeeds, () => this.world.debugSeeds()], ['작물 다 자라게', () => this.world.debugRipen()], ['동물 모두 친구로', () => this.world.debugPets()]] : []),   // (3단계) 13.5
       [() => `속도 ×${this.world.debugSpeed}`, () => this.world.debugToggleSpeed()],
       ['닫기', () => this.debugWin.setVisible(false)],
     ];

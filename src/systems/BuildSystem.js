@@ -234,12 +234,13 @@ export class BuildSystem {
   }
 
   // (3단계) 문 열고 닫기 (13.2): 주인공이 openRange 칸 안에 오면 open 과 gate_open, closeRange 칸보다 멀어지면 close 와 gate_close.
-  // 텐트 안의 주인공은 문 곁에 없는 것으로 본다. (친구가 된 동물은 Phase 13 에서 더한다)
+  // 텐트 안의 주인공은 문 곁에 없는 것으로 본다. 친구가 된 동물도 문을 연다.
   updateGates() {
     const G = CONFIG.build.gate, p = this.scene.player, out = this.scene.rest.resting;
+    const who = [...(out ? [] : [{ col: p.col, row: p.row }]), ...this.scene.pets.openers()];   // 주인공과 친구가 된 동물
     for (const s of this.map.structures) {
       if (s.type !== 'gate') continue;
-      const d = out ? Infinity : Math.hypot(p.col - s.col, p.row - s.row);
+      const d = Math.min(Infinity, ...who.map((w) => Math.hypot(w.col - s.col, w.row - s.row)));
       if (!s.open && d <= G.openRange) this.swingGate(s, true);
       else if (s.open && d > G.closeRange) this.swingGate(s, false);
     }
