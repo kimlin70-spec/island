@@ -170,6 +170,7 @@ export class Underground {
     const scene = this.scene, U = CONFIG.ug, pl = scene.player, cam = scene.cameras.main;
     scene.home.wake();
     scene.home.standUp();
+    scene.rest.exit();                              // (시험용 옮기기) 텐트 안이었으면 나온다
     scene.build.setMode(null);                      // 짓던 것은 그만둔다(위와 아래의 카드가 다르다)
     this.active = down;
     if (down) this.ripeTold = new Set();            // 땅 위 소식: 작물마다 처음 한 번(내려올 때마다 새로, 17.9)

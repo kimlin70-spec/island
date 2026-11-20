@@ -128,13 +128,14 @@ export class GameScene extends Phaser.Scene {
   onPress(p) {
     if (!p.wasTouch && p.button !== 0) return;        // 마우스는 왼쪽 버튼만
     if (this.player.downed) return;                   // 쓰러진 뒤 창이 뜨기까지는 누를 수 없다
-    if (this.ug.active) { this.ug.onPress(p.worldX, p.worldY); return; }   // (지하) 17.4
-    if (this.build.mode) {                            // 짓기·치우기 상태: 걷지 않는다. 손을 뗄 때 짓는다.
+    // 짓기·치우기 상태: 걷지 않는다. 손을 뗄 때 짓는다. (지하) 지하 가구도 같다(17.6). 오르내리는 중과 침대에서 자는 중은 빼고
+    if (this.build.mode && !(this.ug.active && (this.ug.busy || this.home.bed))) {
       this.pressing = true;
       this.hovering = true;
       this.build.point(p.worldX, p.worldY);
       return;
     }
+    if (this.ug.active) { this.ug.onPress(p.worldX, p.worldY); return; }   // (지하) 17.4
     const o = this.map.pickObject(p.worldX, p.worldY);
     const t = worldToTile(p.worldX, p.worldY);
     if (this.rest.resting) {                          // 텐트 안: 텐트를 누르면 나온다. 다른 곳은 반응하지 않는다.
