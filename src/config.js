@@ -17,6 +17,9 @@ export const CONFIG = {
     axe:     { name: '나무 도끼',   cost: { wood: 3 }, power: { tree: 3 } },
     pickaxe: { name: '나무 곡괭이', cost: { wood: 3 }, power: { rock: 3, ground: 3, iron: 3 } },   // ground: 그루터기·돌 부스러기 파내기(사용자 요청), iron: 철광석(11.2)
     // (2단계) 총 (11.6, 11.9): 가지면 적과는 단검 대신 총으로 싸운다. 캐기에는 쓰지 않는다(power 없음).
+    // (3단계) 농사 도구 (13.3). 재료는 farm.hoeCost, farm.canCost (아래에서 넣는다). 캐기에는 쓰지 않는다.
+    hoe:          { name: '나무 괭이', power: {} },
+    watering_can: { name: '물뿌리개', power: {} },
     gun:     { name: '총', cost: { iron: 3, wood: 2 }, damage: 2, range: 5, interval: 1.4, aimTime: 0.25, bulletSpeed: 1400, power: {} },
   },
   nodes: {
@@ -91,7 +94,22 @@ export const CONFIG = {
            groanEvery: [8, 15] },      // 밤 동안 좀비 하나가 신음하는 간격(초) (15.3)
   todo:   { fenceCount: 8 },
   todo2:  { iron: 5, wire: 6 },
-  todo3:  { farm: 6 },                 // (3단계) 할 일: 간 밭 수 (13.5)        // (2단계) 할 일: 캔 철광석 수, 깐 철조망 수 (11.1)
+  todo3:  { farm: 6 },                 // (3단계) 할 일: 간 밭 수 (13.5)
+  // (3단계) 농사 (13.3, 13.6). 아래 줄의 값은 13.3 의 글에 있는 숫자
+  farm: {
+    hoeCost: { wood: 3 }, canCost: { wood: 2, stone: 2 }, reach: 7, tillTerrain: [2, 3, 4],
+    crateSeeds: { carrot: 4, corn: 2, pumpkin: 1 },
+    crops: {
+      carrot:  { name: '당근',   stageTime: 30, harvest: 2, seeds: [1, 2], heal: 1 },
+      corn:    { name: '옥수수', stageTime: 45, harvest: 3, seeds: [1, 2], heal: 1 },
+      pumpkin: { name: '호박',   stageTime: 60, harvest: 1, seeds: [1, 2], heal: 3 },
+    },
+    crateFade: { after: 2, time: 0.5 },       // 열린 상자가 after 초 뒤 time 초에 걸쳐 사라진다
+    tillDustScale: 0.7,                       // 밭을 갈 때의 먼지 크기(배)
+    growSparkleScale: 0.5,                    // 한 단계 자랄 때의 반짝임 크기(배)
+    ripeSway: { angle: 2, period: 1.5 },      // 다 자란 작물이 흔들리는 각도(도)와 한 번 흔드는 시간(초)
+    debugSeeds: 5,                            // 시험용 도구 "씨앗 +5"
+  },        // (2단계) 할 일: 캔 철광석 수, 깐 철조망 수 (11.1)
 
   // ── 아래는 6장에 없는, 화면과 조작에 쓰는 숫자 ──
   screen: {
@@ -144,7 +162,8 @@ export const CONFIG = {
     buildPopPeak: 0.6,       // 지을 때 가장 커지는 때(buildPop 시간에 대한 비율)
     corpseShift: 30,         // 쓰러진 적의 몸 한가운데: 발에서 보는 쪽의 뒤로(px). 연기가 여기서 난다
     // 조각의 수 (12.6 표). [a, b]는 앞의 조각 a개 + 뒤의 조각 b개
-    chips: { treeHit: [3, 2], treeFall: 8, rockHit: [3, 1], rockBreak: 6, enemyHit: 3, rise: [6, 2], build: 4, broken: 6, hearts: 2, ember: 1,
+    chips: { till: 4, harvest: 4,           // (3단계) 밭 갈기 dirt, 거두기 잎 (13.3)
+             treeHit: [3, 2], treeFall: 8, rockHit: [3, 1], rockBreak: 6, enemyHit: 3, rise: [6, 2], build: 4, broken: 6, hearts: 2, ember: 1,
              ironHit: [2, 3], ironBreak: 6 },   // ironBreak: 다 캔 철광석의 조각(12.7은 수를 적지 않았다. 돌과 같게)
     // 조각이 흩어지는 모양: 보통(12.6 예시), 천천히 지는 잎, 위로 오르는 하트, 모닥불 불티.
     // 적지 않은 값(speed, gravityY, lifespan)은 particles 의 값을 쓴다.
@@ -184,7 +203,8 @@ export const CONFIG = {
     todo: { w: 320, padTop: 50, lineHeight: 36, padBottom: 8, titleX: 20, titleY: 28, titleFont: 26,
             boxX: 22, boxY: 4, boxSize: 22, boxRadius: 5, boxBorder: 2, textX: 56, textY: 16, font: 23 },
     // 왼쪽 아래: 가방(나무, 돌)과 장비
-    bag: { w: 300, h: 88, icon: 72, font: 34, iconX: [46, 188], countX: [84, 226], countY: 51 },
+    bag: { w: 300, h: 88, icon: 72, font: 34, iconX: [46, 188], countX: [84, 226], countY: 51,
+           step: 142 },                    // (3단계) 작물·씨앗 칸이 생기면 한 칸에 이만큼씩 넓어진다(preview_farm.png)
     bag2: { w: 438, iconX: [46, 188, 330], countX: [84, 226, 368] },   // (2단계) 나무, 돌, 철광석 (preview_defense_day.png)
     equip: { gap: 20, pad: 10, slot: 76, icon: 72 },
     // 오른쪽 아래: 만들기 버튼
@@ -200,6 +220,9 @@ export const CONFIG = {
               costY: 138, costIcon: 32, costFont: 22, costStep: 58, costTrim: 6, costTextX: 36, statusFont: 20 },
     // 왼쪽 위: 하트(56px). 빈 칸은 icon_heart_empty
     hearts: { h: 72, padX: 13, step: 58, icon: 56 },
+    // (3단계) "무엇을 심을까요?" 창 (preview_farm.png). bottom: 화면 아래에서 창 아래까지
+    seedWin: { bottom: 180, pad: 18, titleH: 52, titleY: 32, titleFont: 26, closeFont: 22, cardW: 150, cardH: 166, cardGap: 12,
+               icon: 70, iconY: 54, nameY: 118, countY: 146, nameFont: 22, countFont: 20 },
     soundButton: { gap: 10, icon: 46 },   // 하트 칸 오른쪽의 동그란 소리 켜고 끄기 버튼(지름은 하트 칸 높이) (15.1)
     // 가운데 위: 해/달 아이콘, "1일째 낮", 진행 막대(낮 노랑, 밤 파랑). x 는 화면 가운데 기준, y 는 패널 위쪽 기준
     clock: { w: 460, h: 72, iconX: -190, icon: 64, textX: -150, textY: 24, font: 26,
@@ -217,3 +240,7 @@ export const CONFIG = {
              buttonW: 236, buttonH: 76, buttonGap: 28, buttonFont: 28, buttonRadius: 20, gapAfterLines: 24, dim: 0.35 },
   },
 };
+
+// 농사 도구의 재료는 farm 묶음의 값을 쓴다(13.6 에 그렇게 적혀 있다)
+CONFIG.tools.hoe.cost = CONFIG.farm.hoeCost;
+CONFIG.tools.watering_can.cost = CONFIG.farm.canCost;

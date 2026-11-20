@@ -15,6 +15,7 @@ import { PirateSystem } from '../systems/PirateSystem.js';
 import { TowerSystem, isTower } from '../systems/TowerSystem.js';
 import { Shots } from '../systems/Shots.js';
 import { Sound } from '../systems/Sound.js';
+import { FarmSystem, CROPS } from '../systems/FarmSystem.js';
 import { bestTool, cardCost, cardName, objectParticle } from '../systems/Crafting.js';
 import { TODO_ITEMS2 } from '../systems/Todo.js';
 
@@ -49,6 +50,7 @@ export class GameScene extends Phaser.Scene {
     this.map = new MapSystem(this, this.mapData, manifest);
     this.map.build();
     this.nodes = new NodeSystem(this);
+    this.farm = new FarmSystem(this);                 // (3단계) 씨앗 상자, 밭, 작물 (13.3)
 
     const st = this.mapData.playerStart;
     this.player = new Player(this, this.map, st.col, st.row);
@@ -129,10 +131,12 @@ export class GameScene extends Phaser.Scene {
     const e = this.enemies.pickAt(p.worldX, p.worldY);
     if (e) this.pressEnemy(e);                        // 적: 다가가서 단검으로 친다 (5.9). 총이 있으면 멀리서 쏜다 (11.6)
     else if (o && o.kind === 'iron' && this.stage < 2) this.error('아직 캘 수 없습니다');   // 철광석은 2단계부터 캔다 (4장, 11.2)
+    else if (o && o.kind === 'crate') this.farm.pressCrate(o);   // (3단계) 씨앗 상자 (13.3)
     else if (o && o.node) this.pressNode(o);               // 나무, 돌, 철광석, 그루터기, 돌 부스러기
     else if (o && o.type === 'tent') this.pressTent(o);
     else if (o && isTower(o.type)) this.build.showRange(o, o.type, CONFIG.tower.rangeShowTime);   // 지은 탑: 사거리 원 2초 (11.5)
     else if (o && (o.type === 'fence' || o.type === 'wire' || o.type === 'gate')) this.walkTo(o.col, o.row);   // 울타리·철조망을 누른 것은 그 칸(땅)을 누른 것과 같다(철조망 칸은 걸어갈 수 있다).
+    else if (!o && this.farm.pickField(p.worldX, p.worldY)) this.farm.pressField(this.farm.pickField(p.worldX, p.worldY));   // (3단계) 밭 (13.3)
     else if (!o) this.walkTo(t.col, t.row);           // 땅
     // 덤불, 모닥불은 눌러도 아무 일이 없다. 울타리 칸은 지나갈 수 없는 칸이라 아무 일이 없다.
   }
@@ -260,6 +264,7 @@ export class GameScene extends Phaser.Scene {
   // 2단계: 할 일 목록이 바뀌고, 가방에 철광석, 만들기 창이 두 줄이 되고, 철광석을 캘 수 있다
   startStage2() {
     this.stage = 2;
+    this.farm.placeCrate();                           // (사용자와 정함) 농사 카드와 함께 씨앗 상자도 2단계부터
     this.events.emit('stage-changed');
     this.checkStage2();
   }
@@ -277,6 +282,11 @@ export class GameScene extends Phaser.Scene {
     this.stage = 3;
     this.events.emit('stage-changed');
     if (this.build.count('gate') > 0) this.todo.check('gate');
+  }
+
+  // (3단계) 밭이 생기거나 없어졌다: 할 일 "밭 6칸 갈기"(지금 밭의 수)
+  onFarmChanged() {
+    if (this.farm.count >= CONFIG.todo3.farm) this.todo.check('farm');
   }
 
   onIronMined(n) {
@@ -450,6 +460,9 @@ export class GameScene extends Phaser.Scene {
   debugNight() { if (!this.clock.isNight && !this.resultPending && !this.player.downed) this.clock.startNight(); }
   debugMorning() { if (this.clock.isNight && !this.player.downed) this.clock.startMorning(); }
   debugZombie() { this.enemies.spawn(); }
+  // (3단계) 씨앗 +5(세 가지 모두), 작물 다 자라게 (13.5)
+  debugSeeds() { for (const c of CROPS) this.inventory.add('seed_' + c, CONFIG.farm.debugSeeds); }
+  debugRipen() { this.farm.ripenAll(); }
   // (2단계) 해적 부르기: 밤에만. 해적선과 해적이 바로 나온다 (11.8)
   debugPirates() { if (this.clock.isNight && !this.player.downed) this.pirates.callNow(); }
 
@@ -469,6 +482,7 @@ export class GameScene extends Phaser.Scene {
     this.pirates.update(dt);
     this.towers.update(dt);
     this.shots.update(dt);
+    this.farm.update(dt);
     this.build.update(dt);
     const pl = this.player;
     // 쓰러진 뒤 downDelay 초가 지나면 "쓰러졌습니다" 창 (12.3)

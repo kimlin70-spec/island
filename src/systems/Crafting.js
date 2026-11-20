@@ -11,15 +11,22 @@ const TENT     = { id: 'tent',     type: 'build',  icon: 'icon_tent' };
 const WATCH    = { id: 'watchtower', type: 'build', icon: 'icon_watchtower' };
 const GUNTOWER = { id: 'guntower',   type: 'build', icon: 'icon_guntower' };
 const GATE     = { id: 'gate',     type: 'build',  icon: 'icon_gate' };
+const HOE      = { id: 'hoe',      type: 'tool',   icon: 'icon_hoe' };
+const CAN      = { id: 'watering_can', type: 'tool', icon: 'icon_watering_can' };
+const FARM     = { id: 'farm',     type: 'farm',   icon: 'icon_farm', name: '밭 갈기' };   // (3단계) 괭이가 있을 때만 (13.3)
 const REMOVE   = { id: 'remove',   type: 'remove', icon: 'icon_remove', name: '치우기', note: '절반 돌려받음' };
 // 1단계: 6장 한 줄
 export const CARDS = [AXE, PICKAXE, FENCE, CAMPFIRE, TENT, REMOVE];
 // 2단계: 10장 두 줄(11.3). (3단계, 사용자와 정함) 셋째 줄에 문. 농사 카드(Phase 12)도 셋째 줄에 더한다
-export const CARDS2 = [AXE, PICKAXE, GUN, FENCE, WIRE, CAMPFIRE, TENT, WATCH, GUNTOWER, REMOVE, GATE];
-export function cardsFor(stage) { return stage >= 2 ? CARDS2 : CARDS; }
+export const CARDS2 = [AXE, PICKAXE, GUN, FENCE, WIRE, CAMPFIRE, TENT, WATCH, GUNTOWER, REMOVE, GATE, HOE, CAN];
+// tools: 가진 도구. 괭이가 있으면 밭 갈기 카드가 셋째 줄 끝에 생긴다(13.3)
+export function cardsFor(stage, tools = []) {
+  if (stage < 2) return CARDS;
+  return tools.includes('hoe') ? [...CARDS2, FARM] : CARDS2;
+}
 
 function source(card) {
-  return card.type === 'tool' ? CONFIG.tools[card.id] : card.type === 'build' ? CONFIG.build[card.id] : card;
+  return card.type === 'tool' ? CONFIG.tools[card.id] : card.type === 'build' ? CONFIG.build[card.id] : card;   // 치우기, 밭 갈기는 카드에 적힌 이름
 }
 export function cardName(card) { return source(card).name; }
 export function cardCost(card) { return source(card).cost || null; }

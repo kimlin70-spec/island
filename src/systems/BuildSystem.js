@@ -4,6 +4,7 @@ import { isTower } from './TowerSystem.js';
 
 // 짓기와 치우기 (5.4). 시설: 울타리, 모닥불, 텐트, (2단계) 철조망, 망루, 총 타워, (3단계) 문.
 export const REMOVE = 'remove';
+export const TILL = 'farm';   // (3단계) 밭 갈기: 짓기 상태처럼 칸 표시를 보여 주고, 누른 칸을 간다(13.3)
 const SPRITE = { fence: 'build_fence_0', campfire: 'build_campfire', tent: 'build_tent', wire: 'build_wire_0',
                  watchtower: 'build_watchtower', guntower: 'build_guntower', gate: 'build_gate_col' };
 const TALL = { tent: true, watchtower: true, guntower: true };   // 캐릭터를 가릴 수 있는 키 큰 시설(3.4)
@@ -30,7 +31,8 @@ export class BuildSystem {
     this.reachRing = scene.add.image(0, 0, 'overlay_range').setDepth(CONFIG.depth.floor).setTint(RC.tint).setAlpha(RC.alpha).setVisible(false);
   }
 
-  get building() { return this.mode !== null && this.mode !== REMOVE; }   // 시설을 짓는 상태인가
+  get building() { return this.mode !== null && this.mode !== REMOVE; }   // 시설을 짓는 상태인가(밭 갈기도 같은 표시를 쓴다)
+  get tilling() { return this.mode === TILL; }                              // (3단계) 밭 갈기 상태인가 (13.3)
 
   setMode(mode) {
     if (this.mode === mode) return;
@@ -41,12 +43,13 @@ export class BuildSystem {
   }
 
   count(type) { return this.map.structures.filter((s) => s.type === type).length; }
-  canAfford(type) { return this.scene.inventory.has(CONFIG.build[type].cost); }
+  canAfford(type) { return type === TILL || this.scene.inventory.has(CONFIG.build[type].cost); }
   // 텐트는 1개만
-  atMax(type) { return CONFIG.build[type].max !== undefined && this.count(type) >= CONFIG.build[type].max; }
+  atMax(type) { return type !== TILL && CONFIG.build[type].max !== undefined && this.count(type) >= CONFIG.build[type].max; }
 
   // 포인터가 (wx, wy)에 있을 때 시설이 차지할 칸들. 차지하는 칸 수는 manifest 의 footprint.
   footprint(type, wx, wy) {
+    if (type === TILL) return [worldToTile(wx, wy)];
     const [w, h] = this.map.assets[SPRITE[type]].footprint || [1, 1];
     if (w === 1 && h === 1) return [worldToTile(wx, wy)];
     const f = worldToTileFloat(wx, wy);
@@ -60,7 +63,8 @@ export class BuildSystem {
   // 그루터기와 돌 부스러기 위에는 지을 수 있다.
   canBuildAt(col, row) {
     const m = this.map, p = this.scene.player;
-    if (!m.isOpen(col, row) || m.anyStructureAt(col, row)) return false;
+    if (this.mode === TILL) return this.scene.farm.canTill(col, row);       // 밭 갈기는 갈 수 있는 칸(13.3)
+    if (!m.isOpen(col, row) || m.anyStructureAt(col, row) || this.scene.farm.fieldAt(col, row)) return false;   // 밭 위에는 짓지 않는다
     if (this.scene.characterTiles().some((t) => t.col === col && t.row === row)) return false;
     return Math.hypot(col - p.col, row - p.row) <= CONFIG.build.reach;
   }
@@ -101,11 +105,19 @@ export class BuildSystem {
       const t = worldToTile(wx, wy);
       const s = this.map.pickObject(wx, wy, this.map.structures) || this.map.anyStructureAt(t.col, t.row);
       if (s) this.remove(s);
+      else {                                         // (3단계) 밭도 치울 수 있다(작물도 함께, 돌려받는 것 없음)
+        const f = this.scene.farm.fieldAt(t.col, t.row);
+        if (f) this.scene.farm.removeField(f);
+      }
       return;
     }
     if (!this.building) return;
     this.point(wx, wy);
     if (!this.spot.ok) return;
+    if (this.mode === TILL) {                        // 밭 갈기: 그 칸으로 걸어가서 간다. 상태는 그대로(여러 칸을 연달아)
+      this.scene.farm.till(this.spot.tiles[0]);
+      return;
+    }
     const type = this.mode;
     if (!this.scene.inventory.pay(CONFIG.build[type].cost)) return;
     const s = this.place(type, this.spot.tiles);

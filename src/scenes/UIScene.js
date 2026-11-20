@@ -1,6 +1,7 @@
 import { CONFIG } from '../config.js';
 import { cardsFor, cardCost, cardName } from '../systems/Crafting.js';
 import { todoFor } from '../systems/Todo.js';
+import { CROPS } from '../systems/FarmSystem.js';
 
 const U = CONFIG.ui;
 const INK = Phaser.Display.Color.HexStringToColor(U.ink).color;
@@ -36,7 +37,8 @@ export class UIScene extends Phaser.Scene {
       this.events.once('shutdown', () => this.world.events.off(name, fn, this));
     };
     listen('inventory-changed', () => { this.refreshBag(); this.refreshCards(); });
-    listen('tools-changed', () => { this.refreshEquipment(); this.refreshCards(); this.makeRest(); });
+    listen('choose-seed', (f) => this.showSeedWindow(f));
+    listen('tools-changed', () => { this.refreshEquipment(); if (this.world.stage >= 2) this.makeCraftWindow(); else this.refreshCards(); this.makeRest(); });
     listen('todo-changed', () => this.refreshTodo());
     listen('build-changed', () => { this.refreshCards(); this.refreshHint(); });
     listen('structures-changed', () => this.refreshCards());
@@ -219,25 +221,80 @@ export class UIScene extends Phaser.Scene {
   // ── 왼쪽 아래: 가방과 장비 ──
 
   // 가방의 칸 수와 크기: 1단계는 나무와 돌, 2단계는 철광석까지(11.3)
-  bagLayout() { return this.world.stage >= 2 ? { ...U.bag, ...U.bag2 } : U.bag; }
+  // 가방에 보이는 것: 재료(1단계 나무·돌, 2단계부터 철광석도), (3단계) 가진 작물과 씨앗만
+  bagItems() {
+    const base = this.world.stage >= 2 ? ['wood', 'stone', 'iron'] : ['wood', 'stone'];
+    const extra = [...CROPS, ...CROPS.map((c) => 'seed_' + c)].filter((it) => this.world.inventory.count(it) > 0);
+    return [...base, ...extra];
+  }
+
+  // 칸의 자리: 재료 칸은 preview 그대로, 작물·씨앗 칸은 오른쪽으로 step 씩
+  bagLayout(items = this.bagItems()) {
+    const B = this.world.stage >= 2 ? { ...U.bag, ...U.bag2 } : { ...U.bag };
+    const n0 = B.iconX.length, more = Math.max(0, items.length - n0);
+    B.w += more * B.step;
+    B.iconX = items.map((_, i) => B.iconX[0] + i * B.step);
+    B.countX = items.map((_, i) => B.countX[0] + i * B.step);
+    return B;
+  }
 
   makeBag() {
-    const B = this.bagLayout();
+    const items = this.bagItems(), B = this.bagLayout(items);
     const x = U.margin, y = this.H - U.margin - B.h;
     if (this.bagObjs) for (const o of this.bagObjs) o.destroy();
     this.bagObjs = [this.panel(this.add.graphics(), x, y, B.w, B.h)];
     this.bagCounts = {};
-    const items = this.world.stage >= 2 ? ['wood', 'stone', 'iron'] : ['wood', 'stone'];
+    this.bagKey = items.join(',');
     items.forEach((item, i) => {
-      this.bagObjs.push(this.add.image(x + B.iconX[i], y + B.h / 2, 'icon_' + item).setDisplaySize(B.icon, B.icon));
+      const img = this.add.image(x + B.iconX[i], y + B.h / 2, 'icon_' + item).setDisplaySize(B.icon, B.icon);
+      if (CROPS.includes(item)) img.setInteractive().on('pointerdown', () => this.world.farm.eat(item));   // 작물을 누르면 먹는다 (13.3)
+      this.bagObjs.push(img);
       this.bagCounts[item] = this.label(x + B.countX[i], y + B.countY, '0', B.font);
       this.bagObjs.push(this.bagCounts[item]);
     });
-    this.refreshBag();
+    this.refreshBag(false);
   }
 
-  refreshBag() {
+  // 개수를 고친다. 보이는 칸이 바뀌었으면(작물·씨앗이 생기거나 다 떨어졌으면) 가방과 그 옆의 장비 칸, 쉬기 버튼을 다시 놓는다
+  refreshBag(check = true) {
+    if (check && this.bagItems().join(',') !== this.bagKey) {
+      this.makeBag();
+      this.refreshEquipment();
+      this.makeRest();
+      return;
+    }
     for (const item of Object.keys(this.bagCounts)) this.bagCounts[item].setText(String(this.world.inventory.count(item)));
+  }
+
+  // ── (3단계) "무엇을 심을까요?" 창 (13.3, preview_farm.png): 가진 씨앗만 개수와 함께. 고르면 그 밭에 심으러 간다 ──
+
+  showSeedWindow(field) {
+    const S = U.seedWin, farm = this.world.farm, seeds = farm.seeds();
+    this.closeSeedWindow();
+    if (!seeds.length) return;
+    const w = S.pad * 2 + seeds.length * S.cardW + (seeds.length - 1) * S.cardGap, h = S.pad * 2 + S.titleH + S.cardH;
+    const x = (this.W - w) / 2, y = this.H - S.bottom - h;
+    const parts = [this.panel(this.add.graphics(), 0, 0, w, h)];
+    parts.push(this.label(S.pad, S.titleY, '무엇을 심을까요?', S.titleFont));
+    const close = this.label(w - S.pad, S.titleY, '닫기 ✕', S.closeFont, { originX: 1, regular: true, color: U.dimInk });
+    close.setInteractive().on('pointerdown', () => { this.click(); this.closeSeedWindow(); });
+    parts.push(close);
+    seeds.forEach((crop, i) => {
+      const cx = S.pad + i * (S.cardW + S.cardGap), cy = S.pad + S.titleH;
+      const g = this.hitRect(this.add.graphics(), cx, cy, S.cardW, S.cardH);
+      this.roundRect(g, cx, cy, S.cardW, S.cardH, U.craft.cardRadius, U.cardColor, 1, INK, U.craft.cardBorder);
+      g.on('pointerdown', () => { this.click(); this.closeSeedWindow(); farm.plant(field, crop); });
+      parts.push(g, this.add.image(cx + S.cardW / 2, cy + S.iconY, 'icon_seed_' + crop).setDisplaySize(S.icon, S.icon));
+      parts.push(this.label(cx + S.cardW / 2, cy + S.nameY, CONFIG.farm.crops[crop].name + ' 씨앗', S.nameFont, { originX: 0.5 }));
+      parts.push(this.label(cx + S.cardW / 2, cy + S.countY, this.world.inventory.count('seed_' + crop) + '개', S.countFont, { originX: 0.5, regular: true }));
+    });
+    this.seedWin = this.add.container(x, y, parts).setDepth(12);
+  }
+
+  closeSeedWindow() {
+    if (!this.seedWin) return;
+    this.seedWin.destroy();
+    this.seedWin = null;
   }
 
   makeEquipment() {
@@ -279,7 +336,7 @@ export class UIScene extends Phaser.Scene {
     const { cy, r } = this.craftPos;
     const stage2 = this.world.stage >= 2;
     const K = stage2 ? { ...U.craft, ...U.craft2 } : U.craft;
-    const list = cardsFor(this.world.stage), perRow = stage2 ? K.perRow : list.length;
+    const list = cardsFor(this.world.stage, this.world.tools), perRow = stage2 ? K.perRow : list.length;
     const rows = Math.ceil(list.length / perRow), rowGap = K.rowGap || 0;
     const w = K.pad * 2 + perRow * K.cardW + (perRow - 1) * K.cardGap;
     const h = K.pad * 2 + K.titleHeight + rows * K.cardH + (rows - 1) * rowGap;
@@ -395,6 +452,7 @@ export class UIScene extends Phaser.Scene {
       ['아침으로 넘기기', () => this.world.debugMorning()],
       ['좀비 1마리 부르기', () => this.world.debugZombie()],
       ...(this.world.stage >= 2 ? [['해적 부르기', () => this.world.debugPirates()]] : []),
+      ...(this.world.stage >= 2 ? [['씨앗 +' + CONFIG.farm.debugSeeds, () => this.world.debugSeeds()], ['작물 다 자라게', () => this.world.debugRipen()]] : []),   // (3단계) 13.5
       [() => `속도 ×${this.world.debugSpeed}`, () => this.world.debugToggleSpeed()],
       ['닫기', () => this.debugWin.setVisible(false)],
     ];
@@ -511,8 +569,9 @@ export class UIScene extends Phaser.Scene {
   // 짓기 상태의 안내는 계속 떠 있다: "울타리: 지을 칸을 누르세요"
   refreshHint() {
     const mode = this.world.build.mode;
-    const card = cardsFor(this.world.stage).find((c) => c && c.id === mode);
-    this.hint = !card ? null : card.type === 'remove' ? '치우기: 없앨 시설을 누르세요' : `${cardName(card)}: 지을 칸을 누르세요`;
+    const card = cardsFor(this.world.stage, this.world.tools).find((c) => c && c.id === mode);
+    this.hint = !card ? null : card.type === 'remove' ? '치우기: 없앨 시설을 누르세요'
+      : card.type === 'farm' ? '밭 갈기: 갈 칸을 누르세요' : `${cardName(card)}: 지을 칸을 누르세요`;
     if (this.hint) {                                  // 안내는 바로 띄운다(기다리던 알림은 버린다)
       this.noticeQueue.length = 0;
       this.noticeLeft = 0;

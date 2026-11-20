@@ -4,7 +4,9 @@ import { Walker } from './Walker.js';
 import { Body } from './Body.js';
 
 // 도구 -> 주인공의 애니메이션 이름 (12.3)
-const TOOL_ANIM = { dagger: 'dagger', axe: 'axe', pickaxe: 'pick', gun: 'gun' };
+// (3단계) hoe: 괭이질, watering_can: 물 주기, crouch: 쪼그려 앉기(심기, 거두기, 상자 열기) (13.7)
+const TOOL_ANIM = { dagger: 'dagger', axe: 'axe', pickaxe: 'pick', gun: 'gun', hoe: 'hoe', watering_can: 'water', crouch: 'crouch' };
+const SWINGS = new Set(['dagger', 'axe', 'pickaxe', 'hoe']);   // 휘두르는 소리가 나는 도구 (15.3)
 
 // 주인공: 눌러서 이동, 옆 칸의 대상에게 도구 쓰기, 쓰러지기.
 // 위치와 길, 걷기, 몸이 걸친 칸은 Walker 에, 그림의 움직임(애니메이션, 앞뒤, 맞기, 멈칫)은 Body 에 있다.
@@ -181,7 +183,7 @@ export class Player extends Walker {
           this.faceTarget(a.target);
           const n = TOOL_ANIM[tool], b = this.body, gun = tool === 'gun';
           b.play(n, dt);                              // 든 프레임의 시간도 센다(아래). 그림도 그만큼 지난 곳부터.
-          if (!gun) this.scene.sfx.play('swing', { at: this.foot(), volume: CONFIG.sound.swing });   // 휘두르는 소리 (15.3)
+          if (SWINGS.has(tool)) this.scene.sfx.play('swing', { at: this.foot(), volume: CONFIG.sound.swing });   // 휘두르는 소리 (15.3)
           // 총: gun1(겨누기) aimTime 뒤에 gun2(쏘기). interval 마다 한 번 (11.6)
           this.swing = { t: 0, hitAt: gun ? CONFIG.tools.gun.aimTime : b.hitAt(n) || 0, total: b.ms(n), struck: false, tool };
           this.cooldown = gun ? CONFIG.tools.gun.interval : CONFIG.player.actionInterval;
