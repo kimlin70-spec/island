@@ -1,6 +1,7 @@
 import { CONFIG } from '../config.js';
 import { tileToWorld, worldToTile } from '../iso.js';
 import { hitLevel, tapPop } from './Pick.js';
+import { isRug } from './UgHome.js';
 
 // 지하 생활 (17장, Phase 17): 굴 입구, 오르내리기, 칸 조각 고르기, 파기, 빛과 소리.
 // 지하는 같은 GameScene 안의 월드 y + ug.offsetY 자리에 있다. 씬은 그대로 두고 카메라와 주인공(따라다니는 동물)만 옮긴다.
@@ -68,18 +69,20 @@ export class Underground {
     for (const p of this.pieces) p.img.destroy();
     this.pieces = [];
     this.marked = [];
-    const F = this.floor, A = this.scene.map.assets;
-    const place = (key, c, r, depth, target = null) => {
+    const F = this.floor, A = this.scene.map.assets, D = this.scene.decor;
+    const place = (key, c, r, depth, target = null, wall = null) => {
       const a = A[key], w = this.world(c, r);
       const img = this.scene.add.image(w.x, w.y, key).setOrigin(a.originX, a.originY).setDepth(depth);
-      this.pieces.push({ img, target, kind: key.startsWith('ug_wall') ? 'wall' : key === 'ug_cap' ? 'cap' : key === 'ug_pillar' ? 'pillar' : 'floor' });
+      this.pieces.push({ img, target, wall, kind: key.startsWith('ug_wall') ? 'wall' : key === 'ug_cap' ? 'cap' : key === 'ug_pillar' ? 'pillar' : 'floor' });
     };
     for (let r = -1; r <= F.rows; r++) for (let c = -1; c <= F.cols; c++) {
       const y = this.world(c, r).y;
-      if (this.isDug(c, r)) place('ug_floor_' + ((c * 7 + r * 3) % 3 + 1), c, r, 1);
+      // (지하 꾸미기) 바닥재가 깔린 칸은 ug_floor_{종류}_{n}, 앞 가장자리에 바닥재 두께 (19.2)
+      const st = D.floors.get(c + ',' + r), m = st === 'stone' ? 'stone' : 'wood';
+      if (this.isDug(c, r)) place(st ? 'ug_floor_' + st + '_' + ((c * 7 + r * 3) % 2 + 1) : 'ug_floor_' + ((c * 7 + r * 3) % 3 + 1), c, r, 1);
       if (this.solid(c, r)) {
-        if (!this.solid(c, r + 1)) place('ug_cut_l', c, r, 1.5);
-        if (!this.solid(c + 1, r)) place('ug_cut_r', c, r, 1.5);
+        if (!this.solid(c, r + 1)) { place('ug_cut_l', c, r, 1.5); if (st) place('ug_edge_l_' + m, c, r, 1.6); }
+        if (!this.solid(c + 1, r)) { place('ug_cut_r', c, r, 1.5); if (st) place('ug_edge_r_' + m, c, r, 1.6); }
       }
       if (this.tall(c, r)) {
         place('ug_cap', c, r, 10 + y - 1.5, [c, r]);
@@ -88,7 +91,8 @@ export class Underground {
           const k = this.key(c, r);
           const kind = this.ores.has(k) ? 'iron' : this.spores.has(k) ? 'mush'
             : (this.isDug(fc, fr) && (c * 7 + r * 13 + (side === 'l' ? 3 : 0)) % 5 === 0) ? 'b' : 'a';
-          place('ug_wall_' + side + '_' + kind, fc, fr, 10 + this.world(fc, fr).y - 21, [c, r]);
+          const cover = this.isDug(fc, fr) && D.covers.get(fc + ',' + fr + ',' + side);   // (지하 꾸미기) 벽판이 있으면 벽판 그림 (19.3)
+          place('ug_wall_' + side + '_' + (cover || kind), fc, fr, 10 + this.world(fc, fr).y - 21, [c, r], { fc, fr, side });
         }
       }
       if (this.isDug(c, r) && this.tall(c - 1, r) && this.tall(c, r - 1)) place('ug_pillar', c, r, 10 + y - 20.5);
@@ -243,6 +247,13 @@ export class Underground {
     }
     const foe = this.scene.enemies.pickAt(wx, wy);  // (지하 침입) 지하의 해적: 다가가서 친다(총이 있으면 쏜다) (3.5 의 순서)
     if (foe && foe.under) { this.upPending = false; this.scene.pressEnemy(foe); return; }
+    const drop = this.scene.decor.pickDrop(wx, wy, this.grid);   // (지하 꾸미기) 전리품 꾸러미 (19.6)
+    if (drop) { this.upPending = false; this.scene.decor.pressDrop(drop); return; }
+    if (hit && hit.wallDeco) {                      // 벽 장식: 벽 촛대는 켜고 끈다. 나머지는 그 벽을 누른 것
+      if (this.scene.decor.press(hit.wallDeco)) return;
+      this.dig(this.scene.decor.blockOf(hit.wallDeco));
+      return;
+    }
     if (hit && (hit.furniture || hit === 'ladder' || hit === 'hole')) tapPop(this.scene, this.picked);   // 눌렸다는 표시
     if (hit && hit.furniture) { this.upPending = false; home.press(hit.furniture); return; }
     if (hit === 'ladder') { this.pressLadder(); return; }
@@ -263,6 +274,13 @@ export class Underground {
   // 그림 img 의 (x, y)를 눌렀는가(정확히 또는 가까이, Pick.js). 뒤집은 그림(벽난로)도 된다
   hitImage(img, x, y) { return hitLevel(this.scene, img, x, y) > 0; }
 
+  // (지하 꾸미기) (x, y) 아래의 벽 조각(정확히 맞은 것 중 앞에 있는 것). 없으면 null. piece.wall = { fc, fr, side }
+  pickWall(x, y) {
+    let best = null;
+    for (const p of this.pieces) if (p.wall && hitLevel(this.scene, p.img, x, y, CONFIG.input.pickAlpha, false) === 2 && (!best || p.img.depth > best.img.depth)) best = p;
+    return best;
+  }
+
   // 누른 것: 가구, 사다리, 막힌 구멍, 벽·덮개(그 흙 덩어리 칸). 없으면 null
   // 정확히 맞은 것 중 depth 가 큰 것. (사용자 요청) 가구·사다리·구멍은 가까이 눌러도 되고, 그것이 정확히 맞은 것보다 앞에 있으면 그것.
   // 벽·덮개는 정확히 맞은 것만(벽 옆 바닥을 누른 것을 벽으로 잡지 않게)
@@ -277,7 +295,8 @@ export class Underground {
       if (lv === 1 && (!freeFloor || own) && (!close || img.depth > close.d)) close = { d: img.depth, v, img };
     };
     const F = this.floor;
-    for (const f of this.scene.home.list) if (f.type !== 'rug') test(f.sprite, { furniture: f }, true, f.tiles);
+    for (const f of this.scene.home.list) if (!isRug(f.type)) test(f.sprite, { furniture: f }, true, f.tiles);
+    for (const d of this.scene.decor.wallDecos.values()) test(d.sprite, { wallDeco: d }, true);   // (지하 꾸미기) 벽 장식
     if (this.ladder) test(this.ladder, 'ladder', true, [F.entry]);
     if (this.hole) test(this.hole, 'hole', true, [F.sealedHole]);
     for (const p of this.pieces) if (p.target) test(p.img, { col: p.target[0], row: p.target[1] }, false);
@@ -303,6 +322,7 @@ export class Underground {
       scene.sfx.play('ui_error');
       return;
     }
+    if (scene.decor.decorated(t.col, t.row)) { scene.error('꾸민 벽은 먼저 치우세요'); return; }   // (지하 꾸미기) 19.3
     if (!scene.tools.includes('pickaxe')) { scene.error('곡괭이가 필요합니다'); return; }
     const cell = { col: t.col, row: t.row }, k = this.key(t.col, t.row);
     this.upPending = false;
@@ -390,6 +410,10 @@ export class Underground {
       const over = p.img.depth > ps.depth && Phaser.Geom.Intersects.RectangleToRectangle(pb, p.img.getBounds());
       p.img.setAlpha(over ? CONFIG.ug.wallFadeAlpha : 1);
     }
+    for (const d of scene.decor.wallDecos.values()) {   // (지하 꾸미기) 벽 장식도 벽과 같은 규칙으로 (19.4)
+      const over = d.sprite.depth > ps.depth && Phaser.Geom.Intersects.RectangleToRectangle(pb, d.sprite.getBounds());
+      d.sprite.setAlpha(over ? CONFIG.ug.wallFadeAlpha : 1);
+    }
     // 입구의 햇빛 기둥. (지하 침입) 굴 입구가 부서진 밤에는 달빛(18.2)
     if (this.shaft) {
       const M = CONFIG.raid.moon;
@@ -421,6 +445,7 @@ export class Underground {
     }
     out.push(...this.scene.home.lights());
     out.push(...this.scene.raid.lights());          // (지하 침입) 해적의 허리 등불 (18.4)
+    out.push(...this.scene.decor.lights());         // (지하 꾸미기) 벽 촛대와 촛대 (19.7)
     return out;
   }
 

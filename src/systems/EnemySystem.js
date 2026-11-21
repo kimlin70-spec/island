@@ -145,6 +145,7 @@ export class EnemySystem {
     this.list.splice(i, 1);
     this.defeated += 1;
     this.scene.raid.dropLantern(e, true);            // (지하 침입) 등불은 0.3초 동안 흐려지며 사라진다
+    this.scene.decor.onKill(e);                      // (지하 꾸미기) 해적은 가끔 전리품 꾸러미를 떨어뜨린다 (19.6)
     if (e.kind === 'zombie') this.scene.sfx.play('zombie_die', { at: e.foot() });
     e.die(dx, dy);
   }

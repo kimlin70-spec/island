@@ -35,7 +35,14 @@ export const TODO_ITEMS4 = [
   { id: 'bed',      label: '침대 놓기' },
   { id: 'mushroom', label: '버섯 기르기' },
 ];
-export function todoFor(stage) { return stage >= 4 ? TODO_ITEMS4 : stage >= 3 ? TODO_ITEMS3 : stage >= 2 ? TODO_ITEMS2 : TODO_ITEMS; }
+// (지하 꾸미기) 꾸미기의 할 일 (19.8). 지하 생활의 할 일을 모두 마치면 이 목록(stage 5)
+export const TODO_ITEMS5 = [
+  { id: 'oakFloor', label: `나무 마루 ${CONFIG.todo5.floor}칸 깔기` },
+  { id: 'covers',   label: `벽판 ${CONFIG.todo5.cover}칸 대기` },
+  { id: 'wallDeco', label: '벽 장식 달기' },
+  { id: 'loot',     label: '해적 전리품 줍기' },
+];
+export function todoFor(stage) { return stage >= 5 ? TODO_ITEMS5 : stage >= 4 ? TODO_ITEMS4 : stage >= 3 ? TODO_ITEMS3 : stage >= 2 ? TODO_ITEMS2 : TODO_ITEMS; }
 
 export class Todo {
   constructor(scene) {

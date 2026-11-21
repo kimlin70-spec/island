@@ -103,7 +103,8 @@ export const CONFIG = {
   todo:   { fenceCount: 8 },
   todo2:  { iron: 5, wire: 6 },
   todo3:  { farm: 6 },
-  todo4:  { dig: 10 },                 // (지하) 할 일: 판 칸 수 (17.10)                 // (3단계) 할 일: 간 밭 수 (13.5)
+  todo4:  { dig: 10 },
+  todo5:  { floor: 10, cover: 4 },     // (지하 꾸미기) 할 일: 나무 마루 칸 수, 벽판 수 (19.8)                 // (지하) 할 일: 판 칸 수 (17.10)                 // (3단계) 할 일: 간 밭 수 (13.5)
   // (3단계) 농사 (13.3, 13.6). 아래 줄의 값은 13.3 의 글에 있는 숫자
   farm: {
     hoeCost: { wood: 3 }, canCost: { wood: 2, stone: 2 }, reach: 7, tillTerrain: [2, 3, 4],
@@ -150,6 +151,22 @@ export const CONFIG = {
           moonLight: { color: 0x9fb4ff, low: { radius: 120, alpha: 0.4 }, high: { radius: 90, alpha: 0.3, lift: 120 } },
           lanternLight: { drop: 12, glowSize: 70, glowAlpha: 0.3 }, lanternFade: 0.3, swingRate: 9,   // 등불 빛은 등불에서 12px 아래. 흔들림 빠르기(라디안/초)
           menu: { w: 250, h: 60, gap: 10, lift: 140, font: 24 } },   // 굴 입구를 고치는 버튼: 굴 입구 기준점에서 위로 lift(px)
+  // 지하 꾸미기 (19.9). 아래 줄의 이름과 화면 숫자는 19장의 글에 있는 것
+  decor: { cost: { floorOak: { wood: 1 }, floorWalnut: { wood: 2 }, floorStone: { stone: 2 },
+                   wallWood: { wood: 2 }, wallPlaster: { stone: 1, wood: 1 },
+                   shelf: { wood: 2 }, sconce: { iron: 1, wood: 1 }, painting: { wood: 2 } },
+           okTint: 0xc8f5b0, noTint: 0xff9c8c, hintY: 172,
+           light: { color: 0xffebc2, alpha: 0.9, glowAlpha: 0.45,
+                    sconce: { radius: 190, glow: 92 }, candelabra: { radius: 230, glow: 120 } },
+           names: { floorOak: '나무 마루', floorWalnut: '짙은 마루', floorStone: '돌 바닥', wallWood: '나무 벽판', wallPlaster: '회벽',
+                    shelf: '선반', sconce: '벽 촛대', painting: '그림 액자',
+                    rugPersian: '페르시아 양탄자', rugRound: '둥근 양탄자', rugRunner: '긴 양탄자', flag: '해적 깃발', wheel: '배 키', map: '보물 지도',
+                    candelabra: '촛대', globe: '지구본', treasure: '보물 상자', barrel: '술통' },
+           floorDust: 0.5, wallDust: 0.4 },          // 깔 때 fx_dust 크기(배): 바닥재, 벽 장식
+  // 해적 전리품 (19.6, 19.9)
+  loot: { chance: 0.35, firstAlways: true, sparkleEvery: 2, bounce: 24,
+          weights: { rugPersian: 3, rugRound: 3, rugRunner: 3, barrel: 3, flag: 2, wheel: 2, map: 2, candelabra: 2, globe: 1, treasure: 1 },
+          bounceTime: 0.3, poofScale: 0.5, sparkleLift: 30, pickRise: 16, pickTime: 0.4 },
   // 배고픔 (16.5). enabled: false 면 배부름이 없고 먹을 것은 하트를 채운다
   hunger: { enabled: true, max: 5, start: 5, drainEvery: 90, starveEvery: 30, warnAt: 1,
             food: { berry: 1, carrot: 1, corn: 2, pumpkin: 3, mushroom: 1 } },
@@ -304,6 +321,9 @@ export const CONFIG = {
     clock: { w: 460, h: 72, iconX: -190, icon: 64, textX: -150, textY: 24, font: 26,
              weatherGap: 14, weatherIcon: 60,   // (날씨) 시계 오른쪽의 비·눈 아이콘 (14.1, preview_rain.png)
              barX: -150, barY: 42, barW: 356, barH: 18, track: 0xc4b8a8, dayFill: 0xf0be54, nightFill: 0x687ac4 },
+    // (지하 꾸미기) 만들기 창의 탭과 꾸미기 탭(19.8, preview_decor_ui.png). 적지 않은 값은 craft2 의 값
+    craftTabs: { x: 8, y: 10, w: 104, h: 36, gap: 8, font: 24, radius: 18 },
+    craftDecor: { perRow: 10, sectionH: 30, sectionFont: 20, rowGap: 6 },
     // (지하) 시계 아래의 "지하 1층" 표시 (17.9, preview_underground.png). 지하에서는 알림이 그 아래로 내려간다
     ugTag: { gap: 12, h: 50, padX: 18, icon: 40, iconGap: 10, font: 26 },
     noticeIcon: { size: 40, gap: 10 },           // 알림 앞의 아이콘(땅 위 소식의 icon_surface)

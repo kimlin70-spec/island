@@ -22,9 +22,10 @@ import { HungerSystem } from '../systems/HungerSystem.js';
 import { Underground } from '../systems/Underground.js';
 import { UgHome } from '../systems/UgHome.js';
 import { Raid } from '../systems/Raid.js';
+import { Decor } from '../systems/Decor.js';
 import { tapPop } from '../systems/Pick.js';
 import { bestTool, cardCost, cardName, objectParticle, subjectParticle } from '../systems/Crafting.js';
-import { TODO_ITEMS2, TODO_ITEMS3 } from '../systems/Todo.js';
+import { TODO_ITEMS2, TODO_ITEMS3, TODO_ITEMS4 } from '../systems/Todo.js';
 
 // 월드: 섬, 사물, 주인공, 적, 카메라, 누르기, 시간. 화면 UI(UIScene)에는 events 로 바뀐 것을 알린다.
 //   inventory-changed, tools-changed, todo-changed, build-changed, structures-changed,
@@ -73,6 +74,7 @@ export class GameScene extends Phaser.Scene {
     this.ug = new Underground(this);                  // (지하) 굴 입구, 오르내리기, 파기 (17장)
     this.home = new UgHome(this);                     // (지하) 지하 가구, 침대, 의자, 버섯 화분 (17.6~17.8)
     this.raid = new Raid(this);                       // (지하 침입) 해적이 굴 입구를 부수고 내려온다 (18장)
+    this.decor = new Decor(this);                     // (지하 꾸미기) 바닥재, 벽판, 벽 장식, 해적 전리품 (19장)
     this.resultPending = false;                       // 첫 아침: 화면이 다 밝아지면 결과 창을 띄운다
 
     // 카메라: 주인공을 부드럽게 따라가고, 바닥 그림 밖으로 나가지 않는다
@@ -148,6 +150,8 @@ export class GameScene extends Phaser.Scene {
       return;
     }
     const e = this.enemies.pickAt(p.worldX, p.worldY);
+    const drop = e ? null : this.decor.pickDrop(p.worldX, p.worldY, this.map);   // (지하 꾸미기) 해적 전리품 꾸러미 (19.6)
+    if (drop) { this.decor.pressDrop(drop); return; }
     const pet = e ? null : this.pets.pickAt(p.worldX, p.worldY);
     if (o && !e && !pet) tapPop(this, o.sprite);     // (사용자 요청) 눌린 사물이 잠깐 통통 튄다(눌렸다는 표시)
     if (e) this.pressEnemy(e);                        // 적: 다가가서 단검으로 친다 (5.9). 총이 있으면 멀리서 쏜다 (11.6)
@@ -322,6 +326,9 @@ export class GameScene extends Phaser.Scene {
       this.stage = 4;
       this.events.emit('stage-changed');
       if (this.build.count('burrow') > 0) this.todo.check('burrow');
+    } else if (this.stage === 4 && TODO_ITEMS4.every((t) => this.todo.isDone(t.id))) {   // (지하 꾸미기) 지하 생활의 할 일을 다 하면 꾸미기 할 일 (19.8)
+      this.stage = 5;
+      this.events.emit('stage-changed');
     }
   }
 
@@ -443,6 +450,8 @@ export class GameScene extends Phaser.Scene {
   // ── 만들기 (5.3) ──
   // 카드의 상태: 'owned'(이미 가진 도구, 이미 지은 텐트) | 'lack'(재료가 모자람) | 'ok'
   cardState(card) {
+    if (card.type === 'loot') return this.decor.has(card.id) ? 'ok' : 'lack';   // (지하 꾸미기) 전리품: 가진 수
+    if (card.type === 'decor') return this.decor.canAfford(card.id) ? 'ok' : 'lack';
     if (card.type === 'tool' && this.tools.includes(card.id)) return 'owned';
     if (card.type === 'build' && this.build.atMax(card.id)) return 'owned';
     return this.inventory.has(cardCost(card)) ? 'ok' : 'lack';
@@ -452,7 +461,14 @@ export class GameScene extends Phaser.Scene {
   pressCard(card) {
     const state = this.cardState(card);
     if (state === 'lack') {
-      this.error('재료가 부족합니다');
+      this.error(card.type === 'loot' ? '해적을 쓰러뜨리면 얻을 수 있습니다' : '재료가 부족합니다');
+      return;
+    }
+    // (지하 꾸미기) 긴 양탄자를 고른 채로 한 번 더 누르면 row 방향으로 바뀐다 (19.5)
+    if (card.id === 'rugRunner' && this.build.mode === 'rugRunner') {
+      this.decor.runnerRow = !this.decor.runnerRow;
+      this.sfx.play('ui_click');
+      this.events.emit('build-changed');
       return;
     }
     this.sfx.play('ui_click');
@@ -559,6 +575,9 @@ export class GameScene extends Phaser.Scene {
   debugMushrooms() { this.home.ripenAll(); }
   // (지하 침입) 해적 습격(지하): 밤으로 바꾸고 해적 2명을 굴 입구 둘레에 (18.5)
   debugRaid() { this.raid.debugRaid(); }
+  // (지하 꾸미기) 전리품 모두 +1, 꾸러미 떨어뜨리기(주인공 옆 칸) (19.8)
+  debugLoot() { this.decor.debugAll(); }
+  debugDrop() { this.decor.debugDrop(); }
   // (2단계) 해적 부르기: 밤에만. 해적선과 해적이 바로 나온다 (11.8)
   debugPirates() { if (this.clock.isNight && !this.player.downed) this.pirates.callNow(); }
 
@@ -584,6 +603,7 @@ export class GameScene extends Phaser.Scene {
     this.weather.update(dt);
     this.hunger.update(dt);
     this.home.update(dt);
+    this.decor.update(dt);
     this.ug.update();
     this.build.update(dt);
     const pl = this.player;

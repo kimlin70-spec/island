@@ -1,8 +1,8 @@
 import { CONFIG } from '../config.js';
 import { tileToWorld, worldToTile, worldToTileFloat } from '../iso.js';
 import { isTower } from './TowerSystem.js';
-import { isFurniture } from './UgHome.js';
-import { subjectParticle } from './Crafting.js';
+import { isFurniture, isLootItem } from './UgHome.js';
+import { subjectParticle, decorCard } from './Crafting.js';
 
 // 짓기와 치우기 (5.4). 시설: 울타리, 모닥불, 텐트, (2단계) 철조망, 망루, 총 타워, (3단계) 문.
 export const REMOVE = 'remove';
@@ -46,9 +46,14 @@ export class BuildSystem {
 
   count(type) { return isFurniture(type) ? this.scene.home.count(type) : this.map.structures.filter((s) => s.type === type).length; }
   get furnishing() { return isFurniture(this.mode); }   // (지하) 지하 가구를 놓는 상태인가 (17.6)
-  canAfford(type) { return type === TILL || this.scene.inventory.has(CONFIG.build[type].cost); }
+  get decorating() { return this.scene.decor.isMode(this.mode); }   // (지하 꾸미기) 바닥재·벽판·벽 장식 (19.2~19.4)
+  canAfford(type) {
+    if (type === TILL) return true;
+    if (this.scene.decor.isMode(type) || isLootItem(type)) return this.scene.decor.canAfford(type);   // (지하 꾸미기) 전리품은 가진 수
+    return this.scene.inventory.has(CONFIG.build[type].cost);
+  }
   // 텐트는 1개만
-  atMax(type) { return type !== TILL && CONFIG.build[type].max !== undefined && this.count(type) >= CONFIG.build[type].max; }
+  atMax(type) { return type !== TILL && !!CONFIG.build[type] && CONFIG.build[type].max !== undefined && this.count(type) >= CONFIG.build[type].max; }
 
   // 포인터가 (wx, wy)에 있을 때 시설이 차지할 칸들. 차지하는 칸 수는 manifest 의 footprint.
   footprint(type, wx, wy) {
@@ -77,6 +82,7 @@ export class BuildSystem {
   // 포인터가 있는 칸에 overlay_ok / overlay_no 를 보여 준다
   point(wx, wy) {
     if (!this.building) return;
+    if (this.decorating) { this.spot = this.scene.decor.point(this.mode, wx, wy); return; }   // (지하 꾸미기) 19.2~19.4
     const tiles = this.footprint(this.mode, wx, wy);
     let all = true;
     this.marks.forEach((mark, i) => {
@@ -96,6 +102,7 @@ export class BuildSystem {
 
   hideMarks() {
     for (const mark of this.marks) mark.setVisible(false);
+    this.scene.decor.clearMarks();
     if (this.rangeLeft <= 0) this.range.setVisible(false);
     this.spot = null;
   }
@@ -109,7 +116,7 @@ export class BuildSystem {
 
   // 클릭하거나 손을 뗐을 때: 표시가 overlay_ok 였으면 그 칸에 바로 짓는다. 치우기를 골랐으면 누른 시설을 없앤다.
   commit(wx, wy) {
-    if (this.mode === REMOVE && this.scene.ug.active) { this.scene.home.removeAt(wx, wy); return; }   // (지하) 지하 가구를 치운다
+    if (this.mode === REMOVE && this.scene.ug.active) { this.scene.decor.removeAt(wx, wy); return; }   // (지하) 가구, 벽 장식, 벽판, 바닥재를 치운다
     if (this.mode === REMOVE) {
       const t = worldToTile(wx, wy);
       const s = this.map.pickObject(wx, wy, this.map.structures) || this.map.anyStructureAt(t.col, t.row);
@@ -122,6 +129,13 @@ export class BuildSystem {
     }
     if (!this.building) return;
     this.point(wx, wy);
+    if (this.decorating) {                           // (지하 꾸미기) 누를 때마다 그 칸·벽에 바로. 재료(전리품)가 떨어지면 풀린다
+      const type = this.mode;
+      this.scene.decor.commit(type, this.spot);
+      this.point(wx, wy);
+      if (!this.canAfford(type)) { if (decorCard(type).type === 'decor') this.scene.error('재료가 부족합니다'); this.setMode(null); }   // 전리품을 다 달았으면 조용히
+      return;
+    }
     if (!this.spot.ok) {
       if (this.spot.noWall) this.scene.error('벽에 붙여 놓으세요');
       return;
@@ -131,7 +145,7 @@ export class BuildSystem {
       return;
     }
     const type = this.mode;
-    if (!this.scene.inventory.pay(CONFIG.build[type].cost)) return;
+    if (isLootItem(type) ? !this.scene.decor.take(type) : !this.scene.inventory.pay(CONFIG.build[type].cost)) return;   // 전리품은 가진 수 −1
     if (this.furnishing) {                           // (지하) 가구: construct 소리와 fx_poof (17.6)
       this.scene.home.built(this.scene.home.place(type, this.spot.tiles));
     } else {
@@ -145,7 +159,7 @@ export class BuildSystem {
     if (this.atMax(type)) {
       this.setMode(null);
     } else if (!this.canAfford(type)) {
-      this.scene.error('재료가 부족합니다');
+      if (!isLootItem(type)) this.scene.error('재료가 부족합니다');   // 전리품을 다 놓았으면 조용히 풀린다
       this.setMode(null);
     }
   }

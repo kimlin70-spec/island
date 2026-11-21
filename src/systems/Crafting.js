@@ -17,6 +17,16 @@ const FARM     = { id: 'farm',     type: 'farm',   icon: 'icon_farm', name: '밭
 const BURROW   = { id: 'burrow',   type: 'build',  icon: 'icon_burrow' };   // (지하) 17.2
 // (지하) 지하 가구 (17.6). 지하에서 만들기 창을 열면 시설 카드 대신 이 카드들
 const UG_CARDS = ['bed', 'fireplace', 'lantern', 'planter', 'table', 'stool', 'rug', 'chest'].map((id) => ({ id, type: 'build', icon: 'icon_' + id }));
+// (지하 꾸미기) 꾸미기 탭 (19.1, 19.8). kind: floor 바닥재, cover 벽판, wall 벽 장식, item 양탄자·서 있는 장식(가구처럼 놓는다)
+const D = (id, kind, icon) => ({ id, type: 'decor', kind, icon: 'icon_' + icon });
+const L = (id, kind, icon) => ({ id, type: 'loot', kind, icon: 'icon_' + icon });
+export const DECOR_CARDS = [D('floorOak', 'floor', 'floor_oak'), D('floorWalnut', 'floor', 'floor_walnut'), D('floorStone', 'floor', 'floor_stone'),
+  D('wallWood', 'cover', 'wall_wood'), D('wallPlaster', 'cover', 'wall_plaster'), D('shelf', 'wall', 'shelf'), D('sconce', 'wall', 'sconce'), D('painting', 'wall', 'painting')];
+export const LOOT_CARDS = [L('rugPersian', 'item', 'rug_persian'), L('rugRound', 'item', 'rug_round'), L('rugRunner', 'item', 'rug_runner'),
+  L('flag', 'wall', 'flag'), L('wheel', 'wall', 'wheel'), L('map', 'wall', 'map'), L('candelabra', 'item', 'candelabra'), L('globe', 'item', 'globe'),
+  L('treasure', 'item', 'treasure'), L('barrel', 'item', 'barrel')];
+export const LOOT = LOOT_CARDS.map((c) => c.id);
+export const decorCard = (id) => [...DECOR_CARDS, ...LOOT_CARDS].find((c) => c.id === id) || null;
 const REMOVE   = { id: 'remove',   type: 'remove', icon: 'icon_remove', name: '치우기', note: '절반 돌려받음' };
 // 1단계: 한 줄. (사용자 요청) 망루를 1단계부터 지을 수 있다(문서 11.3 은 2단계부터). 그래서 6장 -> 7장
 export const CARDS = [AXE, PICKAXE, FENCE, CAMPFIRE, TENT, WATCH, REMOVE];
@@ -24,13 +34,16 @@ export const CARDS = [AXE, PICKAXE, FENCE, CAMPFIRE, TENT, WATCH, REMOVE];
 export const CARDS2 = [AXE, PICKAXE, GUN, FENCE, WIRE, CAMPFIRE, TENT, WATCH, GUNTOWER, REMOVE, GATE, HOE, CAN, BURROW];
 // tools: 가진 도구. 괭이가 있으면 밭 갈기 카드가 셋째 줄 끝에 생긴다(13.3)
 // under: (지하) 지하에 있다. 도구 카드, 지하 가구 카드, 치우기 (17.6). 세 줄(5, 5, 4)
-export function cardsFor(stage, tools = [], under = false) {
+// tab: (지하) 'make' | 'decor'. 꾸미기 탭은 윗줄 재료 8장, 아랫줄 전리품 10장
+export function cardsFor(stage, tools = [], under = false, tab = 'make') {
+  if (under && tab === 'decor') return [...DECOR_CARDS, ...LOOT_CARDS];
   if (under) return [...CARDS2.filter((c) => c.type === 'tool'), ...UG_CARDS, REMOVE];
   if (stage < 2) return CARDS;
   return tools.includes('hoe') ? [...CARDS2, FARM] : CARDS2;
 }
 
 function source(card) {
+  if (card.type === 'decor' || card.type === 'loot') return { name: CONFIG.decor.names[card.id], cost: CONFIG.decor.cost[card.id] };   // 전리품은 재료 없음
   return card.type === 'tool' ? CONFIG.tools[card.id] : card.type === 'build' ? CONFIG.build[card.id] : card;   // 치우기, 밭 갈기는 카드에 적힌 이름
 }
 export function cardName(card) { return source(card).name; }

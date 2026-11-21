@@ -4,10 +4,16 @@ import { worldToTileFloat } from '../iso.js';
 // 지하 살림 (17.6~17.8, Phase 18): 지하 가구 놓기와 치우기, 침대에서 자기, 의자에 앉기,
 // 벽난로·등불 켜고 끄기, 보관 상자 열고 닫기, 버섯 화분.
 // 가구는 지하 격자(Underground)의 칸에 놓는다. 깔개 말고는 그 칸을 막는다. 체력이 없다(적이 오지 않는다).
-export const FURNITURE = ['bed', 'fireplace', 'lantern', 'planter', 'table', 'stool', 'rug', 'chest'];
+// (지하 꾸미기) 해적 전리품의 양탄자와 서 있는 장식도 가구처럼 놓는다(19.5). 재료 대신 가진 수(Decor)
+const LOOT_ITEMS = { rugPersian: 'deco_rug_persian', rugRound: 'deco_rug_round', rugRunner: 'deco_rug_runner',
+  candelabra: 'deco_candelabra', globe: 'deco_globe', treasure: 'deco_treasure', barrel: 'deco_barrel' };
+export const FURNITURE = ['bed', 'fireplace', 'lantern', 'planter', 'table', 'stool', 'rug', 'chest', ...Object.keys(LOOT_ITEMS)];
 export const isFurniture = (type) => FURNITURE.includes(type);
+export const isLootItem = (type) => !!LOOT_ITEMS[type];
+const RUGS = ['rug', 'rugPersian', 'rugRound', 'rugRunner'];
+export const isRug = (type) => RUGS.includes(type);        // 바닥에 깔림: depth 2, 길을 막지 않는다, 위에 가구를 놓는다
 const PLANTER = ['empty', 'seed', 'grow', 'ripe'];
-const FIRST = { bed: 'empty', fireplace: 'burn1', lantern: 'on', planter: 'empty', chest: 'closed' };   // 지었을 때의 그림
+const FIRST = { bed: 'empty', fireplace: 'burn1', lantern: 'on', planter: 'empty', chest: 'closed', candelabra: 'on1', treasure: 'closed' };   // 지었을 때의 그림
 const ICON = { wood: 'icon_wood', stone: 'icon_stone', iron: 'icon_iron' };
 
 export class UgHome {
@@ -28,7 +34,7 @@ export class UgHome {
     let rug = null;
     for (const f of this.list) {
       if (!f.tiles.some((t) => t.col === col && t.row === row)) continue;
-      if (f.type !== 'rug') return f;
+      if (!isRug(f.type)) return f;
       rug = f;
     }
     return rugs ? rug : null;
@@ -42,7 +48,9 @@ export class UgHome {
   footprint(type, wx, wy) {
     const t = this.ug.tileAt(wx, wy);
     if (type === 'bed') return [t, { col: t.col + 1, row: t.row }];
-    if (type !== 'rug') return [t];
+    // (지하 꾸미기) 긴 양탄자: 포인터 칸이 가운데. col 방향 3칸, 카드를 한 번 더 누르면 row 방향 (19.5)
+    if (type === 'rugRunner') return this.scene.decor.runnerRow ? [-1, 0, 1].map((d) => ({ col: t.col, row: t.row + d })) : [-1, 0, 1].map((d) => ({ col: t.col + d, row: t.row }));
+    if (!isRug(type)) return [t];
     const f = worldToTileFloat(wx, wy - CONFIG.ug.offsetY), col = Math.floor(f.col), row = Math.floor(f.row);
     return [{ col, row }, { col: col + 1, row }, { col, row: row + 1 }, { col: col + 1, row: row + 1 }];
   }
@@ -51,7 +59,7 @@ export class UgHome {
   canPlaceAt(type, col, row) {
     const ug = this.ug, e = ug.floor.entry, p = this.scene.player;
     if (!ug.standable(col, row) || (col === e.col && row === e.row)) return false;
-    if (type === 'rug' && this.at(col, row, true)) return false;
+    if (isRug(type) && this.at(col, row, true)) return false;
     if (this.characterTiles().some((t) => t.col === col && t.row === row)) return false;
     return Math.hypot(col - p.col, row - p.row) <= CONFIG.build.reach;
   }
@@ -70,11 +78,12 @@ export class UgHome {
 
   // tiles 에 가구를 놓는다(재료는 따지지 않는다). 그림은 차지한 칸들의 한가운데. depth 10 + y, 깔개는 2(바닥에 붙는 것)
   place(type, tiles) {
-    const scene = this.scene, key = 'build_' + type, a = this.assets[key];
+    const scene = this.scene, key = LOOT_ITEMS[type] || 'build_' + type, a = this.assets[key];
     const col = tiles.reduce((s, t) => s + t.col, 0) / tiles.length, row = tiles.reduce((s, t) => s + t.row, 0) / tiles.length;
     const w = this.ug.world(col, row);
-    const sprite = (a.frames ? scene.add.sprite(w.x, w.y, key, a.frames.indexOf(FIRST[type])) : scene.add.image(w.x, w.y, key))
-      .setOrigin(a.originX, a.originY).setDepth(type === 'rug' ? CONFIG.depth.footprint : CONFIG.depth.objectBase + w.y);
+    const sprite = (a.frames ? scene.add.sprite(w.x, w.y, key, FIRST[type] ? a.frames.indexOf(FIRST[type]) : 0) : scene.add.image(w.x, w.y, key))
+      .setOrigin(a.originX, a.originY).setDepth(isRug(type) ? CONFIG.depth.footprint : CONFIG.depth.objectBase + w.y);
+    if (type === 'rugRunner') sprite.setFlipX(scene.decor.runnerRow);   // row 방향이면 뒤집는다
     const f = { type, tiles, col: tiles[0].col, row: tiles[0].row, sprite, on: false, open: false, stage: 0, t: 0 };
     if (type === 'fireplace') sprite.setFlipX(this.wallSide(tiles[0]) === 'r');
     if (type === 'fireplace' || type === 'lantern') {
@@ -82,6 +91,12 @@ export class UgHome {
       f.glow = scene.add.image(at.x, at.y, 'glow_warm').setBlendMode(Phaser.BlendModes.ADD)
         .setDisplaySize(G.size, G.size).setAlpha(G.alpha).setDepth(sprite.depth + 1);
       this.setOn(f, true, false);
+    }
+    if (type === 'candelabra') {                     // (지하 꾸미기) 촛대: 빛무리(19.7), 놓으면 켜져 있다
+      const L = CONFIG.decor.light, at = scene.decor.flameAt(sprite);
+      f.glow = scene.add.image(at.x, at.y, 'glow_warm').setBlendMode(Phaser.BlendModes.ADD)
+        .setDisplaySize(L.candelabra.glow, L.candelabra.glow).setAlpha(L.glowAlpha).setDepth(sprite.depth + 1);
+      this.setOn(f, true);
     }
     this.list.push(f);
     // 놓은 칸을 지나가던 길은 그 앞에서 멈춘다
@@ -106,6 +121,16 @@ export class UgHome {
     const scene = this.scene, fx = scene.effects, x = f.sprite.x, y = f.sprite.y;
     if (this.bed === f) this.wake();
     if (scene.player.seat && scene.player.seat.stool === f) this.standUp();
+    if (isLootItem(f.type)) {                        // (지하 꾸미기) 전리품은 그대로 돌려받는다 (19.5)
+      scene.decor.refund(f.type, x, y);
+      fx.poof(x, y);
+      f.sprite.destroy();
+      if (f.glow) f.glow.destroy();
+      this.list.splice(this.list.indexOf(f), 1);
+      scene.enemies.onMapChanged();
+      scene.events.emit('structures-changed');
+      return;
+    }
     let line = 0;
     for (const [item, n] of Object.entries(CONFIG.build[f.type].cost)) {
       const back = Math.floor(n * CONFIG.build.refundRate);
@@ -134,7 +159,7 @@ export class UgHome {
   pick(x, y) {
     let best = null;
     for (const f of this.list) {
-      if (f.type === 'rug' || !this.ug.hitImage(f.sprite, x, y)) continue;
+      if (isRug(f.type) || !this.ug.hitImage(f.sprite, x, y)) continue;
       if (!best || f.sprite.depth > best.sprite.depth) best = f;
     }
     return best;
@@ -153,7 +178,13 @@ export class UgHome {
         scene.sfx.play(f.open ? 'gate_open' : 'gate_close', { at: f.sprite, volume: CONFIG.ug.chestVolume });
         break;
       case 'planter': this.pressPlanter(f); break;
-      default: break;                                 // 탁자: 장식
+      case 'candelabra': this.setOn(f, !f.on); scene.sfx.play('ui_click'); break;   // (지하 꾸미기) 19.5
+      case 'treasure':
+        f.open = !f.open;
+        f.sprite.setFrame(this.assets.deco_treasure.frames.indexOf(f.open ? 'open' : 'closed'));
+        scene.sfx.play(f.open ? 'gate_open' : 'gate_close', { at: f.sprite, volume: CONFIG.ug.chestVolume });
+        break;
+      default: break;                                 // 탁자, 지구본, 술통: 장식
     }
   }
 
@@ -162,8 +193,8 @@ export class UgHome {
     f.on = on;
     f.glow.setVisible(on);
     const A = this.assets[f.sprite.texture.key];
-    if (f.type === 'fireplace') {
-      if (on) f.sprite.play('build_fireplace:burn');
+    if (f.type === 'fireplace' || f.type === 'candelabra') {
+      if (on) f.sprite.play(f.sprite.texture.key + ':burn');
       else f.sprite.stop().setFrame(A.frames.indexOf('off'));
     } else f.sprite.setFrame(A.frames.indexOf(on ? 'on' : 'off'));
   }
@@ -286,7 +317,7 @@ export class UgHome {
   lights() {
     const out = [], t = this.scene.elapsed;
     for (const f of this.list) {
-      if (!f.on) continue;
+      if (!f.on || !CONFIG.ug[f.type]) continue;     // 촛대의 빛은 Decor.lights
       const L = CONFIG.ug[f.type].light, at = this.lightAt(f);
       let r = L.radius;
       if (L.flicker) {

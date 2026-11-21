@@ -1,5 +1,5 @@
 import { CONFIG } from '../config.js';
-import { cardsFor, cardCost, cardName } from '../systems/Crafting.js';
+import { cardsFor, cardCost, cardName, DECOR_CARDS, LOOT_CARDS } from '../systems/Crafting.js';
 import { todoFor } from '../systems/Todo.js';
 import { CROPS } from '../systems/FarmSystem.js';
 import { FOODS } from '../systems/HungerSystem.js';
@@ -43,6 +43,7 @@ export class UIScene extends Phaser.Scene {
     listen('inventory-changed', () => { this.refreshBag(); this.refreshCards(); });
     listen('choose-seed', (f) => this.showSeedWindow(f));
     listen('burrow-menu', (b) => this.showBurrowMenu(b));   // (지하 침입) 굴 입구 고치기 (18.2)
+    listen('loot-changed', () => this.refreshCards());      // (지하 꾸미기) 전리품의 가진 수 (19.6)
     listen('weather-changed', () => this.refreshWeather());
     // (지하) 만들기 창의 카드가 바뀌고(17.6), 시계 아래에 "지하 1층", 알림은 그 아래로 (17.9)
     listen('ug-changed', (down) => { this.makeCraftWindow(); this.ugTag.setVisible(down); this.placeNotice(); });
@@ -454,28 +455,48 @@ export class UIScene extends Phaser.Scene {
   }
 
   // 창: 버튼 위로 열린다. 1단계는 카드 6장 한 줄, 2단계는 10장 두 줄(11.3. 아직 만들지 않은 Phase 의 카드 자리는 비워 둔다).
+  // (지하 꾸미기) 지하에서는 위에 탭 "만들기" / "꾸미기"(19.1, 19.8). 꾸미기 탭은 윗줄 "재료로 만들기" 8장, 아랫줄 "해적 전리품" 10장
   makeCraftWindow() {
     const { cy, r } = this.craftPos;
-    const stage2 = this.world.stage >= 2;
-    const K = stage2 ? { ...U.craft, ...U.craft2 } : U.craft;
-    const list = cardsFor(this.world.stage, this.world.tools, this.world.ug.active), perRow = stage2 ? K.perRow : list.length;
-    const rows = Math.ceil(list.length / perRow), rowGap = K.rowGap || 0;
+    const stage2 = this.world.stage >= 2, under = this.world.ug.active;
+    if (!under) this.craftTab = 'make';
+    const tab = this.craftTab || 'make', decor = under && tab === 'decor';
+    const K = decor ? { ...U.craft, ...U.craft2, ...U.craftDecor } : stage2 ? { ...U.craft, ...U.craft2 } : U.craft;
+    const list = cardsFor(this.world.stage, this.world.tools, under, tab), perRow = stage2 || decor ? K.perRow : list.length;
+    // 카드의 줄과 칸: 꾸미기 탭은 재료 줄과 전리품 줄
+    const place = decor ? list.map((c, i) => (i < DECOR_CARDS.length ? [0, i] : [1, i - DECOR_CARDS.length])) : list.map((c, i) => [Math.floor(i / perRow), i % perRow]);
+    const rows = Math.max(...place.map((p) => p[0])) + 1, rowGap = K.rowGap || 0, sec = decor ? K.sectionH : 0;
     const w = K.pad * 2 + perRow * K.cardW + (perRow - 1) * K.cardGap;
-    const h = K.pad * 2 + K.titleHeight + rows * K.cardH + (rows - 1) * rowGap;
+    const h = K.pad * 2 + K.titleHeight + rows * (K.cardH + sec) + (rows - 1) * rowGap;
     const visible = this.craftWin ? this.craftWin.visible : false;
     if (this.craftWin) this.craftWin.destroy();
     this.craftK = K;
     this.craftWin = this.add.container(this.W - U.margin - w, cy - r - K.gapToButton - h).setDepth(10).setVisible(visible);
     this.craftWin.add(this.panel(this.add.graphics(), 0, 0, w, h));
-    this.craftWin.add(this.label(K.pad, K.titleY, '만들기', K.titleFont));
-    this.craftWin.add(this.label(w - K.pad, K.titleY, '재료가 모자라면 흐리게 보입니다', K.noteFont, { originX: 1, regular: true, color: U.dimInk }));
+    if (under) this.makeCraftTabs(K, tab);
+    else this.craftWin.add(this.label(K.pad, K.titleY, '만들기', K.titleFont));
+    this.craftWin.add(this.label(w - K.pad, K.titleY, decor ? '흐린 것은 재료나 전리품이 없는 것' : '재료가 모자라면 흐리게 보입니다', K.noteFont, { originX: 1, regular: true, color: U.dimInk }));
+    const rowY = (row) => K.pad + K.titleHeight + row * (K.cardH + sec + rowGap) + sec;
+    if (decor) ['재료로 만들기', '해적 전리품'].forEach((t, row) => this.craftWin.add(this.label(K.pad, rowY(row) - sec / 2, t, K.sectionFont, { color: U.dimInk })));
     this.cards = [];
     list.forEach((card, i) => {
       if (!card) return;
-      const col = i % perRow, row = Math.floor(i / perRow);
-      this.cards.push(this.makeCard(card, K.pad + col * (K.cardW + K.cardGap), K.pad + K.titleHeight + row * (K.cardH + rowGap)));
+      const [row, col] = place[i];
+      this.cards.push(this.makeCard(card, K.pad + col * (K.cardW + K.cardGap), rowY(row)));
     });
     this.refreshCards();
+  }
+
+  // 탭 두 개: 고른 탭은 노랑. 누르면 그 탭의 카드로 다시 만든다(짓던 것은 그대로)
+  makeCraftTabs(K, tab) {
+    const T = U.craftTabs;
+    [['make', '만들기'], ['decor', '꾸미기']].forEach(([id, text], i) => {
+      const x = K.pad - T.x + i * (T.w + T.gap), y = T.y;
+      const g = this.hitRect(this.add.graphics(), x, y, T.w, T.h);
+      this.roundRect(g, x, y, T.w, T.h, T.radius, id === tab ? U.yellow : U.cardColor, 1, INK, U.panel.borderWidth);
+      g.on('pointerdown', () => { if (this.craftTab === id) return; this.click(); this.craftTab = id; this.makeCraftWindow(); });
+      this.craftWin.add([g, this.label(x + T.w / 2, y + T.h / 2, text, T.font, { originX: 0.5 })]);
+    });
   }
 
   // 2단계가 되었다: 할 일, 가방, 만들기 창, 시험용 도구를 다시 만든다
@@ -522,7 +543,8 @@ export class UIScene extends Phaser.Scene {
     const bg = this.hitRect(this.add.graphics(), 0, 0, K.cardW, K.cardH);
     bg.on('pointerdown', () => {
       this.world.pressCard(card);
-      if (this.world.build.mode === card.id) this.minimizeCraft();   // (사용자 요청) 짓기·치우기·밭 갈기를 고르면 창을 접는다
+      // (사용자 요청) 짓기·치우기·밭 갈기를 고르면 창을 접는다. 긴 양탄자는 카드를 한 번 더 눌러 방향을 바꾸므로 접지 않는다(19.5)
+      if (this.world.build.mode === card.id && card.id !== 'rugRunner') this.minimizeCraft();
     });
     const icon = this.add.image(K.cardW / 2, K.iconY, card.icon).setDisplaySize(K.icon, K.icon);
     const name = this.label(K.cardW / 2, K.nameY, cardName(card), K.nameFont, { originX: 0.5 });
@@ -537,7 +559,7 @@ export class UIScene extends Phaser.Scene {
     }
     box.add([bg, icon, name, status, ...costParts]);
     this.craftWin.add(box);
-    return { card, box, bg, status, costParts };
+    return { card, box, bg, status, costParts, icon };
   }
 
   // 재료가 모자란 카드와 이미 가진 것의 카드는 흐리게 보인다. 고른 카드는 노란 굵은 테두리.
@@ -550,6 +572,8 @@ export class UIScene extends Phaser.Scene {
         for (const part of c.costParts) part.setVisible(state !== 'owned');
         c.status.setText(state === 'owned' ? '보유' : '');
       }
+      if (c.card.type === 'loot') c.status.setText('가진 것 ' + (this.world.decor.loot[c.card.id] || 0));   // (지하 꾸미기) 19.8
+      if (c.card.id === 'rugRunner') c.icon.setFlipX(this.world.decor.runnerRow);   // row 방향이면 아이콘도 뒤집는다
       c.box.setAlpha(state === 'ok' ? 1 : U.dimAlpha);
       this.roundRect(c.bg.clear(), 0, 0, K.cardW, K.cardH, K.cardRadius, U.cardColor, 1,
         selected ? U.yellow : INK, selected ? K.selectedBorder : K.cardBorder);
@@ -594,7 +618,8 @@ export class UIScene extends Phaser.Scene {
       ...(this.world.hunger.enabled ? [['배부름 가득', () => this.world.debugHungerFull()], ['배부름 0', () => this.world.debugHungerZero()]] : []),   // 16.4
       ...(this.world.stage >= 2 && this.world.ug.exists ? [['지하로 / 땅 위로', () => this.world.debugUnderground()], ['둘레 5×5 파기', () => this.world.debugDigAround()],
         ['포자 +' + CONFIG.ug.debugSpores, () => this.world.debugSpores()], ['버섯 다 자라게', () => this.world.debugMushrooms()],
-        ...(this.world.raid.enabled ? [['해적 습격(지하)', () => this.world.debugRaid()]] : [])] : []),   // 17.10, 18.5
+        ...(this.world.raid.enabled ? [['해적 습격(지하)', () => this.world.debugRaid()]] : []),
+        ['전리품 모두 +1', () => this.world.debugLoot()], ['꾸러미 떨어뜨리기', () => this.world.debugDrop()]] : []),   // 17.10, 18.5, 19.8
       ['닫기', () => this.debugWin.setVisible(false)],
     ];
     // 단추가 많아 만들기 버튼까지 내려오면 단추 높이를 줄여 그 위에 맞춘다
@@ -748,9 +773,12 @@ export class UIScene extends Phaser.Scene {
   // 짓기 상태의 안내는 계속 떠 있다: "울타리: 지을 칸을 누르세요"
   refreshHint() {
     const mode = this.world.build.mode;
-    const card = cardsFor(this.world.stage, this.world.tools, this.world.ug.active).find((c) => c && c.id === mode);
-    this.hint = !card ? null : card.type === 'remove' ? (this.world.ug.active ? '치우기: 없앨 가구를 누르세요' : '치우기: 없앨 시설을 누르세요')
-      : card.type === 'farm' ? '밭 갈기: 갈 칸을 누르세요' : `${cardName(card)}: ${this.world.build.furnishing ? '놓을' : '지을'} 칸을 누르세요`;
+    const card = [...cardsFor(this.world.stage, this.world.tools, this.world.ug.active), ...DECOR_CARDS, ...LOOT_CARDS].find((c) => c && c.id === mode);
+    // (지하 꾸미기) 바닥재 "깔 칸", 벽판 "댈 벽", 벽 장식 "달 벽" (19.2~19.4)
+    const what = card && card.kind === 'floor' ? '깔 칸을' : card && card.kind === 'cover' ? '댈 벽을' : card && card.kind === 'wall' ? '달 벽을'
+      : this.world.build.furnishing ? '놓을 칸을' : '지을 칸을';
+    this.hint = !card ? null : card.type === 'remove' ? (this.world.ug.active ? '치우기: 없앨 것을 누르세요' : '치우기: 없앨 시설을 누르세요')
+      : card.type === 'farm' ? '밭 갈기: 갈 칸을 누르세요' : `${cardName(card)}: ${what} 누르세요`;
     if (this.hint) {                                  // 안내는 바로 띄운다(기다리던 알림은 버린다)
       this.noticeQueue.length = 0;
       this.noticeLeft = 0;
