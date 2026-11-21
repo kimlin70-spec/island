@@ -58,8 +58,7 @@ export class UgHome {
 
   // 지하에 있는 캐릭터(주인공과 따라온 동물)가 몸을 걸친 칸
   characterTiles() {
-    const pets = this.scene.pets.list.filter((q) => q.map === this.ug.grid);
-    return [...this.scene.player.occupiedTiles(), ...pets.flatMap((q) => q.occupiedTiles()), ...this.scene.enemies.occupiedTiles(this.ug.grid)];   // (지하 침입) 지하의 해적도
+    return [...this.scene.player.occupiedTiles(), ...this.scene.enemies.occupiedTiles(this.ug.grid)];   // (사용자 요청) 동물은 막지 않는다(놓으면 비킨다)   // (지하 침입) 지하의 해적도
   }
 
   // 벽난로는 뒷벽에 붙인다: (c-1, r)이 흙 덩어리면 그대로(왼쪽 위 벽), 아니고 (c, r-1)이면 뒤집는다(오른쪽 위 벽). 둘 다 아니면 null
@@ -89,6 +88,7 @@ export class UgHome {
     scene.player.onMapChanged();
     for (const q of scene.pets.list) q.onMapChanged();
     scene.enemies.onMapChanged();                    // (지하 침입) 지하의 해적도 길을 다시 본다
+    scene.pets.shoo(tiles, this.ug.grid);            // (사용자 요청) 그 칸에 있던 동물은 비킨다
     scene.events.emit('structures-changed');
     return f;
   }

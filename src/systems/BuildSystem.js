@@ -179,6 +179,7 @@ export class BuildSystem {
     this.map.addStructure(s);
     if (LINKED[type]) this.refreshLinks(type, s.col, s.row);
     scene.onMapChanged();
+    scene.pets.shoo(tiles);                          // (사용자 요청) 그 칸에 있던 동물은 비킨다(길을 다시 본 뒤에)
     scene.events.emit('structures-changed');
     return s;
   }

@@ -278,6 +278,8 @@ export const CONFIG = {
     bag: { w: 300, h: 88, icon: 72, font: 34, iconX: [46, 188], countX: [84, 226], countY: 51,
            step: 142 },                    // (3단계) 작물·씨앗 칸이 생기면 한 칸에 이만큼씩 넓어진다(preview_farm.png)
     bag2: { w: 438, iconX: [46, 188, 330], countX: [84, 226, 368] },   // (2단계) 나무, 돌, 철광석 (preview_defense_day.png)
+    // (사용자 요청) 가방 끝의 접기 단추: 폭, 글자, 안쪽 여백과 둥글기, 진하기. 만들기 버튼과의 간격, 위로 올린 줄 사이
+    bagTab: { w: 64, font: 26, inset: 10, radius: 12, shade: 0.12, gapToCraft: 16, rowGap: 10 },
     equip: { gap: 20, pad: 10, slot: 76, icon: 72 },
     // 오른쪽 아래: 만들기 버튼
     craftButton: { size: 136, edge: 28, border: 4, borderOpen: 6, icon: 80, iconY: -20, font: 22, textY: 34 },

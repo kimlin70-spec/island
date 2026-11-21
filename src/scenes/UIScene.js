@@ -20,6 +20,7 @@ export class UIScene extends Phaser.Scene {
     this.W = this.scale.width;
     this.H = this.scale.height;
 
+    this.bagOpen = false;      // (사용자 요청) 가방의 재료 밖 칸(열매, 작물, 씨앗, 버섯, 포자)을 펼쳤는가. 처음은 접힘
     this.makeLightmap();       // 가장 먼저: 월드 위, 다른 UI 아래 (3.7)
     this.makeHearts();
     this.makeSoundButton();
@@ -285,46 +286,75 @@ export class UIScene extends Phaser.Scene {
   // ── 왼쪽 아래: 가방과 장비 ──
 
   // 가방의 칸 수와 크기: 1단계는 나무와 돌, 2단계는 철광석까지(11.3)
-  // 가방에 보이는 것: 재료(1단계 나무·돌, 2단계부터 철광석도), (3단계) 가진 작물과 씨앗만
-  bagItems() {
-    const base = this.world.stage >= 2 ? ['wood', 'stone', 'iron'] : ['wood', 'stone'];
-    const extra = ['berry', ...CROPS, ...CROPS.map((c) => 'seed_' + c), 'mushroom', 'spore'].filter((it) => this.world.inventory.count(it) > 0);
-    return [...base, ...extra];
-  }
+  // 가방에 있는 것: 재료(1단계 나무·돌, 2단계부터 철광석도), (3단계) 가진 열매·작물·씨앗, (지하) 버섯·포자
+  bagItems() { return [...this.bagBase(), ...this.bagExtra()]; }
+  bagBase() { return this.world.stage >= 2 ? ['wood', 'stone', 'iron'] : ['wood', 'stone']; }
+  bagExtra() { return ['berry', ...CROPS, ...CROPS.map((c) => 'seed_' + c), 'mushroom', 'spore'].filter((it) => this.world.inventory.count(it) > 0); }
 
-  // 칸의 자리: 재료 칸은 preview 그대로, 작물·씨앗 칸은 오른쪽으로 step 씩
-  bagLayout(items = this.bagItems()) {
-    const B = this.world.stage >= 2 ? { ...U.bag, ...U.bag2 } : { ...U.bag };
-    const n0 = B.iconX.length, more = Math.max(0, items.length - n0);
-    B.w += more * B.step;
-    B.iconX = items.map((_, i) => B.iconX[0] + i * B.step);
-    B.countX = items.map((_, i) => B.countX[0] + i * B.step);
-    return B;
+  // (사용자 요청: 가방이 길어져 화면을 넘어감) 재료 말고 나머지(열매, 작물, 씨앗, 버섯, 포자)는 가방 끝의 접기 단추로 옆으로 펼치고 접는다.
+  // 처음은 접혀 있다. 펼쳐서 만들기 버튼까지 닿으면 넘치는 칸은 위 줄로. 장비 칸과 아래 가운데 버튼도 자리가 없으면 위로 올린다.
+  // 돌려주는 것: rows(가방 줄들 { x, y, w, items, tab }), equip { x, y, w }, button(w) -> { x, y }
+  bottomLayout() {
+    const B = this.world.stage >= 2 ? { ...U.bag, ...U.bag2 } : { ...U.bag }, E = U.equip, T = U.bagTab, C = U.craftButton;
+    const base = this.bagBase(), extra = this.bagExtra(), shown = this.bagOpen ? [...base, ...extra] : base;
+    const limit = this.W - C.edge - C.size - T.gapToCraft;
+    const tabW = extra.length ? T.w : 0, n0 = base.length;
+    const width = (k) => B.w + (k - n0) * B.step;           // 칸 k 개인 가방 줄의 폭(재료 칸은 preview 그대로)
+    let k0 = shown.length;
+    while (k0 > n0 && U.margin + width(k0) + tabW > limit) k0--;
+    const yb = this.H - U.margin - B.h;
+    const rows = [{ x: U.margin, y: yb, w: width(k0) + tabW, items: shown.slice(0, k0), tab: tabW > 0 }];
+    if (k0 < shown.length) rows.push({ x: U.margin, y: yb - B.h - T.rowGap, w: width(shown.length - k0), items: shown.slice(k0), tab: false });
+    let top = rows[rows.length - 1].y;
+    const ew = E.pad * 2 + this.world.equipment().length * E.slot;
+    let equip = { x: U.margin + rows[0].w + E.gap, y: yb, w: ew };
+    if (equip.x + ew > limit) { equip = { x: U.margin, y: top - B.h - T.rowGap, w: ew }; top = equip.y; }
+    const right = equip.y === yb ? equip.x + ew : U.margin + rows[0].w;
+    const button = (w) => {
+      const x = Math.max(this.W / 2 - w / 2, right + E.gap);
+      return x + w <= limit ? { x, y: this.H - U.margin - U.rest.h } : { x: this.W / 2 - w / 2, y: top - U.rest.h - T.rowGap };
+    };
+    return { B, rows, equip, button, hidden: this.bagOpen ? 0 : extra.length };
   }
 
   makeBag() {
-    const items = this.bagItems(), B = this.bagLayout(items);
-    const x = U.margin, y = this.H - U.margin - B.h;
+    const L = this.bottomLayout(), B = L.B, T = U.bagTab;
     if (this.bagObjs) for (const o of this.bagObjs) o.destroy();
-    this.bagObjs = [this.panel(this.add.graphics(), x, y, B.w, B.h)];
+    this.bagObjs = [];
     this.bagCounts = {};
-    this.bagKey = items.join(',');
-    items.forEach((item, i) => {
-      const img = this.add.image(x + B.iconX[i], y + B.h / 2, 'icon_' + item).setDisplaySize(B.icon, B.icon);
-      if (FOODS.includes(item)) img.setInteractive().on('pointerdown', () => this.world.hunger.eat(item));   // 열매와 작물을 누르면 먹는다 (13.3, 16.2)
-      this.bagObjs.push(img);
-      this.bagCounts[item] = this.label(x + B.countX[i], y + B.countY, '0', B.font);
-      this.bagObjs.push(this.bagCounts[item]);
-    });
+    this.bagKey = [this.bagOpen, ...this.bagItems()].join(',');
+    for (const row of L.rows) {
+      this.bagObjs.push(this.panel(this.add.graphics(), row.x, row.y, row.w, B.h));
+      row.items.forEach((item, i) => {
+        const img = this.add.image(row.x + B.iconX[0] + i * B.step, row.y + B.h / 2, 'icon_' + item).setDisplaySize(B.icon, B.icon);
+        if (FOODS.includes(item)) img.setInteractive().on('pointerdown', () => this.world.hunger.eat(item));   // 열매와 작물을 누르면 먹는다 (13.3, 16.2)
+        this.bagObjs.push(img);
+        this.bagCounts[item] = this.label(row.x + B.countX[0] + i * B.step, row.y + B.countY, '0', B.font);
+        this.bagObjs.push(this.bagCounts[item]);
+      });
+      if (!row.tab) continue;
+      // 접기 단추: 접혀 있으면 "▸ 숨은 칸 수", 펼쳐져 있으면 "◂"
+      const tx = row.x + row.w - T.w, g = this.add.graphics();
+      g.fillStyle(INK, T.shade).fillRoundedRect(tx + T.inset, row.y + T.inset, T.w - T.inset * 2, B.h - T.inset * 2, T.radius);
+      this.hitRect(g, tx, row.y, T.w, B.h);
+      g.on('pointerdown', () => { this.click(); this.bagOpen = !this.bagOpen; this.relayoutBottom(); });
+      this.bagTab = g;
+      this.bagObjs.push(g, this.label(tx + T.w / 2, row.y + B.h / 2, L.hidden ? '▸' + L.hidden : '◂', T.font, { originX: 0.5 }));
+    }
     this.refreshBag(false);
   }
 
-  // 개수를 고친다. 보이는 칸이 바뀌었으면(작물·씨앗이 생기거나 다 떨어졌으면) 가방과 그 옆의 장비 칸, 쉬기 버튼을 다시 놓는다
+  // 가방, 장비 칸, 아래 가운데 버튼을 다시 놓는다
+  relayoutBottom() {
+    this.makeBag();
+    this.refreshEquipment();
+    this.makeRest();
+  }
+
+  // 개수를 고친다. 가방의 칸이 바뀌었으면(작물·씨앗이 생기거나 다 떨어졌으면) 가방과 그 옆의 장비 칸, 쉬기 버튼을 다시 놓는다
   refreshBag(check = true) {
-    if (check && this.bagItems().join(',') !== this.bagKey) {
-      this.makeBag();
-      this.refreshEquipment();
-      this.makeRest();
+    if (check && [this.bagOpen, ...this.bagItems()].join(',') !== this.bagKey) {
+      this.relayoutBottom();
       return;
     }
     for (const item of Object.keys(this.bagCounts)) this.bagCounts[item].setText(String(this.world.inventory.count(item)));
@@ -398,10 +428,9 @@ export class UIScene extends Phaser.Scene {
 
   // 단검, 티셔츠, 만든 도구. 도구가 늘면 칸이 옆으로 늘어난다.
   refreshEquipment() {
-    const E = U.equip, B = this.bagLayout();
+    const E = U.equip, L = this.bottomLayout(), B = L.B, { x, y, w } = L.equip;
     const list = this.world.equipment();
-    const x = U.margin + B.w + E.gap, y = this.H - U.margin - B.h;
-    this.panel(this.equipBg, x, y, E.pad * 2 + list.length * E.slot, B.h);
+    this.panel(this.equipBg, x, y, w, B.h);
     for (const img of this.equipIcons) img.destroy();
     this.equipIcons = list.map((id, i) =>
       this.add.image(x + E.pad + E.slot * (i + 0.5), y + B.h / 2, 'icon_' + id).setDisplaySize(E.icon, E.icon));
@@ -604,8 +633,7 @@ export class UIScene extends Phaser.Scene {
     const icon = this.add.image(0, 0, 'icon_sleep').setDisplaySize(R.icon, R.icon);
     const text = this.label(0, 0, this.world.home.bed ? '자는 중 · 누르면 일어납니다' : '쉬는 중 · 누르면 나옵니다', R.font);   // (지하) 침대 (17.7)
     const w = R.padX * 2 + R.icon + R.gap + text.width;
-    const equipRight = U.margin + this.bagLayout().w + E.gap + E.pad * 2 + this.world.equipment().length * E.slot;
-    const x = Math.max(this.W / 2 - w / 2, equipRight + E.gap), y = this.H - U.margin - R.h;
+    const { x, y } = this.bottomLayout().button(w);   // (사용자 요청) 자리가 없으면 위로
     this.panel(bg, x, y, w, R.h);
     bg.on('pointerdown', () => { this.click(); this.world.wakeUp(); });
     icon.setPosition(x + R.padX + R.icon / 2, y + R.h / 2);
@@ -623,8 +651,7 @@ export class UIScene extends Phaser.Scene {
     const icon = this.add.image(0, 0, 'icon_surface').setDisplaySize(R.icon, R.icon);
     const text = this.label(0, 0, '올라가기', R.font);
     const w = R.padX * 2 + R.icon + R.gap + text.width;
-    const equipRight = U.margin + this.bagLayout().w + E.gap + E.pad * 2 + this.world.equipment().length * E.slot;
-    const x = Math.max(this.W / 2 - w / 2, equipRight + E.gap), y = this.H - U.margin - R.h;
+    const { x, y } = this.bottomLayout().button(w);   // (사용자 요청) 자리가 없으면 위로
     this.panel(bg, x, y, w, R.h);
     bg.on('pointerdown', () => { this.click(); this.world.climbUp(); });
     icon.setPosition(x + R.padX + R.icon / 2, y + R.h / 2);

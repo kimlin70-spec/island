@@ -113,6 +113,7 @@ export class FarmSystem {
     const soil = scene.add.sprite(w.x, w.y, 'farm_soil', a.frames.indexOf('dry')).setOrigin(a.originX, a.originY).setDepth(CONFIG.depth.footprint);
     const f = { col: t.col, row: t.row, tiles: [{ col: t.col, row: t.row }], soil, wet: false, crop: null };
     this.fields.set(this.key(t.col, t.row), f);
+    scene.pets.shoo(f.tiles);                        // (사용자 요청) 밭 위의 동물은 비킨다
     fx.dust(w.x, w.y, CONFIG.farm.tillDustScale);
     fx.burst(['dirt'], CONFIG.fx.chips.till, w.x, w.y);
     scene.sfx.play('till', { at: w });

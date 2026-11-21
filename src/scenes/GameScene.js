@@ -195,7 +195,7 @@ export class GameScene extends Phaser.Scene {
   // 주인공이 텐트 안에 있는 동안에는 들어갔던 칸이다.
   // (지하) 지하에 있는 주인공과 동물은 땅 위의 칸을 차지하지 않는다
   characterTiles() {
-    const out = [...this.enemies.occupiedTiles(this.map), ...this.pets.list.filter((p) => p.map === this.map).flatMap((p) => p.occupiedTiles())];
+    const out = this.enemies.occupiedTiles(this.map);   // (사용자 요청) 동물은 짓기를 막지 않는다(지으면 비킨다, PetSystem.shoo)
     return this.ug.active ? out : [...this.player.occupiedTiles(), ...out];
   }
 
@@ -203,6 +203,7 @@ export class GameScene extends Phaser.Scene {
   onMapChanged() {
     this.player.onMapChanged();
     this.enemies.onMapChanged();
+    for (const q of this.pets.list) q.onMapChanged();
   }
 
   get hasGun() { return this.tools.includes('gun'); }

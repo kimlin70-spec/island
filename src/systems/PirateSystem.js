@@ -102,7 +102,7 @@ export class PirateSystem {
   // 거리가 같으면 위쪽 줄, 왼쪽 칸 먼저.
   landingTiles(n) {
     const m = this.scene.map, L = this.landing;
-    const busy = new Set(this.scene.characterTiles().map((t) => t.col + ',' + t.row));
+    const busy = new Set([...this.scene.characterTiles(), ...this.scene.pets.list.filter((q) => q.map === this.scene.map).flatMap((q) => q.occupiedTiles())].map((t) => t.col + ',' + t.row));   // 동물 칸에도 내리지 않는다
     const out = [];
     for (let r = 0; r < m.rows; r++) {
       for (let c = 0; c < m.cols; c++) {

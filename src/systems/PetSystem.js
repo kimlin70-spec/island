@@ -1,4 +1,5 @@
 import { CONFIG } from '../config.js';
+import { hitLevel } from './Pick.js';
 import { tileToWorld } from '../iso.js';
 import { Walker } from './Walker.js';
 
@@ -130,16 +131,34 @@ export class PetSystem {
   }
 
   // 누른 점의 동물(그림 사각형 + enemyPad, 앞에 있는 것)
+  // (사용자 요청: 동물이 밭 누르기를 가로채지 않게) 몸 그림의 진한 곳을 정확히 눌렀을 때만 그 동물
   pickAt(x, y) {
-    const pad = CONFIG.input.enemyPad;
     let best = null;
     for (const p of this.list) {
-      const s = p.sprite, left = s.x - s.displayWidth * s.originX, top = s.y - s.displayHeight * s.originY;
-      if (x < left - pad || x > left + s.displayWidth + pad || y < top - pad || y > top + s.displayHeight + pad) continue;
+      const s = p.sprite;
+      if (!s.visible || hitLevel(this.scene, s, x, y, CONFIG.input.pickAlpha, false) !== 2) continue;
       if (!best || s.depth > best.sprite.depth) best = p;
     }
     return best;
   }
+
+  // (사용자 요청) 동물은 짓기·밭 갈기·가구 놓기를 막지 않는다. 그 칸들(tiles)에 있던 동물은 가까운 빈 칸으로 비킨다
+  shoo(tiles, map = this.map) {
+    const on = (t) => tiles.some((q) => q.col === t.col && q.row === t.row);
+    for (const p of this.list) {
+      if (p.map !== map || !p.occupiedTiles().some(on)) continue;
+      const out = [];
+      for (let d = 1; d <= 3 && !out.length; d++) for (let dr = -d; dr <= d; dr++) for (let dc = -d; dc <= d; dc++) {
+        const c = p.tile.col + dc, r = p.tile.row + dr;
+        if (Math.max(Math.abs(dc), Math.abs(dr)) === d && !on({ col: c, row: r }) && map.isWalkable(c, r) && !this.occupied(c, r, map) && !this.onField(c, r, map)) out.push({ col: c, row: r });
+      }
+      p.pose = 'sit';
+      if (!out.length || !p.goTo(out)) this.teleport(p);
+    }
+  }
+
+  // (사용자 요청) 밭 칸인가(동물은 밭 위에 앉지 않는다). 땅 위에서만
+  onField(col, row, map = this.map) { return map === this.map && !!this.scene.farm.fieldAt(col, row); }
 
   // 동물을 눌렀다: 붙은 칸으로 가서 crouch(쓰다듬기). hit 프레임에 petted
   press(pet) {
@@ -323,6 +342,7 @@ export class PetSystem {
       // 내딛던 걸음만 마저 간다
       p.path.length = Math.min(p.path.length, 1);
     }
+    if (!p.moving && this.onField(p.tile.col, p.tile.row, p.map)) this.shoo([p.tile], p.map);   // 밭 위에 섰으면 비킨다
     if (!p.moving) {
       p.noPath = 0;
       if (p.kind === 'cat' && this.playerStill > P.catSleepAfter) p.rest('sleep');
@@ -335,7 +355,8 @@ export class PetSystem {
     const t = this.scene.player.tile, R = CONFIG.pets.followNear, out = [];
     for (let dr = -2; dr <= 2; dr++) for (let dc = -2; dc <= 2; dc++) {
       if ((!dc && !dr) || Math.hypot(dc, dr) > R) continue;
-      if (map.isWalkable(t.col + dc, t.row + dr)) out.push({ col: t.col + dc, row: t.row + dr });
+      // (사용자 요청) 밭 위는 피한다(밭을 누르기 어렵지 않게)
+      if (map.isWalkable(t.col + dc, t.row + dr) && !this.onField(t.col + dc, t.row + dr, map)) out.push({ col: t.col + dc, row: t.row + dr });
     }
     return out;
   }
