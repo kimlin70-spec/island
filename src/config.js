@@ -192,6 +192,12 @@ export const CONFIG = {
     pickAlpha: 110,          // 그림에서 이 값보다 진한 부분을 눌러야 그 사물을 고른다(0~255). 옅은 그림자는 빼려고.
     pickAlphaFence: 30,      // 울타리와 철조망은 이 값으로 고른다. 그림자가 없어서, 기둥과 가로대·철사의 옅은 가장자리까지 그 시설로 본다.
     enemyPad: 12,            // 적은 그림 사각형을 사방으로 이만큼(px) 넓힌 곳을 눌러도 고른다 (3.5)
+    // (사용자 요청: 한 번에 잘 눌리게) 정확히 맞은 것이 없으면, 그림의 진한 곳에서 이만큼(px) 안을 눌러도 그 사물을 고른다.
+    // 지하의 흙벽은 넓히지 않는다(벽 옆 바닥으로 걸어가려다 파지 않게)
+    pickPad: 10,
+    // 작고 얇은 그림은 그림 사각형 안 어디를 눌러도 그것(사다리, 문, 등불, 의자, 상자, 버섯 화분)
+    boxPick: ['ug_ladder', 'build_gate_col', 'build_gate_row', 'build_lantern', 'build_stool', 'build_chest', 'build_planter'],
+    tapPop: { scale: 0.06, time: 0.18 },   // 누른 사물이 잠깐 커졌다 돌아온다(눌렸다는 표시): 크기, 시간(초)
   },
   // 효과와 체력 막대. 12.10 의 이름은 그대로 두었다(hitStop ~ particleCount).
   fx: {

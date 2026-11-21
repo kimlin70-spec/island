@@ -1,5 +1,6 @@
 import { CONFIG } from '../config.js';
 import { tileToWorld, worldToTile } from '../iso.js';
+import { hitLevel, tapPop } from './Pick.js';
 
 // 지하 생활 (17장, Phase 17): 굴 입구, 오르내리기, 칸 조각 고르기, 파기, 빛과 소리.
 // 지하는 같은 GameScene 안의 월드 y + ug.offsetY 자리에 있다. 씬은 그대로 두고 카메라와 주인공(따라다니는 동물)만 옮긴다.
@@ -242,6 +243,7 @@ export class Underground {
     }
     const foe = this.scene.enemies.pickAt(wx, wy);  // (지하 침입) 지하의 해적: 다가가서 친다(총이 있으면 쏜다) (3.5 의 순서)
     if (foe && foe.under) { this.upPending = false; this.scene.pressEnemy(foe); return; }
+    if (hit && (hit.furniture || hit === 'ladder' || hit === 'hole')) tapPop(this.scene, this.picked);   // 눌렸다는 표시
     if (hit && hit.furniture) { this.upPending = false; home.press(hit.furniture); return; }
     if (hit === 'ladder') { this.pressLadder(); return; }
     if (hit === 'hole') {
@@ -252,28 +254,32 @@ export class Underground {
     }
     const t = hit || this.tileAt(wx, wy);
     if (home.at(t.col, t.row)) return;              // 가구 칸의 바닥(그림 밖)을 누른 것: 아무 일도 없다
+    const E = this.floor.entry;                     // (사용자 요청) 사다리가 서 있는 바닥 칸을 눌러도 올라간다
+    if (!hit && t.col === E.col && t.row === E.row) { tapPop(this.scene, this.ladder); this.pressLadder(); return; }
     if (this.standable(t.col, t.row)) { this.upPending = false; this.scene.walkTo(t.col, t.row); return; }
     this.dig(t);
   }
 
-  // 그림 img 의 (x, y)가 투명하지 않은가. 뒤집은 그림(벽난로)은 기준점을 가운데로 뒤집혀 그려진다
-  hitImage(img, x, y) {
-    const dx = (x - img.x) * (img.flipX ? -1 : 1);
-    const lx = Math.floor(dx + img.displayWidth * img.originX), ly = Math.floor(y - (img.y - img.displayHeight * img.originY));
-    if (lx < 0 || ly < 0 || lx >= img.width || ly >= img.height) return false;
-    const a = this.scene.textures.getPixelAlpha(lx, ly, img.texture.key, img.frame.name);
-    return a !== null && a > CONFIG.input.pickAlpha;
-  }
+  // 그림 img 의 (x, y)를 눌렀는가(정확히 또는 가까이, Pick.js). 뒤집은 그림(벽난로)도 된다
+  hitImage(img, x, y) { return hitLevel(this.scene, img, x, y) > 0; }
 
-  // 누른 것: 가구, 사다리, 막힌 구멍, 벽·덮개(그 흙 덩어리 칸). depth 가 큰 것부터, 투명하지 않은 곳만. 없으면 null
+  // 누른 것: 가구, 사다리, 막힌 구멍, 벽·덮개(그 흙 덩어리 칸). 없으면 null
+  // 정확히 맞은 것 중 depth 가 큰 것. (사용자 요청) 가구·사다리·구멍은 가까이 눌러도 되고, 그것이 정확히 맞은 것보다 앞에 있으면 그것.
+  // 벽·덮개는 정확히 맞은 것만(벽 옆 바닥을 누른 것을 벽으로 잡지 않게)
   pick(x, y) {
-    const hits = [], test = (img) => this.hitImage(img, x, y);
-    for (const f of this.scene.home.list) if (f.type !== 'rug' && test(f.sprite)) hits.push({ d: f.sprite.depth, v: { furniture: f } });
-    if (this.ladder && test(this.ladder)) hits.push({ d: this.ladder.depth, v: 'ladder' });
-    if (this.hole && test(this.hole)) hits.push({ d: this.hole.depth, v: 'hole' });
-    for (const p of this.pieces) if (p.target && test(p.img)) hits.push({ d: p.img.depth, v: { col: p.target[0], row: p.target[1] } });
-    hits.sort((a, b) => b.d - a.d);
-    return hits.length ? hits[0].v : null;
+    let exact = null, close = null;
+    const test = (img, v, near) => {
+      const lv = hitLevel(this.scene, img, x, y, CONFIG.input.pickAlpha, near);
+      if (lv === 2 && (!exact || img.depth > exact.d)) exact = { d: img.depth, v, img };
+      if (lv === 1 && (!close || img.depth > close.d)) close = { d: img.depth, v, img };
+    };
+    for (const f of this.scene.home.list) if (f.type !== 'rug') test(f.sprite, { furniture: f }, true);
+    if (this.ladder) test(this.ladder, 'ladder', true);
+    if (this.hole) test(this.hole, 'hole', true);
+    for (const p of this.pieces) if (p.target) test(p.img, { col: p.target[0], row: p.target[1] }, false);
+    const best = close && (!exact || close.d > exact.d) ? close : exact;
+    this.picked = best ? best.img : null;
+    return best ? best.v : null;
   }
 
   // 팔 수 있는 칸: 안 판 칸, 가장자리가 아님, 변을 맞댄 이웃 중에 설 수 있는 칸이 있다

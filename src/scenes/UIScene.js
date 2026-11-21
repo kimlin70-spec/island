@@ -66,6 +66,7 @@ export class UIScene extends Phaser.Scene {
       this.drawLightmap();
       this.refreshClock();
       this.placeBurrowMenu();
+      this.refreshUpButton();
     });
 
     // 포인터가 패널이나 버튼 위로 가면 월드에 알린다(짓기 표시를 숨기고, 거기서 손을 떼도 짓지 않게).
@@ -610,6 +611,31 @@ export class UIScene extends Phaser.Scene {
     icon.setPosition(x + R.padX + R.icon / 2, y + R.h / 2);
     text.setPosition(x + R.padX + R.icon + R.gap, y + R.h / 2);
     this.restBox = this.add.container(0, 0, [bg, icon, text]).setVisible(visible);
+    this.makeUpButton();
+  }
+
+  // (사용자 요청) 지하에 있는 동안 아래 가운데에 "올라가기" 버튼(쉬는 버튼과 같은 모양, 같은 자리). 누르면 사다리로 걸어가 올라간다.
+  // 오르내리는 중과 침대에서 자는 중에는 감춘다(prerender 에서 고친다)
+  makeUpButton() {
+    const R = U.rest, E = U.equip;
+    if (this.upBox) this.upBox.destroy();
+    const bg = this.add.graphics();
+    const icon = this.add.image(0, 0, 'icon_surface').setDisplaySize(R.icon, R.icon);
+    const text = this.label(0, 0, '올라가기', R.font);
+    const w = R.padX * 2 + R.icon + R.gap + text.width;
+    const equipRight = U.margin + this.bagLayout().w + E.gap + E.pad * 2 + this.world.equipment().length * E.slot;
+    const x = Math.max(this.W / 2 - w / 2, equipRight + E.gap), y = this.H - U.margin - R.h;
+    this.panel(bg, x, y, w, R.h);
+    bg.on('pointerdown', () => { this.click(); this.world.climbUp(); });
+    icon.setPosition(x + R.padX + R.icon / 2, y + R.h / 2);
+    text.setPosition(x + R.padX + R.icon + R.gap, y + R.h / 2);
+    this.upBox = this.add.container(0, 0, [bg, icon, text]);
+    this.refreshUpButton();
+  }
+
+  refreshUpButton() {
+    const w = this.world, on = w.ug.active && !w.ug.busy && !w.home.bed && !w.player.downed;
+    if (this.upBox.visible !== on) this.upBox.setVisible(on);
   }
 
   // ── 화면 가운데: "쓰러졌습니다" 창, 첫 아침의 결과 창 (5.9, 5.10) ──

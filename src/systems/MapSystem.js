@@ -1,4 +1,5 @@
 import { CONFIG } from '../config.js';
+import { hitLevel } from './Pick.js';
 import { tileToWorld } from '../iso.js';
 
 // 지도: 바닥 그림과 사물을 그리고, "지나갈 수 있는 칸"을 알려 준다.
@@ -124,24 +125,20 @@ export class MapSystem {
   // 누른 점이 그림 사각형 안에 있는 것들을 depth가 큰(앞에 있는) 것부터 본다. (3.5)
   // list 를 주면 그 안에서만 고른다(치우기는 시설만).
   // 탑은 받침과 포탑 두 그림을 모두 본다(포탑을 눌러도 그 탑).
+  // (사용자 요청) 정확히 맞은 것(depth 가 큰 것부터)이 없으면 가까운 것(진한 곳에서 input.pickPad 안). 울타리와 철조망은 정확히 맞은 것만
+  // (울타리 칸은 걸어갈 수 없어서, 울타리 곁의 땅을 누른 것을 울타리로 잡으면 걷지 못한다)
   pickObject(x, y, list = [...this.objects, ...this.structures]) {
-    const hits = [];
+    let exact = null, close = null;
     for (const o of list) {
       if (!o.pickable) continue;
+      const thin = o.type === 'fence' || o.type === 'wire' || o.type === 'gate';
       for (const s of o.turret ? [o.sprite, o.turret] : [o.sprite]) {
-        const lx = Math.floor(x - (s.x - s.displayWidth * s.originX));
-        const ly = Math.floor(y - (s.y - s.displayHeight * s.originY));
-        if (lx >= 0 && ly >= 0 && lx < s.width && ly < s.height) hits.push({ o, s, lx, ly });
+        const lv = hitLevel(this.scene, s, x, y, thin ? CONFIG.input.pickAlphaFence : CONFIG.input.pickAlpha, o.type !== 'fence' && o.type !== 'wire');
+        if (lv === 2 && (!exact || s.depth > exact.d)) exact = { o, d: s.depth };
+        if (lv === 1 && (!close || s.depth > close.d)) close = { o, d: s.depth };
       }
     }
-    hits.sort((a, b) => b.s.depth - a.s.depth);
-    for (const h of hits) {
-      const s = h.s;
-      const alpha = this.scene.textures.getPixelAlpha(h.lx, h.ly, s.texture.key, s.frame.name);
-      const min = h.o.type === 'fence' || h.o.type === 'wire' || h.o.type === 'gate' ? CONFIG.input.pickAlphaFence : CONFIG.input.pickAlpha;
-      if (alpha !== null && alpha > min) return h.o;
-    }
-    return null;
+    return exact ? exact.o : close ? close.o : null;
   }
 
   // 캐릭터가 키 큰 사물 뒤에 가려지면 그 사물을 반투명하게 하고, 벗어나면 되돌린다 (3.4)

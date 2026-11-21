@@ -22,6 +22,7 @@ import { HungerSystem } from '../systems/HungerSystem.js';
 import { Underground } from '../systems/Underground.js';
 import { UgHome } from '../systems/UgHome.js';
 import { Raid } from '../systems/Raid.js';
+import { tapPop } from '../systems/Pick.js';
 import { bestTool, cardCost, cardName, objectParticle, subjectParticle } from '../systems/Crafting.js';
 import { TODO_ITEMS2, TODO_ITEMS3 } from '../systems/Todo.js';
 
@@ -148,6 +149,7 @@ export class GameScene extends Phaser.Scene {
     }
     const e = this.enemies.pickAt(p.worldX, p.worldY);
     const pet = e ? null : this.pets.pickAt(p.worldX, p.worldY);
+    if (o && !e && !pet) tapPop(this, o.sprite);     // (사용자 요청) 눌린 사물이 잠깐 통통 튄다(눌렸다는 표시)
     if (e) this.pressEnemy(e);                        // 적: 다가가서 단검으로 친다 (5.9). 총이 있으면 멀리서 쏜다 (11.6)
     else if (pet) this.pets.press(pet);               // (3단계) 동물: 다가가서 쓰다듬는다 (13.4)
     else if (o && o.kind === 'iron' && this.stage < 2) this.error('아직 캘 수 없습니다');   // 철광석은 2단계부터 캔다 (4장, 11.2)
@@ -382,6 +384,13 @@ export class GameScene extends Phaser.Scene {
     this.ug.pressBurrow(b);
   }
   closeBurrowMenu() { this.burrowMenu = null; this.events.emit('burrow-menu', null); }
+
+  // (사용자 요청) "올라가기" 버튼: 지하에서 사다리로 걸어가 올라간다
+  climbUp() {
+    if (!this.ug.active || this.ug.busy || this.home.bed || this.player.downed) return;
+    this.home.standUp();
+    this.ug.pressLadder();
+  }
 
   // 자는 중 버튼: 텐트에서 나오거나 침대에서 일어난다
   wakeUp() { if (this.home.bed) this.home.wake(); else this.rest.exit(); }
