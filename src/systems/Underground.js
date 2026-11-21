@@ -331,8 +331,8 @@ export class Underground {
       goals: () => this.sides(cell).filter((n) => this.standable(n.col, n.row)),
       near: (at) => Math.abs(at.col - cell.col) + Math.abs(at.row - cell.row) === 1,
       tool: () => (scene.tools.includes('pickaxe') ? 'pickaxe' : null),
-      isValid: () => !this.dug.has(k),
-      strike: () => { this.hit(cell); return true; },
+      isValid: () => !this.dug.has(k) && !scene.decor.decorated(cell.col, cell.row),   // 파는 동안 꾸며지면 멈춘다(19.3)
+      strike: () => { if (scene.decor.decorated(cell.col, cell.row)) return false; this.hit(cell); return true; },
     });
   }
 
@@ -467,7 +467,7 @@ export class Underground {
     const t = this.scene.player.tile, F = this.floor;
     for (let dr = -2; dr <= 2; dr++) for (let dc = -2; dc <= 2; dc++) {
       const c = t.col + dc, r = t.row + dr;
-      if (c > 0 && r > 0 && c < F.cols - 1 && r < F.rows - 1) this.dug.add(this.key(c, r));
+      if (c > 0 && r > 0 && c < F.cols - 1 && r < F.rows - 1 && !this.scene.decor.decorated(c, r)) this.dug.add(this.key(c, r));   // 꾸민 벽은 파지 않는다
     }
     this.build();
   }

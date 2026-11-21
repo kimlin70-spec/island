@@ -238,7 +238,7 @@ export class Decor {
     const L = CONFIG.loot, first = L.firstAlways && !this.dropped;
     if (!first && Math.random() >= L.chance) return;
     this.dropped = true;
-    this.drop(e.tile, e.map, e.yOff);
+    this.drop(e.here(), e.map, e.yOff);              // 쓰러진 몸에 가장 가까운 칸
   }
 
   // 칸 t(그 층의 지도 map)에 꾸러미를 떨어뜨린다: 0.3초 동안 24px 튀었다가 내려앉고 fx_poof 0.5배. 칸을 막지 않는다

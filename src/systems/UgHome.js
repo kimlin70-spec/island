@@ -60,6 +60,10 @@ export class UgHome {
     const ug = this.ug, e = ug.floor.entry, p = this.scene.player;
     if (!ug.standable(col, row) || (col === e.col && row === e.row)) return false;
     if (isRug(type) && this.at(col, row, true)) return false;
+    if (type === 'fireplace') {                      // (지하 꾸미기) 장식이 달린 벽 앞에는 벽난로를 놓지 않는다(19.4 의 반대쪽)
+      const side = this.wallSide({ col, row }), D = this.scene.decor;
+      if (side && D.wallDecos.has(D.key(col, row, side))) return false;
+    }
     if (this.characterTiles().some((t) => t.col === col && t.row === row)) return false;
     return Math.hypot(col - p.col, row - p.row) <= CONFIG.build.reach;
   }
