@@ -598,6 +598,46 @@ def s_amb_underground():
         parts.append((at, reverb(drip, 0.7, 0.45, seed=313), 0.6))
     return level(loopify(mix(d, *parts), 0.5), -28)
 
+
+# ---- 18장: 해적의 지하 침입
+def _blow(seed, k=1.0):
+    """나무 뚜껑을 내려치는 둔탁한 한 번(위에서 울려 내려오는 소리)"""
+    d = 0.4
+    thump = osc(glide(d, (0, 150), (0.08, 85), (d, 75))) * dec(d, 0.1)
+    body = partials(240, d, (1, 1.72, 2.63), (0.09, 0.06, 0.04), (0.8, 0.5, 0.3))
+    hit = bp(noise(0.03, seed), 250, 1800) * dec(0.03, 0.008)
+    return lp(mix(d, (0, thump, 0.8), (0, body, 1.0), (0, hit, 1.3)), 1800) * k
+
+
+def s_hatch_knock():
+    """지하에서 듣는 '쿵, 쿵': 해적이 굴 입구 뚜껑을 내려친다(흙 부스러기가 조금 떨어진다)"""
+    d = 1.15
+    trickle = grains(0.45, 9, 0.4, 700, 2600, (0.004, 0.014), seed=331)
+    return level(reverb(mix(d, (0, _blow(332), 1), (0.12, trickle, 0.35), (0.44, _blow(333, 0.85), 1), (0.56, trickle, 0.3)), 0.8, 0.35), -14)
+
+
+def s_hatch_break():
+    """뚜껑이 부서지는 소리: 쩍 갈라짐 + 나무 조각 + 떨어지는 부스러기"""
+    d = 1.3
+    crack = mix(0.06, (0, bp(noise(0.06, 341), 900, 6000) * dec(0.06, 0.012), 1), (0, partials(520, 0.06, (1, 2.3, 3.7), (0.02, 0.015, 0.01), (0.6, 0.4, 0.3)), 0.6))
+    splinter = grains(0.45, 26, 0.4, 1500, 7000, (0.003, 0.012), seed=342)
+    thud = osc(glide(0.35, (0, 120), (0.35, 60))) * dec(0.35, 0.1)
+    fall = grains(0.9, 22, 0.85, 600, 3000, (0.004, 0.02), seed=343)
+    return level(reverb(mix(d, (0, crack, 1), (0.01, splinter, 0.8), (0, thud, 0.8), (0.0, _blow(344, 0.7), 0.7), (0.25, fall, 0.45)), 0.6, 0.25), -14)
+
+
+def s_pirate_shout():
+    """해적의 외침 '야아르!'(거친 목소리)"""
+    d = 0.75
+    t = T(d)
+    f0 = np.interp(t, [0, 0.12, 0.4, d], [150, 195, 175, 120]) * (1 + 0.03 * np.sin(2 * np.pi * 6 * t))
+    a = voice(f0, [(np.interp(t, [0, 0.45, d], [760, 720, 520]), 150, 1.0), (np.interp(t, [0, 0.45, d], [1180, 1150, 1300]), 220, 0.7),
+                   (np.interp(t, [0, 0.45, d], [2500, 2400, 1700]), 400, 0.3)], d, 0.35, 351)
+    a *= 1 + 0.35 * np.sin(2 * np.pi * 32 * t)                     # 거친 떨림
+    a = np.tanh(a / (np.abs(a).max() + 1e-9) * 2.4)                 # 목이 쉰 느낌
+    env = adsr(d, 0.04, 0.22)
+    return level(reverb(lp(a * env, 3800), 0.45, 0.18), -15)
+
 SOUNDS = {
     # 화면 UI
     'ui_click': (s_ui_click, False, '버튼, 카드를 누를 때'),
@@ -654,6 +694,10 @@ SOUNDS = {
     'dig_dirt': (s_dig_dirt, False, '흙벽을 찍을 때(지하 파기 한 번)'),
     'ladder': (s_ladder, False, '사다리를 오르내릴 때(두 프레임에 한 번)'),
     'amb_underground': (s_amb_underground, True, '지하 배경(반복, 낮은 울림과 물방울)'),
+    # 18장: 해적의 지하 침입
+    'hatch_knock': (s_hatch_knock, False, '지하에서 듣는 굴 입구 두드림(해적이 뚜껑을 칠 때)'),
+    'hatch_break': (s_hatch_break, False, '굴 입구 뚜껑이 부서질 때'),
+    'pirate_shout': (s_pirate_shout, False, '해적이 지하로 내려와 주인공을 봤을 때의 외침'),
 }
 
 

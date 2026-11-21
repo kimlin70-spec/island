@@ -280,5 +280,23 @@
   "duration": 7.5,
   "loop": true,
   "note": "지하 배경(반복, 낮은 울림과 물방울)"
+ },
+ "hatch_knock": {
+  "file": "sfx/hatch_knock.wav",
+  "duration": 1.444,
+  "loop": false,
+  "note": "지하에서 듣는 굴 입구 두드림(해적이 뚜껑을 칠 때)"
+ },
+ "hatch_break": {
+  "file": "sfx/hatch_break.wav",
+  "duration": 1.319,
+  "loop": false,
+  "note": "굴 입구 뚜껑이 부서질 때"
+ },
+ "pirate_shout": {
+  "file": "sfx/pirate_shout.wav",
+  "duration": 1.096,
+  "loop": false,
+  "note": "해적이 지하로 내려와 주인공을 봤을 때의 외침"
  }
 }

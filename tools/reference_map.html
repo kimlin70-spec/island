@@ -15,7 +15,7 @@
 //          mode = day(낮 화면 예시) | night(밤 화면 예시) | full(섬 전체) | defense(2단계: 탑, 철조망, 화살과 총알)
 //                 | motion(움직임과 효과: manifest 의 anims 를 모두 만들어 틀고, 조각 효과를 흩뿌린다)
 //                 | farm(3단계: 문, 밭, 동물)  &weather=rain | snow 를 붙이면 비, 눈. 화면을 누르면 효과음이 난다
-//                 | underground(17장: 지하. 안 판 칸을 누르면 파고, 사다리를 누르면 오르내린다)
+//                 | underground(17장: 지하. 안 판 칸을 누르면 파고, 사다리를 누르면 오르내린다)  &raid=1 을 붙이면 18장(해적이 내려옴)
 // 바닥 그림 깔기, 좌표 변환, 겹침 순서, 울타리 연결, 밤의 '빛 지도'를 어떻게 하는지 보여 준다.
 // 게임 코드는 이 파일을 늘려 가지 말고 DEMO_SPEC.md 2장의 구성대로 새로 짠다.
 const HW = 40, HH = 20;
@@ -31,6 +31,7 @@ const Q = new URLSearchParams(location.search);
 const MODE = Q.get('mode') || 'day';
 const DEF = MODE === 'defense', MOTION = MODE === 'motion', FARM = MODE === 'farm', UGM = MODE === 'underground';
 const WEATHER = Q.get('weather') || 'clear';
+const RAID = MODE === 'underground' && Q.get('raid') === '1';   // 18장: 밤에 해적이 굴 입구를 부수고 내려온다
 const NIGHT = MODE === 'night' || DEF || UGM, FULL = MODE === 'full';
 // 포탑 방향 번호: 땅 위의 방향 = 화면 방향에서 세로를 2배로 편 각도. 16등분해서 가장 가까운 번호.
 function turretIndex(x, y, tx, ty, n) {
@@ -423,8 +424,10 @@ class Game extends Phaser.Scene {
     LIGHTS.push({ x: fire.x + fl[0], y: fire.y + fl[1], r: 300, color: 0xffedc7, alpha: 1 });
     LIGHTS.push({ x: lamp.x + lp[0], y: lamp.y + lp[1], r: 210, color: 0xffedc7, alpha: 0.9 });
     const sh = A.glow_shaft;
-    this.add.image(ladder.x, ladder.y, 'glow_shaft').setOrigin(sh.originX, sh.originY).setBlendMode(Phaser.BlendModes.ADD).setAlpha(0.55).setDepth(ladder.depth + 1);
-    LIGHTS.push({ x: ladder.x, y: ladder.y, r: 170, color: 0xfff7e0, alpha: 0.9 }, { x: ladder.x, y: ladder.y - 130, r: 120, color: 0xfff7e0, alpha: 0.7 });
+    if (!RAID) {                                                                  // 낮: 입구의 햇빛(밤에는 없다)
+      this.add.image(ladder.x, ladder.y, 'glow_shaft').setOrigin(sh.originX, sh.originY).setBlendMode(Phaser.BlendModes.ADD).setAlpha(0.55).setDepth(ladder.depth + 1);
+      LIGHTS.push({ x: ladder.x, y: ladder.y, r: 170, color: 0xfff7e0, alpha: 0.9 }, { x: ladder.x, y: ladder.y - 130, r: 120, color: 0xfff7e0, alpha: 0.7 });
+    }
     LIGHTS.push({ x: p.x, y: p.y - 24, r: 150, color: 0xebf0ff, alpha: 0.6, follow: p });
     const cam = this.cameras.main, c0 = tileToWorld(14, 14);
     cam.centerOn(c0.x, c0.y - 40);
@@ -518,9 +521,94 @@ class Game extends Phaser.Scene {
       }
       window.__faded = faded;
     });
+    if (RAID) this.raidDemo(A, ladder, p, put, say);
     const amb = () => this.sound.play('sfx_amb_underground', { loop: true, volume: 0.6 });   // 지하 배경 소리(처음 누를 때 브라우저가 허락)
     if (this.sound.locked) this.sound.once('unlocked', amb); else amb();
     this.time.delayedCall(400, () => { window.__ready = true; });
+  }
+
+  // ---------------------------------------------------------------- 18장 확인: 해적이 굴 입구를 부수고 사다리로 내려와 다가온다
+  raidDemo(A, ladder, p, put, say) {
+    window.__raid = { knocks: 0, broken: false, down: [], lanterns: 0 };
+    const top = ladder.y - 150;                                         // 사다리 구멍(이 높이에서 나타나 내려온다)
+    const alert = put('fx_emote', 13, 13, 'alert', 50000).setPosition(ladder.x, top).setVisible(false);
+    const fall = (n, kinds) => {                                        // 구멍에서 떨어지는 흙과 나무 부스러기(fx_particles)
+      for (let i = 0; i < n; i++) {
+        const s = this.add.image(ladder.x + Phaser.Math.Between(-22, 22), top, 'fx_particles', A.fx_particles.frames.indexOf(kinds[i % kinds.length]))
+          .setDepth(ladder.depth + 2);
+        this.tweens.add({ targets: s, y: ladder.y + Phaser.Math.Between(-4, 12), x: s.x + Phaser.Math.Between(-8, 8), duration: Phaser.Math.Between(420, 640),
+          delay: Phaser.Math.Between(0, 260), ease: 'Quad.easeIn', onComplete: () => this.tweens.add({ targets: s, alpha: 0, duration: 400, onComplete: () => s.destroy() }) });
+      }
+    };
+    const knock = () => {
+      window.__raid.knocks++;
+      alert.setVisible(true);
+      this.sfx('hatch_knock');
+      this.cameras.main.shake(120, 0.003);
+      fall(3, ['dirt', 'dust']);
+      say('해적이 굴 입구를 부수고 있습니다 (' + window.__raid.knocks + ')');
+    };
+    [900, 1700, 2500].forEach(t => this.time.delayedCall(t, knock));
+    this.time.delayedCall(3300, () => {                                 // 부서짐: 부스러기 + 달빛
+      window.__raid.broken = true;
+      this.sfx('hatch_break');
+      this.cameras.main.shake(200, 0.006);
+      fall(12, ['wood1', 'wood2', 'dirt', 'dust']);
+      const sh = A.glow_shaft;
+      this.add.image(ladder.x, ladder.y, 'glow_shaft').setOrigin(sh.originX, sh.originY).setBlendMode(Phaser.BlendModes.ADD)
+        .setTint(0x9fb4ff).setAlpha(0.3).setDepth(ladder.depth + 1);
+      LIGHTS.push({ x: ladder.x, y: ladder.y, r: 120, color: 0x9fb4ff, alpha: 0.4 }, { x: ladder.x, y: ladder.y - 120, r: 90, color: 0x9fb4ff, alpha: 0.3 });
+      say('해적이 내려옵니다!');
+    });
+    const pirates = [];
+    const descend = (key, at, spot) => this.time.delayedCall(at, () => {
+      const v = A[key];
+      const pr = this.add.sprite(ladder.x, top, key, v.frames.indexOf('climb1')).setOrigin(v.originX, v.originY).setDepth(ladder.depth + 1).play(key + ':climb');
+      const lan = this.add.sprite(pr.x, pr.y, 'fx_pirate_lantern').setOrigin(A.fx_pirate_lantern.originX, A.fx_pirate_lantern.originY).play('fx_pirate_lantern:flicker');
+      const light = { x: pr.x, y: pr.y, r: 140, color: 0xffdba0, alpha: 0.85 };
+      LIGHTS.push(light);
+      pirates.push({ pr, lan, light, key, state: 'climb' });
+      window.__raid.lanterns++;
+      const step = this.time.addEvent({ delay: 400, repeat: 1, callback: () => this.sfx('ladder') });
+      this.tweens.add({ targets: pr, y: ladder.y, duration: 800, onComplete: () => {                 // 사다리 칸에 내려선 뒤 빈 칸으로 비킨다
+        const w = tileToWorld(spot[0], spot[1]);
+        pr.setPosition(w.x, w.y).setDepth(10 + w.y).play(key + ':idle');
+        const me = pirates.find(o => o.pr === pr);
+        me.state = 'chase';
+        if (window.__raid.down.length === 0) this.sfx('pirate_shout');
+        window.__raid.down.push(key);
+        step.remove();
+      } });
+    });
+    descend('char_pirate_1', 3900, [13.3, 13.7]);
+    descend('char_pirate_2', 5500, [13.7, 13.3]);
+    descend('char_pirate_3', 7100, [13.4, 13.4]);
+    // 따라가기(보기용: 곧장 걸어간다. 게임에서는 지하의 길찾기를 쓴다). 등불은 기준점 + lantern(앞 f / 뒤 b, 뒤집으면 x 반대)
+    this.events.on('update', (time, delta) => {
+      for (const o of pirates) {
+        const { pr, lan, light, key } = o, v = A[key];
+        if (o.state === 'chase') {
+          const dx = p.x - pr.x, dy = p.y - pr.y, dist = Math.hypot(dx, dy * 2);
+          const stopAt = key === 'char_pirate_3' ? 260 : 70;
+          const back = dy < 0;
+          if (dist > stopAt) {
+            const sp = 1.8 * 44.7 * delta / 1000;                                   // 초당 1.8칸
+            pr.x += dx / dist * sp; pr.y += dy / dist * sp; pr.setDepth(10 + pr.y).setFlipX(dx < 0);
+            const a = key + ':' + (back ? 'bwalk' : 'walk');
+            if (pr.anims.currentAnim?.key !== a) pr.play(a);
+          } else {
+            const a = key + ':' + (key === 'char_pirate_3' ? 'aim' : back ? 'battack' : 'attack');
+            pr.setFlipX(dx < 0);
+            if (pr.anims.currentAnim?.key !== a || !pr.anims.isPlaying) pr.play(a);
+          }
+        }
+        const fname = v.frames[+pr.frame.name];
+        const hook = v.lantern[(fname.startsWith('b') || fname.startsWith('climb')) ? 'b' : 'f'];
+        lan.setPosition(pr.x + (pr.flipX ? -hook[0] : hook[0]), pr.y + hook[1]).setDepth(pr.depth + 0.1);
+        lan.setAngle(o.state === 'chase' ? 6 * Math.sin(time / 160) : 0);                // 걸을 때 살짝 흔들림
+        light.x = lan.x; light.y = lan.y + 12;
+      }
+    });
   }
 
   update() {

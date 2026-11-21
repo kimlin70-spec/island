@@ -2482,7 +2482,8 @@ def _frame_ring(k_out, k_in, z, key, key_d):
 
 
 def burrow(state='closed'):
-    """굴 입구(땅 위). 흙더미 둘레 + 나무 틀 + 뚜껑. open 이면 뚜껑이 뒤로 젖혀지고 사다리 끝이 보인다."""
+    """굴 입구(땅 위). 흙더미 둘레 + 나무 틀 + 뚜껑. open 이면 뚜껑이 뒤로 젖혀지고 사다리 끝이 보인다.
+    18장: damaged = 해적이 찍어 금이 가고 구멍이 남, broken = 뚜껑이 부서져 구멍이 열림."""
     out = [S(4, 6, 62, 22, 4)]
     rng = random.Random(5)
     for k in range(14):                                   # 파낸 흙더미
@@ -2493,7 +2494,7 @@ def burrow(state='closed'):
             out.append(E(cx, cy - 3, rng.uniform(16, 21), rng.uniform(8, 11), rng.choice(('earth', 'earth_l'))))
     out.append(P(_square(0.4, 0.08, 3), 'earth_d'))
     out += _frame_ring(0.33, 0.23, 4, 'wood_l', 'wood')
-    if state == 'closed':
+    if state in ('closed', 'damaged'):
         lid = [iso(-0.23, -0.23, 5), iso(0.23, -0.23, 5), iso(0.23, 0.23, 5), iso(-0.23, 0.23, 5)]
         out.append(P(lid, 'wood'))
         for f in (-0.115, 0.0, 0.115):
@@ -2502,6 +2503,44 @@ def burrow(state='closed'):
         out.append(L([iso(0.17, -0.2, 5), iso(0.17, 0.2, 5)], 3.2, 'wood_d'))
         rx, ry = iso(0.05, 0.12, 6)
         out += [E(rx, ry, 6, 3.4, 'metal_d'), E(rx, ry - 0.6, 3.6, 1.8, 'wood')]
+        if state == 'damaged':                            # 18장: 해적이 찍은 자국 + 깨진 구멍
+            hole = [iso(x, y, 5) for x, y in ((-0.02, -0.16), (0.07, -0.2), (0.12, -0.11), (0.16, -0.05), (0.1, 0.02),
+                                               (0.13, 0.08), (0.03, 0.05), (-0.04, 0.09), (-0.07, -0.01), (-0.12, -0.06))]
+            out.append(P([(x + 1, y + 2) for x, y in hole], 'wood_l'))
+            out.append(P(hole, 'cave'))
+            for (x0, y0), (x1, y1) in (((-0.02, -0.16), (-0.06, -0.24)), ((0.12, -0.11), (0.2, -0.15)), ((0.13, 0.08), (0.2, 0.14)),
+                                       ((-0.07, -0.01), (-0.16, 0.02)), ((0.03, 0.05), (0.02, 0.14))):
+                out.append(L([iso(x0, y0, 5), iso(x1, y1, 5)], 2.2, 'wood_l'))
+            for (x0, y0), (x1, y1) in (((-0.2, 0.06), (-0.1, 0.16)), ((-0.18, -0.12), (-0.08, -0.04)), ((0.15, 0.13), (0.2, 0.2))):
+                out.append(L([iso(x0, y0, 5.5), iso(x1, y1, 5.5)], 1.8, 'wood_d'))
+            for x, y, r in ((0.36, 0.1, 5), (-0.1, 0.38, 4), (0.3, -0.24, 4)):
+                cx, cy = iso(x, y, 2)
+                out.append(P([(cx - r, cy), (cx + r * 0.3, cy - r * 0.5), (cx + r, cy + 1), (cx - r * 0.2, cy + r * 0.5)], 'wood_l'))
+    elif state == 'broken':                               # 18장: 뚜껑이 부서져 구멍이 열림(사다리 끝이 보인다)
+        out.append(P([iso(-0.23, -0.23, 3), iso(0.23, -0.23, 3), iso(0.23, 0.23, 3), iso(-0.23, 0.23, 3)], 'cave'))
+        for x in (-0.12, 0.12):
+            out.append(L([iso(x, 0.1, 0), iso(x, 0.08, 26)], 4, 'wood_l'))
+        out.append(L([iso(-0.12, 0.09, 14), iso(0.12, 0.09, 14)], 3, 'wood'))
+        stubs = (((-0.23, -0.2), (-0.12, -0.17), (-0.16, -0.1), (-0.23, -0.11)),      # 틀에 남은 판자 조각
+                 ((0.23, 0.12), (0.1, 0.15), (0.14, 0.23), (0.23, 0.23)),
+                 ((-0.23, 0.12), (-0.1, 0.1), (-0.07, 0.18), (-0.23, 0.23)),
+                 ((0.08, -0.23), (0.18, -0.12), (0.23, -0.14), (0.23, -0.23)))
+        for st in stubs:
+            pts = [iso(x, y, 5) for x, y in st]
+            out.append(P([(x, y + 3) for x, y in pts], 'wood_d'))
+            out.append(P(pts, 'wood'))
+        rng2 = random.Random(18)
+        for x, y, ln, ang in ((0.42, 0.06, 26, 20), (-0.08, 0.44, 22, -35), (0.34, -0.3, 18, 60), (-0.36, 0.2, 16, 75), (0.18, 0.4, 12, 10)):
+            cx, cy = iso(x, y, 2)
+            a = math.radians(ang)
+            dx, dy = math.cos(a) * ln / 2, math.sin(a) * ln / 4
+            nx, ny = -math.sin(a) * 3.2, math.cos(a) * 1.6
+            pts = [(cx - dx - nx, cy - dy - ny), (cx + dx - nx, cy + dy - ny), (cx + dx + nx + rng2.uniform(-2, 2), cy + dy + ny), (cx - dx + nx, cy - dy + ny)]
+            out.append(P([(px_, py_ + 2) for px_, py_ in pts], 'wood_d'))
+            out.append(P(pts, 'wood_l'))
+        for x, y in ((0.3, 0.3), (-0.3, -0.05), (0.05, 0.36)):
+            cx, cy = iso(x, y, 1)
+            out.append(L([(cx - 4, cy - 1), (cx + 4, cy + 1)], 1.8, 'wood_l'))
     else:
         out.append(P([iso(-0.23, -0.23, 3), iso(0.23, -0.23, 3), iso(0.23, 0.23, 3), iso(-0.23, 0.23, 3)], 'cave'))
         for x in (-0.12, 0.12):                           # 사다리 끝
@@ -2854,3 +2893,39 @@ def survivor(name='idle'):
     body = [p for p in body if not ((p[0] == 'P' and p[2] in (K['pants'], K['pants_d'])) or (p[0] == 'E' and p[2] == K['shoe']))]
     legs = _bent_leg((-5, -17), (9, -17), (11, -3), K['pants_d'], K['shoe']) + _bent_leg((5, -17), (19, -16), (21, -3), K['pants'], K['shoe'])
     return body[:legs_at] + legs + body[legs_at:]
+
+
+
+# ================================================================== 18장: 해적의 지하 침입
+# 해적의 사다리 오르내리기(뒷모습). 선장·선원은 칼을 허리에 차서 손이 비고, 총잡이는 총을 등에 멘다.
+PPOSES.update(climb1=pose(view='b', legs=(-2, 14, 3, 0), bob=-3, near=168, far=150),
+              climb2=pose(view='b', legs=(-2, 0, 3, 14), bob=-3, near=150, far=168))
+GPOSES.update(climb1=pose(view='b', legs=(-2, 14, 3, 0), bob=-3, near=168, far=150, tool=('back', (12, -26), -126)),
+              climb2=pose(view='b', legs=(-2, 0, 3, 14), bob=-3, near=150, far=168, tool=('back', (12, -26), -126)))
+PIRATE_LANTERN_HOOK = {'f': (12, -24), 'b': (-12, -24)}     # 허리에 매단 등불의 고리 자리(마스터, 발 기준, 오른쪽을 볼 때)
+
+
+def pirate_lantern(frame='flicker1'):
+    """해적이 허리에 매다는 작은 등불. 기준점 = 위의 고리(여기에 매달아 흔든다)."""
+    k = {'flicker1': 1.0, 'flicker2': 0.78, 'flicker3': 1.18}[frame]
+    out = [E(0, 0, 2.6, 2.6, 'metal_d'), E(0, 0, 1.2, 1.2, 'ink'), L([(0, 2), (0, 7)], 1.6, 'metal_d')]
+    top, bot = 9, 30
+    out += [P([(-5, top), (5, top), (3, top - 3), (-3, top - 3)], 'metal_d'),
+            P([(-7, top + 1), (7, top + 1), (8, bot), (-8, bot)], 'lamp'),
+            P([(1, top + 2), (7, top + 1), (8, bot), (2, bot)], 'sun_d', op=0.35, soft=True)]
+    out += [E(0, bot - 9, 3.2 * k, 6.2 * k, 'fire_o'), E(0, bot - 8, 1.8 * k, 3.6 * k, 'fire_y')]
+    out += [L([(-7, top + 1), (-8, bot)], 2.2, 'ink'), L([(7, top + 1), (8, bot)], 2.2, 'ink'), L([(0, top + 1), (0, bot)], 1.0, 'ink', op=0.5),
+            L([(-8.5, bot), (8.5, bot)], 3, 'ink'), L([(-7.5, top + 1), (7.5, top + 1)], 2.6, 'ink'),
+            P([(-6, bot), (6, bot), (4, bot + 4), (-4, bot + 4)], 'metal_d')]
+    return out
+
+
+def icon_pirate():
+    """해적 알림 아이콘: 해골이 그려진 삼각 모자"""
+    hat = [(-46, 12), (-34, -10), (-16, -22), (0, -26), (16, -22), (34, -10), (46, 12), (24, 4), (0, 2), (-24, 4)]
+    out = [P([(x, y + 4) for x, y in hat], 'ink', op=0.5), P(hat, 'hat'), L([(-44, 11), (-24, 4), (0, 2), (24, 4), (44, 11)], 3.4, 'gold')]
+    sx, sy = 0, -10
+    out += [E(sx, sy, 9.5, 8.5, 'white'), P([(sx - 6, sy + 4), (sx + 6, sy + 4), (sx + 5, sy + 10), (sx - 5, sy + 10)], 'white'),
+            E(sx - 3.6, sy - 0.5, 2.6, 2.8, 'hat'), E(sx + 3.6, sy - 0.5, 2.6, 2.8, 'hat'), P([(sx, sy + 3), (sx - 1.4, sy + 5.6), (sx + 1.4, sy + 5.6)], 'hat'),
+            L([(sx - 16, sy + 16), (sx + 16, sy + 22)], 3.6, 'white'), L([(sx + 16, sy + 16), (sx - 16, sy + 22)], 3.6, 'white')]
+    return out

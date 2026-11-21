@@ -159,12 +159,14 @@ PIRATE_ANIMS = dict(
     idle=anim([('idle', 600), ('idle2', 600)], True), walk=walk('', 125), bwalk=walk('b', 125),
     attack=anim([('attack0', 220), ('attack', 90), ('attack2', 160)], hit='attack', swing='heavy'),
     battack=anim([('battack0', 220), ('battack', 160)], hit='battack', swing='bheavy'),
-    hurt=anim([('hurt', 200)]), die=anim([('die1', 150), ('die2', 140), ('die3', 700)]))
+    hurt=anim([('hurt', 200)]), die=anim([('die1', 150), ('die2', 140), ('die3', 700)]),
+    climb=anim([('climb1', 230), ('climb2', 230)], True))                               # 18장: 사다리
 GUNNER_ANIMS = dict(
     idle=anim([('idle', 600), ('idle2', 600)], True), walk=walk('', 125), bwalk=walk('b', 125),
     aim=anim([('aim', 600)]), shoot=anim([('shoot', 200)], hit='shoot'),
     reload=anim([('reload1', 400), ('reload2', 400), ('reload1', 400), ('reload2', 400)]),
-    hurt=anim([('hurt', 200)]), die=anim([('die1', 150), ('die2', 140), ('die3', 700)]))
+    hurt=anim([('hurt', 200)]), die=anim([('die1', 150), ('die2', 140), ('die3', 700)]),
+    climb=anim([('climb1', 230), ('climb2', 230)], True))
 
 
 def make_chars():
@@ -172,9 +174,10 @@ def make_chars():
           muzzle={p: px(A.survivor_muzzle(p)) for p in ('gun1', 'gun2', 'bgun1', 'bgun2')})
     sheet('chars', 'char_zombie', [A.zombie(p) for p in A.ZPOSES], list(A.ZPOSES), 'char', cols=10, anims=ZOMBIE_ANIMS)
     for v in (1, 2):
-        sheet('chars', f'char_pirate_{v}', [A.pirate(v, p) for p in A.PPOSES], list(A.PPOSES), 'char', cols=10, anims=PIRATE_ANIMS)
+        sheet('chars', f'char_pirate_{v}', [A.pirate(v, p) for p in A.PPOSES], list(A.PPOSES), 'char', cols=10, anims=PIRATE_ANIMS,
+              lantern={k: px(v2) for k, v2 in A.PIRATE_LANTERN_HOOK.items()})
     sheet('chars', 'char_pirate_3', [A.gunner(p) for p in A.GPOSES], list(A.GPOSES), 'char', cols=10, anims=GUNNER_ANIMS,
-          muzzle={p: px(A.gunner_muzzle(p)) for p in ('aim', 'shoot')})
+          muzzle={p: px(A.gunner_muzzle(p)) for p in ('aim', 'shoot')}, lantern={k: px(v2) for k, v2 in A.PIRATE_LANTERN_HOOK.items()})
 
 
 def make_motion_fx():
@@ -296,7 +299,7 @@ def make_underground():
     img, anchor = shaft_glow()
     save(img, 'fx', 'glow_shaft', anchor, 'light')
     # 지을 것(땅 위 굴 입구 + 지하 가구)
-    sheet('build', 'build_burrow', [A.burrow('closed'), A.burrow('open')], ['closed', 'open'], 'build')
+    sheet('build', 'build_burrow', [A.burrow(st) for st in ('closed', 'open', 'damaged', 'broken')], ['closed', 'open', 'damaged', 'broken'], 'build')
     sheet('build', 'build_bed', [A.bed('empty'), A.bed('sleep')], ['empty', 'sleep'], 'build', size=[2, 1])
     sheet('build', 'build_fireplace', [A.fireplace(f) for f in ('off', 'burn1', 'burn2', 'burn3')], ['off', 'burn1', 'burn2', 'burn3'],
           'build', wobble=0.5, anims={'burn': anim([('burn1', 140), ('burn2', 140), ('burn3', 140)], True)},
@@ -319,6 +322,17 @@ def make_underground():
         prims = A.fit(A.icon_ug(name), 94, enlarge=True)
         img, anchor = wc.sprite(prims, 'icon_' + name, box=box, keep_box=True)
         save(img, 'ui', 'icon_' + name, (img.width / 2, img.height / 2), 'icon')
+
+
+def make_raid():
+    """18장: 해적의 지하 침입(사다리 오르기 프레임은 make_chars, 굴 입구 damaged/broken 은 make_underground)"""
+    names = ['flicker1', 'flicker2', 'flicker3']
+    sheet('fx', 'fx_pirate_lantern', [A.pirate_lantern(n) for n in names], names, 'fx', pencil=0.8, wobble=0.6,
+          anims={'flicker': anim([('flicker1', 120), ('flicker2', 100), ('flicker3', 120), ('flicker2', 90)], True)},
+          note='기준점 = 위의 고리. 해적 기준점 + manifest 의 lantern(앞모습 f, 뒷모습 b)에 놓는다')
+    box = (-64, -64, 64, 64)
+    img, anchor = wc.sprite(A.fit(A.icon_pirate(), 94, enlarge=True), 'icon_pirate', box=box, keep_box=True)
+    save(img, 'ui', 'icon_pirate', (img.width / 2, img.height / 2), 'icon')
 
 
 def _wrap_draw(size, draw_one, items):
@@ -466,6 +480,7 @@ def main():
     make_motion_fx()
     make_stage3()
     make_underground()
+    make_raid()
     ground = json.load(open(os.path.join(ASSETS, 'ground', 'ground.json'), encoding='utf-8'))
     meta = dict(tileWidth=LY.HW * 2, tileHeight=LY.HH * 2, viewWidth=LY.VIEW_W, viewHeight=LY.VIEW_H, ground=ground, turretDirections=A.TURRET_DIRS,
                 note='originX/originY = 그림에서 발이 닿는 점. 이 점을 칸 중심의 월드 좌표에 맞춘다.')

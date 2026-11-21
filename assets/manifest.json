@@ -1599,9 +1599,9 @@
   "char_pirate_1": {
    "file": "chars/char_pirate_1.png",
    "w": 1420,
-   "h": 242,
+   "h": 363,
    "originX": 0.5,
-   "originY": 0.6062,
+   "originY": 0.6082,
    "kind": "char",
    "frameWidth": 142,
    "frameHeight": 121,
@@ -1624,7 +1624,9 @@
     "bwalk3",
     "bwalk4",
     "battack0",
-    "battack"
+    "battack",
+    "climb1",
+    "climb2"
    ],
    "anims": {
     "idle": {
@@ -1741,13 +1743,36 @@
       ]
      ],
      "loop": false
+    },
+    "climb": {
+     "frames": [
+      [
+       "climb1",
+       230
+      ],
+      [
+       "climb2",
+       230
+      ]
+     ],
+     "loop": true
     }
+   },
+   "lantern": {
+    "f": [
+     7.5,
+     -15.0
+    ],
+    "b": [
+     -7.5,
+     -15.0
+    ]
    }
   },
   "char_pirate_2": {
    "file": "chars/char_pirate_2.png",
    "w": 1300,
-   "h": 232,
+   "h": 348,
    "originX": 0.5,
    "originY": 0.6162,
    "kind": "char",
@@ -1772,7 +1797,9 @@
     "bwalk3",
     "bwalk4",
     "battack0",
-    "battack"
+    "battack",
+    "climb1",
+    "climb2"
    ],
    "anims": {
     "idle": {
@@ -1889,7 +1916,30 @@
       ]
      ],
      "loop": false
+    },
+    "climb": {
+     "frames": [
+      [
+       "climb1",
+       230
+      ],
+      [
+       "climb2",
+       230
+      ]
+     ],
+     "loop": true
     }
+   },
+   "lantern": {
+    "f": [
+     7.5,
+     -15.0
+    ],
+    "b": [
+     -7.5,
+     -15.0
+    ]
    }
   },
   "char_pirate_3": {
@@ -1919,7 +1969,9 @@
     "bwalk1",
     "bwalk2",
     "bwalk3",
-    "bwalk4"
+    "bwalk4",
+    "climb1",
+    "climb2"
    ],
    "anims": {
     "idle": {
@@ -2042,6 +2094,19 @@
       ]
      ],
      "loop": false
+    },
+    "climb": {
+     "frames": [
+      [
+       "climb1",
+       230
+      ],
+      [
+       "climb2",
+       230
+      ]
+     ],
+     "loop": true
     }
    },
    "muzzle": {
@@ -2052,6 +2117,16 @@
     "shoot": [
      51.1,
      -47.1
+    ]
+   },
+   "lantern": {
+    "f": [
+     7.5,
+     -15.0
+    ],
+    "b": [
+     -7.5,
+     -15.0
     ]
    }
   },
@@ -3863,7 +3938,7 @@
   },
   "build_burrow": {
    "file": "build/build_burrow.png",
-   "w": 196,
+   "w": 392,
    "h": 100,
    "originX": 0.5,
    "originY": 0.5,
@@ -3872,7 +3947,9 @@
    "frameHeight": 100,
    "frames": [
     "closed",
-    "open"
+    "open",
+    "damaged",
+    "broken"
    ]
   },
   "build_bed": {
@@ -4145,6 +4222,53 @@
   },
   "icon_lock": {
    "file": "ui/icon_lock.png",
+   "w": 80,
+   "h": 80,
+   "originX": 0.5,
+   "originY": 0.5,
+   "kind": "icon"
+  },
+  "fx_pirate_lantern": {
+   "file": "fx/fx_pirate_lantern.png",
+   "w": 90,
+   "h": 38,
+   "originX": 0.5,
+   "originY": 0.2459,
+   "kind": "fx",
+   "frameWidth": 30,
+   "frameHeight": 38,
+   "frames": [
+    "flicker1",
+    "flicker2",
+    "flicker3"
+   ],
+   "anims": {
+    "flicker": {
+     "frames": [
+      [
+       "flicker1",
+       120
+      ],
+      [
+       "flicker2",
+       100
+      ],
+      [
+       "flicker3",
+       120
+      ],
+      [
+       "flicker2",
+       90
+      ]
+     ],
+     "loop": true
+    }
+   },
+   "note": "기준점 = 위의 고리. 해적 기준점 + manifest 의 lantern(앞모습 f, 뒷모습 b)에 놓는다"
+  },
+  "icon_pirate": {
+   "file": "ui/icon_pirate.png",
    "w": 80,
    "h": 80,
    "originX": 0.5,
@@ -4434,6 +4558,24 @@
    "duration": 7.5,
    "loop": true,
    "note": "지하 배경(반복, 낮은 울림과 물방울)"
+  },
+  "hatch_knock": {
+   "file": "sfx/hatch_knock.wav",
+   "duration": 1.444,
+   "loop": false,
+   "note": "지하에서 듣는 굴 입구 두드림(해적이 뚜껑을 칠 때)"
+  },
+  "hatch_break": {
+   "file": "sfx/hatch_break.wav",
+   "duration": 1.319,
+   "loop": false,
+   "note": "굴 입구 뚜껑이 부서질 때"
+  },
+  "pirate_shout": {
+   "file": "sfx/pirate_shout.wav",
+   "duration": 1.096,
+   "loop": false,
+   "note": "해적이 지하로 내려와 주인공을 봤을 때의 외침"
   }
  }
 }

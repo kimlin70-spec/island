@@ -162,6 +162,11 @@ def main():
                     q3.append(n)
         if len(room) < 9:
             bad(f'{F["name"]}: 사다리가 있는 처음 방이 3x3보다 작음')
+    for k in ('char_pirate_1', 'char_pirate_2', 'char_pirate_3'):         # 18장: 해적의 사다리, 허리 등불 자리
+        if 'climb' not in A[k].get('anims', {}) or set(A[k].get('lantern', {})) != {'f', 'b'}:
+            bad(f'{k}: climb 애니메이션이나 lantern(f, b) 값이 없음')
+    if A['build_burrow']['frames'][:4] != ['closed', 'open', 'damaged', 'broken']:
+        bad('build_burrow 프레임 순서가 closed, open, damaged, broken 이 아님')
     for side in 'lr':                                                    # 지하 벽 조각이 종류별로 다 있는지
         for kind in ('a', 'b', 'iron', 'mush'):
             if f'ug_wall_{side}_{kind}' not in A:
