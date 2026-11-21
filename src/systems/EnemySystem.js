@@ -33,6 +33,7 @@ export class EnemySystem {
       if (e.under) {
         if (s.ug.active) return { tiles: [s.player.here()], structure: null };
         const t = s.ug.floor.entry;
+        if (!R.burrow) return { tiles: [{ col: t.col, row: t.row }], structure: null, wander: true };   // 굴 입구가 없어졌다: 아침까지 지하에서 서성인다
         return { tiles: [{ col: t.col, row: t.row }], structure: null, climb: 'up' };
       }
       const b = s.ug.active ? R.burrow : null;

@@ -88,6 +88,7 @@ export class UgHome {
     // 놓은 칸을 지나가던 길은 그 앞에서 멈춘다
     scene.player.onMapChanged();
     for (const q of scene.pets.list) q.onMapChanged();
+    scene.enemies.onMapChanged();                    // (지하 침입) 지하의 해적도 길을 다시 본다
     scene.events.emit('structures-changed');
     return f;
   }
@@ -117,6 +118,7 @@ export class UgHome {
     f.sprite.destroy();
     if (f.glow) f.glow.destroy();
     this.list.splice(this.list.indexOf(f), 1);
+    scene.enemies.onMapChanged();
     scene.events.emit('structures-changed');
   }
 

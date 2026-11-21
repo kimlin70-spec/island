@@ -206,6 +206,7 @@ export class Underground {
       cam.setBackgroundColor(CONFIG.screen.background);
       pl.sprite.setAlpha(1);
     }
+    pl.stopAction();                                // 하던 행동은 다른 층으로 가져가지 않는다
     pl.path.length = 0;
     pl.col = at.col; pl.row = at.row; pl.tile = { col: at.col, row: at.row };
     pl.syncSprite();

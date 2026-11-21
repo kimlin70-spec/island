@@ -62,6 +62,15 @@ export class Enemy extends Walker {
   // (해적의 지하 침입) 지하에 있는가. 지하의 해적은 걷는 지도(map)가 지하 격자다 (18.4)
   get under() { return this.yOff > 0; }
 
+  // (지하 침입) 해적이 서서 싸우지 않는 칸: 지하의 사다리 칸, 땅 위의 부서진 굴 입구 칸(오르내리는 자리. 비워 둔다, 18.3)
+  ladderTile(col, row) {
+    const s = this.scene, R = s.raid;
+    if (!R.isRaider(this)) return false;
+    if (this.under) { const e = s.ug.floor.entry; return col === e.col && row === e.row; }
+    const b = R.burrow;
+    return !!(b && b.broken && col === b.col && row === b.row);
+  }
+
   // 이 적을 막는 시설(그 칸의 시설. 부서진 굴 입구는 해적이 지나간다, 18.2)
   wallAt(col, row) {
     const s = this.map.structureAt(col, row);
@@ -118,6 +127,7 @@ export class Enemy extends Walker {
   inPlace(target) {
     const t = this.tile;
     if (target.climb) return this.onTarget(target);   // (지하 침입) 굴 입구 칸·사다리 칸에 올라선다
+    if (this.ladderTile(t.col, t.row)) return false;  // 사다리 칸에 서서 싸우지 않는다(비켜선다)
     if (!(this.ranged ? this.inRange(target) : this.nextTo(target)) || this.onTarget(target)) return false;
     return !this.system.takenTiles(this).has(t.col + ',' + t.row);
   }
@@ -129,7 +139,7 @@ export class Enemy extends Walker {
     for (const t of tiles) {
       for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
         const c = t.col + dc, r = t.row + dr, k = c + ',' + r;
-        if (seen.has(k) || !this.costAt(c, r)) continue;
+        if (seen.has(k) || !this.costAt(c, r) || this.ladderTile(c, r)) continue;
         seen.add(k);
         all.push({ col: c, row: r });
       }
@@ -281,7 +291,7 @@ export class Enemy extends Walker {
       if (blocker) this.smash(blocker, dt);
       else this.smashing = null;
       if (standing && this.onTarget(target)) this.scene.raid.tryClimb(this, target.climb);
-    } else if (this.ranged) {                               // 총잡이: 사거리 안에 서 있으면 쏜다. 시설에 막혔으면 부순다.
+    } else if (this.ranged && !target.wander) {                               // 총잡이: 사거리 안에 서 있으면 쏜다. 시설에 막혔으면 부순다.
       if (standing && this.inRange(target) && !this.onTarget(target)) {
         this.hitLeft = null;
         this.smashing = null;

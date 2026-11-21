@@ -151,7 +151,7 @@ export class Raid {
   // 지하로(down) / 땅 위로 옮긴다. 지하에서는 사다리 칸, 땅 위에서는 굴 입구 칸
   toLevel(e, down, phase) {
     const scene = this.scene, ug = scene.ug, b = this.burrow;
-    const at = down ? ug.floor.entry : (b ? { col: b.col, row: b.row } : e.tile);
+    const at = down ? ug.floor.entry : (b ? { col: b.col, row: b.row } : ug.surfaceTile());   // 굴 입구가 그사이 없어졌으면 주인공이 올라온 자리 곁
     e.map = down ? ug.grid : scene.map;
     e.yOff = down ? CONFIG.ug.offsetY : 0;
     e.col = at.col; e.row = at.row; e.tile = { col: at.col, row: at.row };

@@ -216,10 +216,10 @@ export class GameScene extends Phaser.Scene {
       chase: !(auto && this.hasGun),                  // 적이 움직이면 쫓아간다(총으로 저절로 쏘는 것은 그 자리에서만)
       ranged: this.hasGun ? G.range : 0,
       tool: () => (this.hasGun ? 'gun' : bestTool(this.tools, 'enemy')),
-      isValid: () => e.alive,
-      wait: () => e.rising,
+      isValid: () => e.alive && e.map === this.player.map,   // (지하 침입) 다른 층의 적은 치지 않는다
+      wait: () => e.rising || !!e.transit,
       strike: (tool) => {
-        if (!e.alive || e.rising) return false;
+        if (!e.alive || e.rising || e.transit || e.map !== this.player.map) return false;
         if (tool === 'gun') {
           if (!this.player.inRange(e, G.range)) return false;
           this.shootEnemy(e);
@@ -244,7 +244,8 @@ export class GameScene extends Phaser.Scene {
   // 들어갔으면 true.
   hurtPlayer(n, from) {
     if (this.rest.resting) return false;              // 텐트 안에서는 공격받지 않는다
-    if (this.ug.active && !(from && from.under)) return false;   // 지하에서는 지하로 내려온 해적에게만 (18.4)
+    if (from && !!from.under !== this.ug.active) return false;   // 다른 층의 적에게는 맞지 않는다(지하에서는 내려온 해적에게만, 18.4)
+    if (this.ug.active && !from) return false;
     this.home.standUp();                              // 의자에 앉아 있었으면 일어난다
     if (this.player.downed) return false;             // 이미 쓰러졌다(같은 프레임에 여러 마리가 때린 경우도)
     this.hearts.damage(n);
@@ -580,7 +581,7 @@ export class GameScene extends Phaser.Scene {
     if (pl.downed && pl.downLeft <= 0 && this.scene.isActive()) this.stopGame('down');
     // 가만히 서 있을 때 붙은 칸에 적이 오면 자동으로 공격한다 (5.9). 총이 있으면 사거리 안에서 가장 가까운 적을 쏜다 (11.6)
     // (지하 침입) 지하에서도 그 층의 적(내려온 해적)에게
-    if (!this.rest.resting && !this.home.bed && !pl.seat && !pl.downed && !pl.moving && !pl.action && !pl.swing) {
+    if (!this.rest.resting && !this.home.bed && !pl.seat && !pl.held && !this.ug.busy && !pl.downed && !pl.moving && !pl.action && !pl.swing) {
       const e = this.hasGun ? this.enemies.nearestTo(pl.tile, CONFIG.tools.gun.range, pl.map) : this.enemies.nextTo(pl.tile, pl.map);
       if (e) this.pressEnemy(e, true);
     }
