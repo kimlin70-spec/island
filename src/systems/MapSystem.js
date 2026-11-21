@@ -1,6 +1,6 @@
 import { CONFIG } from '../config.js';
 import { hitLevel } from './Pick.js';
-import { tileToWorld } from '../iso.js';
+import { tileToWorld, worldToTile } from '../iso.js';
 
 // 지도: 바닥 그림과 사물을 그리고, "지나갈 수 있는 칸"을 알려 준다.
 export class MapSystem {
@@ -127,15 +127,18 @@ export class MapSystem {
   // 탑은 받침과 포탑 두 그림을 모두 본다(포탑을 눌러도 그 탑).
   // (사용자 요청) 정확히 맞은 것(depth 가 큰 것부터)이 없으면 가까운 것(진한 곳에서 input.pickPad 안). 울타리와 철조망은 정확히 맞은 것만
   // (울타리 칸은 걸어갈 수 없어서, 울타리 곁의 땅을 누른 것을 울타리로 잡으면 걷지 못한다)
+  // 가까운 것은 누른 칸이 그 사물의 칸이거나 걸어갈 수 없는 칸일 때만(빈 땅을 누르면 늘 그 땅으로 걸어간다)
   pickObject(x, y, list = [...this.objects, ...this.structures]) {
     let exact = null, close = null;
+    const t = worldToTile(x, y), freeGround = this.isWalkable(t.col, t.row);
+    const own = (o) => (o.tiles || [o]).some((q) => q.col === t.col && q.row === t.row);
     for (const o of list) {
       if (!o.pickable) continue;
       const thin = o.type === 'fence' || o.type === 'wire' || o.type === 'gate';
       for (const s of o.turret ? [o.sprite, o.turret] : [o.sprite]) {
         const lv = hitLevel(this.scene, s, x, y, thin ? CONFIG.input.pickAlphaFence : CONFIG.input.pickAlpha, o.type !== 'fence' && o.type !== 'wire');
         if (lv === 2 && (!exact || s.depth > exact.d)) exact = { o, d: s.depth };
-        if (lv === 1 && (!close || s.depth > close.d)) close = { o, d: s.depth };
+        if (lv === 1 && (!freeGround || own(o)) && (!close || s.depth > close.d)) close = { o, d: s.depth };
       }
     }
     return exact ? exact.o : close ? close.o : null;

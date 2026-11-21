@@ -268,14 +268,18 @@ export class Underground {
   // 벽·덮개는 정확히 맞은 것만(벽 옆 바닥을 누른 것을 벽으로 잡지 않게)
   pick(x, y) {
     let exact = null, close = null;
-    const test = (img, v, near) => {
+    // 가까운 것은 누른 칸이 그것의 칸이거나 설 수 없는 칸일 때만(빈 바닥을 누르면 늘 그 바닥으로 걸어간다)
+    const t = this.tileAt(x, y), freeFloor = this.standable(t.col, t.row);
+    const test = (img, v, near, tiles = []) => {
       const lv = hitLevel(this.scene, img, x, y, CONFIG.input.pickAlpha, near);
       if (lv === 2 && (!exact || img.depth > exact.d)) exact = { d: img.depth, v, img };
-      if (lv === 1 && (!close || img.depth > close.d)) close = { d: img.depth, v, img };
+      const own = tiles.some((q) => q.col === t.col && q.row === t.row);
+      if (lv === 1 && (!freeFloor || own) && (!close || img.depth > close.d)) close = { d: img.depth, v, img };
     };
-    for (const f of this.scene.home.list) if (f.type !== 'rug') test(f.sprite, { furniture: f }, true);
-    if (this.ladder) test(this.ladder, 'ladder', true);
-    if (this.hole) test(this.hole, 'hole', true);
+    const F = this.floor;
+    for (const f of this.scene.home.list) if (f.type !== 'rug') test(f.sprite, { furniture: f }, true, f.tiles);
+    if (this.ladder) test(this.ladder, 'ladder', true, [F.entry]);
+    if (this.hole) test(this.hole, 'hole', true, [F.sealedHole]);
     for (const p of this.pieces) if (p.target) test(p.img, { col: p.target[0], row: p.target[1] }, false);
     const best = close && (!exact || close.d > exact.d) ? close : exact;
     this.picked = best ? best.img : null;
