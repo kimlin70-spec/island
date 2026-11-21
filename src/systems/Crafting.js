@@ -18,8 +18,8 @@ const BURROW   = { id: 'burrow',   type: 'build',  icon: 'icon_burrow' };   // (
 // (지하) 지하 가구 (17.6). 지하에서 만들기 창을 열면 시설 카드 대신 이 카드들
 const UG_CARDS = ['bed', 'fireplace', 'lantern', 'planter', 'table', 'stool', 'rug', 'chest'].map((id) => ({ id, type: 'build', icon: 'icon_' + id }));
 const REMOVE   = { id: 'remove',   type: 'remove', icon: 'icon_remove', name: '치우기', note: '절반 돌려받음' };
-// 1단계: 6장 한 줄
-export const CARDS = [AXE, PICKAXE, FENCE, CAMPFIRE, TENT, REMOVE];
+// 1단계: 한 줄. (사용자 요청) 망루를 1단계부터 지을 수 있다(문서 11.3 은 2단계부터). 그래서 6장 -> 7장
+export const CARDS = [AXE, PICKAXE, FENCE, CAMPFIRE, TENT, WATCH, REMOVE];
 // 2단계: 10장 두 줄(11.3). (3단계, 사용자와 정함) 셋째 줄에 문. 농사 카드(Phase 12)도 셋째 줄에 더한다
 export const CARDS2 = [AXE, PICKAXE, GUN, FENCE, WIRE, CAMPFIRE, TENT, WATCH, GUNTOWER, REMOVE, GATE, HOE, CAN, BURROW];
 // tools: 가진 도구. 괭이가 있으면 밭 갈기 카드가 셋째 줄 끝에 생긴다(13.3)
