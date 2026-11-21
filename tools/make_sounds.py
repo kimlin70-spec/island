@@ -638,6 +638,32 @@ def s_pirate_shout():
     env = adsr(d, 0.04, 0.22)
     return level(reverb(lp(a * env, 3800), 0.45, 0.18), -15)
 
+
+# ---- 19장: 지하 꾸미기
+def s_floor_place():
+    """바닥재·벽판을 댈 때: 나무망치로 톡톡 두 번 + 판자 덜그럭"""
+    def tap(seed, k):
+        body = partials(330 * k, 0.16, (1, 2.2, 3.4), (0.06, 0.035, 0.02), (1.0, 0.45, 0.25))
+        click = bp(noise(0.012, seed), 1200, 5000) * dec(0.012, 0.003)
+        return mix(0.16, (0, body, 0.9), (0, click, 0.6))
+    rattle = grains(0.18, 7, 0.15, 500, 2200, (0.004, 0.012), seed=361)
+    return level(reverb(mix(0.5, (0, tap(362, 1.0), 1), (0.17, tap(363, 1.08), 0.85), (0.05, rattle, 0.35)), 0.3, 0.12), -17)
+
+
+def s_loot_pickup():
+    """전리품을 주울 때: 짤랑이는 금화 + 반짝이는 종소리"""
+    d = 0.9
+    rng = np.random.default_rng(371)
+    parts = []
+    for i in range(9):
+        at = 0.02 + i * 0.045 + rng.uniform(0, 0.02)
+        f = rng.uniform(2600, 4200)
+        ping = partials(f, 0.18, (1, 1.48, 2.11), (0.05, 0.03, 0.02), (1.0, 0.5, 0.3))
+        parts.append((at, ping, 0.35 * (1 - i / 12)))
+    chime = mix(0.6, (0, partials(1568, 0.6, (1, 2.0, 3.0), (0.35, 0.2, 0.1), (1, 0.35, 0.15)), 0.5),
+                (0.09, partials(2093, 0.5, (1, 2.0), (0.3, 0.15), (1, 0.3)), 0.45))
+    return level(reverb(mix(d, *parts, (0.12, chime, 0.8)), 0.6, 0.25), -17)
+
 SOUNDS = {
     # 화면 UI
     'ui_click': (s_ui_click, False, '버튼, 카드를 누를 때'),
@@ -698,6 +724,9 @@ SOUNDS = {
     'hatch_knock': (s_hatch_knock, False, '지하에서 듣는 굴 입구 두드림(해적이 뚜껑을 칠 때)'),
     'hatch_break': (s_hatch_break, False, '굴 입구 뚜껑이 부서질 때'),
     'pirate_shout': (s_pirate_shout, False, '해적이 지하로 내려와 주인공을 봤을 때의 외침'),
+    # 19장: 지하 꾸미기
+    'floor_place': (s_floor_place, False, '바닥재·벽판·벽 장식을 댈 때(나무망치 톡톡)'),
+    'loot_pickup': (s_loot_pickup, False, '해적 전리품을 주울 때(짤랑 + 반짝)'),
 }
 
 

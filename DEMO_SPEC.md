@@ -1,4 +1,4 @@
-# 섬 생존 프로토타입 — 개발 지시문 (1단계: 첫날과 첫 밤 · 2단계: 철과 방어 시설 · 다듬기 · 3단계: 문, 농사, 반려동물 · 날씨 · 효과음 · 배고픔 · 지하 생활 · 해적의 지하 침입)
+# 섬 생존 프로토타입 — 개발 지시문 (1단계: 첫날과 첫 밤 · 2단계: 철과 방어 시설 · 다듬기 · 3단계: 문, 농사, 반려동물 · 날씨 · 효과음 · 배고픔 · 지하 생활 · 해적의 지하 침입 · 지하 꾸미기)
 
 이 문서는 Claude Code가 읽고 그대로 만드는 기준 문서다. 그림(`assets/`)과 맵(`data/map.json`)은 이미 들어 있다.
 
@@ -10,10 +10,11 @@
 - **다듬기 (Phase 10, 12장)**: 게임 규칙은 그대로 두고 움직임과 타격감을 자연스럽게 한다. 걷기 4장, 뒷모습, 숨쉬기와 눈 깜빡임, 휘두르기 3장, 맞기·쓰러지기·땅에서 올라오기, 휘두른 궤적, 맞은 곳의 번쩍임, 나무 조각과 잎, 먼지 등. Phase 5 이후 아무 때나 할 수 있다.
 - **3단계 (Phase 11~13, 13장)**: 울타리에 문을 달고, 괭이로 밭을 갈아 당근·옥수수·호박을 기르고, 강아지와 고양이를 친구로 삼는다. 1단계를 끝낸 뒤 사용자가 원할 때 한다(2단계와 순서는 상관없다).
 - **날씨 (Phase 14, 14장)**: 비와 눈. 비가 오면 밭에 물이 저절로 차고, 눈이 오면 땅이 하얗게 덮이고 작물이 자라지 않는다.
-- **효과음 (Phase 15, 15장)**: 타격음, 밤과 아침이 될 때의 소리, 농사와 동물 소리, 비와 바람, 낮과 밤의 배경 소리(44개, 지하 생활의 소리 3개는 17장). Phase 5 이후 아무 때나 할 수 있다.
+- **효과음 (Phase 15, 15장)**: 타격음, 밤과 아침이 될 때의 소리, 농사와 동물 소리, 비와 바람, 낮과 밤의 배경 소리(44개. 지하 생활의 소리 3개는 17장, 해적의 지하 침입 3개는 18장, 지하 꾸미기 2개는 19장). Phase 5 이후 아무 때나 할 수 있다.
 - **배고픔 (Phase 16, 16장)**: 배부름이 천천히 줄고, 덤불 열매와 작물을 먹어 채운다. 다 떨어지면 하트가 줄어든다. 설정에서 끌 수 있다. Phase 5 이후 아무 때나(농사와 함께 하면 좋다).
 - **지하 생활 (Phase 17~18, 17장)**: 굴 입구를 짓고 땅속으로 내려가 곡괭이로 한 칸씩 파서 방을 넓힌다(돌, 철, 버섯 포자). 침대, 벽난로, 등불, 버섯 화분 같은 가구를 놓고 산다. 지하에는 적이 오지 않지만 땅 위의 시간은 계속 흐른다. 1단계 뒤 사용자가 원할 때.
 - **해적의 지하 침입 (Phase 19, 18장)**: 주인공이 지하에 있는 밤에 상륙한 해적은 굴 입구 뚜껑을 부수고 사다리로 한 명씩 내려와 쫓아온다(지하에서 생기지는 않는다). 허리에 등불을 달고 온다. Phase 6과 Phase 17 다음.
+- **지하 꾸미기 (Phase 20, 19장)**: 파낸 칸에 나무 마루나 돌 바닥을 깔고, 방 안쪽 벽에 나무 벽판이나 회벽을 대고, 선반·벽 촛대·그림 액자를 단다. 해적을 쓰러뜨리면 가끔 전리품 꾸러미가 떨어져 양탄자, 해적 깃발, 배 키, 촛대 같은 것으로 집을 꾸민다. Phase 18 다음(전리품은 Phase 6 다음).
 - **게임 전체 구상(참고만 한다. 이번에 만들지 않는다)**: 낮은 안전하고 밤에만 좀비나 해적이 나온다. 낮에는 나무와 돌을 캐서 캠프를 짓는다. 주기적으로 배가 고파져서 농사, 낚시, 사냥을 해야 한다. 나중에는 닭과 젖소를 키워 계란과 우유를 얻는다.
 - **넣지 않는 것**: 스토리, 저장, 배경 음악, 제목 화면. 새로고침하면 처음부터 다시 시작한다. 자세한 목록은 10장.
 - **플레이 환경**: PC 브라우저(마우스)와 태블릿(터치). 가로 화면.
@@ -27,6 +28,7 @@
   - 배고픔: `preview_farm.png`의 하트 아래 밥그릇 줄
   - 해적의 지하 침입: `preview_raid_surface.png`(땅 위: 굴 입구 뚜껑을 부수는 중), `preview_raid_underground.png`(지하: 사다리로 내려오는 해적, 등불), `preview_raid.gif`
   - 지하 생활: `preview_underground.png` 지하 1층의 집(입구의 햇빛과 사다리, 벽난로, 침대, 버섯 화분, 철 광맥을 파는 중, 오른쪽 어둠 속의 막힌 구멍 굴) / `preview_underground.gif` 벽을 네 번 찍어 칸이 열리는 모습
+  - 지하 꾸미기: `preview_decor.png` 꾸민 집(`preview_underground.png`와 같은 자리: 마루와 돌 바닥, 회벽과 나무 벽판, 벽 장식, 양탄자, 촛불) / `preview_decor_ui.png` 꾸미기 탭을 열고 마루를 까는 중 / `preview_loot.png` 전리품 꾸러미 줍기
 - **참고 예시**: `tools/reference_map.html`은 3장의 규칙만으로 화면을 그리는 확인용 페이지다. 서버를 켜고 `http://localhost:8000/tools/reference_map.html?mode=day` (또는 `night`, `full`, `defense`)로 연다. Phaser 3.90에서 아래 네 가지가 되는 것을 확인했다. 좌표, 겹침, 밤 화면이 헷갈리면 이 파일을 본다. 다만 게임 코드는 이 파일을 늘려 가지 말고 2장의 구성대로 새로 짠다.
   - 바닥 그림 조각 사이에 줄이 보이지 않는다(카메라가 소수 좌표에 있거나 확대·축소해도).
   - 누른 곳 → 칸 변환이 맞는다(1920×1200, 1366×768, 1024×768 터치).
@@ -35,7 +37,8 @@
   - (`mode=motion`) manifest의 `anims` 55개가 빠진 프레임 없이 Phaser 애니메이션으로 만들어지고, 프레임마다 정한 시간대로 돈다. `fx_particles`로 Phaser 파티클이 나온다.
   - (`mode=farm`, `&weather=rain`, `&weather=snow`) 문(울타리와 이어짐, 열고 닫힘), 밭과 작물, 동물, 비와 눈(이어 붙인 무늬, 눈 덮인 바닥 겹치기), 효과음 불러오기.
   - (`mode=underground`) 지하(17장): 조각 고르기와 겹침, 벽·덮개·앞쪽 어둠을 눌러 파기(금 → 칸이 열리고 벽이 다시 이어짐), 사다리 오르기, 벽 뒤로 가면 반투명, 지하의 빛 지도와 햇빛 기둥.
-  - (`mode=underground&raid=1`) 해적의 지하 침입(18장): 쿵쿵(흙이 떨어짐, alert) → 뚜껑이 부서짐(부스러기, 달빛) → 해적 셋이 차례로 사다리를 타고 내려와 허리 등불을 켜고 다가옴. 애니메이션은 모두 95개, 효과음 50개.
+  - (`mode=underground&raid=1`) 해적의 지하 침입(18장): 쿵쿵(흙이 떨어짐, alert) → 뚜껑이 부서짐(부스러기, 달빛) → 해적 셋이 차례로 사다리를 타고 내려와 허리 등불을 켜고 다가옴.
+  - (`mode=underground&decor=1`) 지하 꾸미기(19장): 바닥재와 앞 가장자리, 벽판(벽 조각 바꾸기), 벽 장식(오른쪽 위 벽은 뒤집기, depth), 양탄자와 서 있는 장식, 촛불의 빛, 꾸민 벽은 파지 않음, 전리품 꾸러미 줍기. 애니메이션은 모두 97개, 효과음 52개.
 
 ## 1. 작업 방식
 
@@ -265,7 +268,7 @@ for (const L of lights) {                          // { x, y, radius, color, alp
 | (3단계) 농사 아이콘 | `icon_hoe`, `icon_watering_can`, `icon_farm`(밭 갈기 카드), `icon_seed_carrot`, `icon_seed_corn`, `icon_seed_pumpkin`, `icon_carrot`, `icon_corn`, `icon_pumpkin` |
 | (3단계) 동물 | `char_dog`, `char_cat`(애니메이션은 13.7), `fx_emote`(alert, heart, note, zzz1~3) |
 | (날씨) | `overlay_rain`, `overlay_snow`(이어 붙여 쓰는 무늬), `fx_weather`(rain1, rain2, snow1~3), `fx_rain_splash`, `decal_puddle_1`, `decal_puddle_2`, `icon_rain`, `icon_snow`, 눈 덮인 바닥 조각(`meta.ground.snowChunks`) |
-| (효과음) | manifest의 `sounds` 50개(15장, 지하 3개는 17장, 해적의 지하 침입 3개는 18장), `icon_sound_on`, `icon_sound_off` |
+| (효과음) | manifest의 `sounds` 52개(15장, 지하 3개는 17장, 해적의 지하 침입 3개는 18장, 지하 꾸미기 2개는 19장), `icon_sound_on`, `icon_sound_off` |
 | (배고픔) | `icon_hunger`(배부름), `icon_hunger_empty`, `icon_berry`(열매), 열매를 딴 덤불 `obj_bush_1_picked`, `obj_bush_2_picked` |
 | (지하) 칸 조각 | `ug_floor_1~3`, `ug_wall_l_a`, `ug_wall_l_b`, `ug_wall_l_iron`, `ug_wall_l_mush`, `ug_wall_r_a`, `ug_wall_r_b`, `ug_wall_r_iron`, `ug_wall_r_mush`, `ug_cut_l`, `ug_cut_r`, `ug_cap`, `ug_pillar` (17.3) |
 | (지하) 입구와 구멍 | `build_burrow`(땅 위 굴 입구: closed, open), `ug_ladder`(사다리), `glow_shaft`(햇빛 기둥), `ug_hole`(막힌 구멍: locked, open) |
@@ -273,6 +276,9 @@ for (const L of lights) {                          // { x, y, radius, color, alp
 | (지하) 표시, 효과 | `fx_dig_crack`(파는 중의 금), `overlay_dig`(팔 칸), `char_player`의 climb1, climb2, sit 프레임 |
 | (해적의 지하 침입) | 해적 세 명의 climb1, climb2 프레임과 `lantern` 값, `build_burrow`의 damaged, broken, `fx_pirate_lantern`(허리 등불), `icon_pirate` (18.7) |
 | (지하) 아이콘 | `icon_burrow`, `icon_bed`, `icon_fireplace`, `icon_lantern`, `icon_planter`, `icon_table`, `icon_stool`, `icon_rug`, `icon_chest`, `icon_mushroom`, `icon_spore`, `icon_surface`, `icon_underground`, `icon_lock` |
+| (지하 꾸미기) 바닥재, 벽판 | `ug_floor_oak_1~2`, `ug_floor_walnut_1~2`, `ug_floor_stone_1~2`, `ug_edge_l_wood`, `ug_edge_r_wood`, `ug_edge_l_stone`, `ug_edge_r_stone`, `ug_wall_l_wood`, `ug_wall_r_wood`, `ug_wall_l_plaster`, `ug_wall_r_plaster` (19.10) |
+| (지하 꾸미기) 장식 | 벽 장식 `deco_shelf`, `deco_sconce`, `deco_painting`, `deco_flag`, `deco_wheel`, `deco_map` / 서 있는 장식 `deco_candelabra`, `deco_globe`, `deco_treasure`, `deco_barrel` / 양탄자 `deco_rug_persian`, `deco_rug_round`, `deco_rug_runner` |
+| (지하 꾸미기) 전리품, 아이콘 | `obj_loot`(전리품 꾸러미), `icon_decor`와 카드 아이콘 18개(19.8) |
 
 주인공 그림은 임시다. 누가 주인공인지는 나중에 정한다.
 
@@ -719,6 +725,20 @@ export const CONFIG = {
 - 땅 위의 굴 입구는 금 간 모습, 부서진 모습으로 바뀌고, 나무 2개로 고칠 수 있다.
 - 주인공이 땅 위에 있는 밤에는 해적이 굴 입구를 건드리지 않는다. 좀비는 내려오지 않는다.
 
+### Phase 20 — 지하 꾸미기와 해적 전리품 (Phase 18 다음, 전리품은 Phase 6 다음)
+
+- 19장: 만들기 창의 꾸미기 탭, 바닥재(조각 바꾸기와 앞 가장자리), 벽판(벽 조각 표시와 바꾸기), 벽 장식(왼쪽 위 벽 그림, 뒤집기, depth), 꾸민 벽은 파지 않기, 양탄자와 서 있는 장식, 촛불의 빛, 해적 전리품(떨어뜨리기, 줍기, 가진 수), 치우기, 할 일, 시험용 도구
+- 확인용 페이지 `tools/reference_map.html?mode=underground&decor=1`에 바닥재, 벽판, 벽 장식, 촛불, 꾸민 벽 막기, 꾸러미 줍기가 들어 있다.
+
+확인할 것
+- 지하에서 만들기를 열면 "꾸미기" 탭이 있고, 윗줄에 재료로 만드는 것 8장, 아랫줄에 전리품 10장(가진 것 수)이 보인다.
+- 나무 마루를 한 칸씩 깔면 바닥이 마루로 바뀌고, 옆 칸과 이음매 없이 이어진다. 방 앞쪽 끝에는 마루의 두께가 보인다. 가구 밑에도 깔린다.
+- 벽판을 대면 그 벽만 나무 벽판(또는 회벽)으로 바뀌고, 옆의 흙벽과 높이와 윗면이 맞는다.
+- 벽 장식이 왼쪽 위 벽과 오른쪽 위 벽 모두에 벽을 따라 붙는다(`preview_decor.png`). 벽 뒤로 가면 장식도 벽과 함께 반투명해진다.
+- 벽 촛대와 촛대가 흔들리며 빛을 내고, 누르면 꺼지고 켜진다.
+- 꾸민 벽은 곡괭이로 파지지 않는다. 치우기로 걷으면 재료는 절반, 전리품은 그대로 돌려받는다.
+- 해적을 쓰러뜨리면 가끔(처음에는 반드시) 반짝이는 꾸러미가 떨어지고, 주우면 알림과 함께 꾸미기 탭의 전리품 수가 오른다.
+
 ## 10. 이번에 하지 않는 것
 
 나중에 넣을 것(지금은 만들지 않는다. 다만 나중에 넣기 쉽도록 숫자와 종류를 `config.js`에 모아 둔다)
@@ -731,6 +751,7 @@ export const CONFIG = {
 - 섬의 다른 구역, 더 큰 맵
 - (17장) 지하 2층(막힌 구멍 열기), 보관 상자에 물건 넣기, 지하의 위험(무너짐, 지하 생물), 파낸 칸 다시 메우기
 - (18장) 좀비의 지하 침입, 해적이 지하 가구를 부수기, 굴 입구를 막는 빗장이나 함정
+- (19장) 땅 위 꾸미기, 가구 돌리기(긴 양탄자 말고), 꾸미기의 능력치(편안함 등), 전리품 팔기와 바꾸기, 벽지와 색 고르기
 
 이 프로토타입에서 아예 하지 않는 것
 
@@ -1226,6 +1247,7 @@ weather: {
 | (17장) 흙벽을 찍음(`hit` 프레임) / 사다리를 오르내림(0.46초마다) | `dig_dirt`, `ladder` |
 | (17장) 반복: 지하 배경(땅 위의 배경 소리 대신) | `amb_underground` |
 | (18장) 지하에서 듣는 굴 입구 두드림 / 뚜껑이 부서짐 / 첫 해적이 내려섬 | `hatch_knock`, `hatch_break`, `pirate_shout` |
+| (19장) 바닥재·벽판·벽 장식을 놓음 / 전리품을 주움 | `floor_place`, `loot_pickup` |
 
 ### 15.4 수치 (src/config.js에 더한다)
 
@@ -1527,3 +1549,147 @@ raid: { enabled: true, hatchHp: 20, knockSoundEvery: 0.8, descendInterval: 1.5, 
 - `fx_pirate_lantern`: `flicker1`~`flicker3`, 애니메이션 `fx_pirate_lantern:flicker`. 기준점 = 위의 고리.
 - `icon_pirate`: 해골이 그려진 해적 모자.
 - 소리: `hatch_knock`(지하에서 듣는 쿵쿵), `hatch_break`(뚜껑이 부서짐), `pirate_shout`(해적의 외침).
+
+## 19. 지하 꾸미기와 해적 전리품 (Phase 20)
+
+지하 살림(Phase 18)을 끝낸 뒤 사용자가 원할 때 한다. 해적 전리품(19.6)은 해적(Phase 6)을 넣었을 때만 생긴다. 1~18장의 규칙은 그대로 두고 아래를 더한다. 완성 모습은 `preview_decor.png`(꾸민 집. `preview_underground.png`와 같은 자리라 꾸미기 전후를 견줄 수 있다), `preview_decor_ui.png`(꾸미기 탭을 열고 마루를 까는 중), `preview_loot.png`(쓰러뜨린 해적이 떨어뜨린 전리품 줍기).
+
+### 19.1 흐름
+
+- 지하에서 만들기 창을 열면 위에 탭이 두 개 생긴다: **만들기**(17.6의 가구 카드, 도구 카드, 치우기) / **꾸미기**.
+- 꾸미기 탭의 윗줄은 재료로 만드는 것: 바닥재 3가지(19.2), 벽판 2가지(19.3), 벽 장식 3가지(19.4). 아랫줄은 **해적 전리품** 10가지(19.4~19.5): 해적을 쓰러뜨리면 가끔 떨어지는 꾸러미에서 나온다(19.6).
+- 바닥재는 파낸 칸마다, 벽판과 벽 장식은 방 안쪽 벽마다 하나씩 놓는다. 양탄자와 서 있는 장식은 가구처럼 놓는다.
+- 꾸미기는 보기 위한 것이다(능력치 없음). 벽 촛대와 촛대만 빛을 낸다(19.7).
+- 꾸미기는 지하에서만 한다. 땅 위의 만들기 창에는 꾸미기 탭이 없다.
+
+### 19.2 바닥재
+
+| 카드 | 재료 | 그림 |
+|---|---|---|
+| 나무 마루 | 나무 1 | `ug_floor_oak_1`, `ug_floor_oak_2` |
+| 짙은 마루 | 나무 2 | `ug_floor_walnut_1`, `ug_floor_walnut_2` |
+| 돌 바닥 | 돌 2 | `ug_floor_stone_1`, `ug_floor_stone_2` |
+
+- 카드를 고르면 짓기 상태(5.4)가 된다: 안내 글 "나무 마루: 깔 칸을 누르세요", 포인터 칸에 `overlay_ok` / `overlay_no`, 누를 때마다 그 칸에 바로 깔린다. 짓기 상태가 유지되므로 한 칸씩 연달아 깐다(끌어서 칠하기는 하지 않는다, 2장). 재료가 떨어지면 풀린다.
+- **깔 수 있는 칸**: 지하의 파낸 칸이고 주인공에게서 `build.reach` 안. 가구, 사다리, 캐릭터가 있어도 된다(바닥은 그 밑에 깔린다). 같은 바닥재가 깔린 칸은 `overlay_no`. 다른 바닥재가 깔린 칸에 깔면 바꿔 깐다(전 바닥재는 치우기처럼 재료의 절반을 돌려받는다).
+- 그림: 17.3의 `ug_floor_1~3` 대신 `ug_floor_{종류}_{n}`, n = (c × 7 + r × 3) % 2 + 1. depth 1. 판자와 돌판이 옆 칸과 이어지게 그려져 있어서 넓게 깔면 한 장처럼 보인다.
+- **앞 가장자리**: 바닥재를 깐 칸에 `ug_cut_l`(또는 `ug_cut_r`)이 놓이면, 같은 칸에 바닥재의 두께 `ug_edge_l_wood`(또는 `ug_edge_r_wood`)를 depth 1.6으로 더 놓는다. 돌 바닥이면 `ug_edge_l_stone`, `ug_edge_r_stone`.
+- 깔 때: `floor_place` 소리, 그 칸에 `fx_dust`(0.5배).
+- 바닥재는 길을 막지 않는다. 파낸 칸은 다시 메우지 않으므로 바닥재도 계속 남는다. 치우기로 바닥재를 누르면(그 칸에 가구가 없을 때) 걷힌다.
+
+```js
+// 17.3 의 조각 고르기에서 바꾸는 곳.  floors: 'c,r' -> 'oak'|'walnut'|'stone',  covers: 'fc,fr,l|r' -> 'wood'|'plaster'
+if (isDug(c, r)) {
+  const st = floors.get(c + ',' + r);
+  place(st ? 'ug_floor_' + st + '_' + ((c * 7 + r * 3) % 2 + 1) : 'ug_floor_' + ((c * 7 + r * 3) % 3 + 1), c, r, 1);
+}
+if (solid(c, r)) {
+  const st = floors.get(c + ',' + r), m = st === 'stone' ? 'stone' : 'wood';
+  if (!solid(c, r + 1)) { place('ug_cut_l', c, r, 1.5); if (st) place('ug_edge_l_' + m, c, r, 1.6); }
+  if (!solid(c + 1, r)) { place('ug_cut_r', c, r, 1.5); if (st) place('ug_edge_r_' + m, c, r, 1.6); }
+}
+// 벽: 17.3 대로 kind 를 고른 다음, 그 벽에 벽판이 있으면 벽판 그림으로
+const cover = isDug(fc, fr) && covers.get(fc + ',' + fr + ',' + side);
+place('ug_wall_' + side + '_' + (cover || kind), fc, fr, 10 + ugWorld(fc, fr).y - 21, [c, r]);
+```
+
+### 19.3 벽판
+
+| 카드 | 재료 | 그림 |
+|---|---|---|
+| 나무 벽판 | 나무 2 | `ug_wall_l_wood`, `ug_wall_r_wood` |
+| 회벽 | 돌 1, 나무 1 | `ug_wall_l_plaster`, `ug_wall_r_plaster` (아래는 나무 징두리, 위는 흰 회벽) |
+
+- **댈 수 있는 벽**: 17.3의 벽 조각(`ug_wall_l_*`, `ug_wall_r_*`) 중 **그 벽이 선 칸이 파낸 칸**인 것(방 안에서 보이는 뒤쪽 벽). 벽은 (그 벽이 선 칸 fc, fr, 쪽 `l` 또는 `r`)로 기억한다. 앞이 빈 어둠인 벽(방 바깥)에는 대지 않는다. 주인공에게서 `build.reach` 안.
+- 짓기 상태에서는 바닥 칸 표시 대신 **포인터 아래의 벽 조각**(17.4의 누른 것 찾기로 찾는다)에 `setTint(decor.okTint)`(댈 수 있음) 또는 `setTint(decor.noTint)`(못 댐)를 준다. 누르면 바로 댄다. 안내 글 "나무 벽판: 댈 벽을 누르세요".
+- 그림: 17.3에서 그 벽에 벽판이 있으면 벽 종류(a, b, iron, mush) 대신 `ug_wall_{l|r}_{wood|plaster}`를 놓는다(위 코드). 크기, 기준점, depth, 윗면(`ug_cap`)은 흙벽과 같아서 흙벽과 나란히 서도 높이가 맞는다. 철 광맥과 버섯이 보이던 벽은 가려진다(벽판을 걷으면 다시 보인다).
+- 같은 벽판이 있는 벽은 못 댄다. 다른 벽판이 있으면 바꿔 댄다(절반을 돌려받는다). 댈 때 `floor_place` 소리.
+- **꾸민 벽은 파지 않는다**: 벽판이나 벽 장식(19.4)이 있는 벽의 흙 덩어리는 곡괭이로 파지 않는다. 덩어리 (c, r)의 벽은 (c+1, r, `l`)과 (c, r+1, `r`)이다. 누르면 `ui_error`와 "꾸민 벽은 먼저 치우세요". (벽은 그 덩어리를 팔 때만 없어지므로 이것으로 꾸민 것이 사라지는 일이 없다.)
+- 치우기: 벽판을 누르면 걷히고 재료의 절반을 돌려받는다. 벽 장식이 달려 있으면 장식이 먼저 걷힌다.
+
+### 19.4 벽 장식
+
+| 카드 | 재료 | 그림 |
+|---|---|---|
+| 선반 | 나무 2 | `deco_shelf` (책과 병) |
+| 벽 촛대 | 철 1, 나무 1 | `deco_sconce` (빛, 19.7) |
+| 그림 액자 | 나무 2 | `deco_painting` (바다와 배) |
+| 해적 깃발 (전리품) | | `deco_flag` |
+| 배 키 (전리품) | | `deco_wheel` |
+| 보물 지도 (전리품) | | `deco_map` |
+
+- **달 수 있는 벽**: 벽판과 같다(19.3. 벽판이 없는 흙벽에도 단다). 벽 하나에 장식 하나. 벽난로가 등진 벽(벽난로 칸의 `l` 벽, 뒤집은 벽난로면 `r` 벽)에는 달지 않는다. 표시는 벽판과 같다(벽 조각에 tint). 안내 글 "그림 액자: 달 벽을 누르세요".
+- 그림은 모두 **왼쪽 위 벽(`l`)에 붙은 모습**이다. 기준점 = 그 벽이 선 칸 가운데(그림 밖 아래라 originY가 1보다 크다). 그 칸 가운데의 월드 좌표에 originX/Y로 놓고, 오른쪽 위 벽(`r`)이면 `setFlipX(true)`. depth = 그 벽 + 0.5 = 10 + 그 칸 y − 20.5(벽 바로 앞, 그 칸에 선 캐릭터와 가구보다 뒤).
+- 벽 장식도 벽과 같은 규칙으로 반투명해진다(17.3).
+- 벽 촛대: 시트 `off`, `on1`, `on2`. 달면 켜져 있다(애니메이션 `deco_sconce:burn`). 누르면 끄고(`off`) 켠다(`ui_click`).
+- 달 때 `floor_place` 소리와 장식 가운데에 `fx_dust`(0.4배). 해적 깃발, 배 키, 보물 지도는 전리품이라 재료 대신 가진 수가 1 줄어든다.
+
+### 19.5 양탄자와 서 있는 장식 (전리품)
+
+| 전리품 | 칸 | 그림 | 하는 일 |
+|---|---|---|---|
+| 페르시아 양탄자 | 2×2, 바닥에 깔림 | `deco_rug_persian` | 장식 |
+| 둥근 양탄자 | 2×2, 바닥에 깔림 | `deco_rug_round` | 장식 |
+| 긴 양탄자 | 3×1, 바닥에 깔림 | `deco_rug_runner` | 장식 |
+| 촛대 | 1×1 | `deco_candelabra` | 빛, 켜고 끄기 |
+| 지구본 | 1×1 | `deco_globe` | 장식 |
+| 보물 상자 | 1×1 | `deco_treasure` | 열고 닫기 |
+| 술통 | 1×1 | `deco_barrel` | 장식 |
+
+- 놓는 법과 놓을 수 있는 칸은 17.6의 가구와 같다(지을 때 `construct` 소리와 `fx_poof`). 양탄자는 깔개(`build_rug`)와 같다: depth 2, 길을 막지 않고, 위에 가구를 놓을 수 있다. 나머지는 그 칸을 막는다. depth = 10 + 기준점의 y.
+- **긴 양탄자**: 포인터 칸이 가운데 칸이다. 처음에는 col 방향 3칸((col−1, row), (col, row), (col+1, row)). 긴 양탄자 카드를 고른 채로 카드를 한 번 더 누르면 row 방향 3칸((col, row−1) ~ (col, row+1))으로 바뀌고 그림을 `setFlipX(true)`로 놓는다(카드의 아이콘도 뒤집는다). 그림은 가운데 칸의 `tileToWorld(col, row)`에.
+- 촛대: 시트 `off`, `on1`, `on2`, 애니메이션 `deco_candelabra:burn`. 놓으면 켜져 있다. 누르면 끄고 켠다(`ui_click`).
+- 보물 상자: 시트 `closed`, `open`. 누르면 바꾸고 `gate_open` / `gate_close`(크기 0.5). 안은 비어 있다(17.7의 보관 상자와 같다).
+- 치우기: 전리품은 **그대로 돌려받는다**(가진 수 +1. 재료 절반 규칙이 아니다).
+
+### 19.6 해적 전리품
+
+- 해적(칼 해적과 총잡이, 땅 위와 지하 모두)을 쓰러뜨리면 `loot.chance`(0.35)의 확률로 그 자리에 **전리품 꾸러미** `obj_loot`가 떨어진다. 게임에서 처음 쓰러뜨린 해적은 반드시 떨어뜨린다(전리품이 있다는 것을 알게).
+- 떨어질 때: 해적이 쓰러진 자리(발)에서 0.3초 동안 `loot.bounce`(24px) 튀었다가 내려앉고 `fx_poof`(0.5배). depth = 10 + y. 칸을 막지 않는다. `loot.sparkleEvery`(2초)마다 꾸러미 30px 위에서 `fx_sparkle:play`를 한 번 튼다. 아침이 되어도 그대로 있다.
+- 주인공이 꾸러미를 누르면 그 칸으로 걸어가 `crouch`. `hit` 프레임에 줍는다: `loot_pickup` 소리, 꾸러미가 0.4초 동안 16px 떠오르며 흐려지고 없어짐, 나온 전리품의 아이콘과 "+1"이 떠오름(17.4의 "+2"와 같은 모양), 알림 "전리품: 페르시아 양탄자"(`icon_treasure`).
+- 무엇이 나오는지는 `loot.weights`의 가중치로 뽑는다(양탄자 셋과 술통 3, 깃발·배 키·보물 지도·촛대 2, 지구본·보물 상자 1).
+- 가진 전리품은 종류마다 수로 센다(가방 칸에는 넣지 않는다). 꾸미기 탭 아랫줄 카드에 "가진 것 N". 놓으면 −1, 치우면 +1.
+
+### 19.7 촛불의 빛
+
+| 빛 | 위치 | 반지름 | 색 | 알파 |
+|---|---|---|---|---|
+| 벽 촛대(켜져 있을 때) | 기준점 + `flame` (뒤집었으면 x를 반대로) | 190 | `#ffebc2` | 0.9 |
+| 촛대(켜져 있을 때) | 기준점 + `flame` | 230 | `#ffebc2` | 0.9 |
+
+- 더하기(ADD) 빛: 불꽃 자리에 `glow_warm`(벽 촛대는 크기 92, 촛대는 크기 120, 알파 0.45, depth = 그 장식 + 1).
+- 불꽃은 애니메이션이 흔들어 주므로 빛 지도의 일렁임(벽난로)은 넣지 않는다.
+
+### 19.8 화면 UI와 시험용 도구에 더할 것
+
+- 만들기 창(지하): 위에 탭 "만들기" / "꾸미기"(고른 탭은 노랑, `icon_decor`를 탭에 써도 된다). 꾸미기 탭은 `preview_decor_ui.png`처럼 윗줄 "재료로 만들기" 카드 8장(재료 아이콘과 수), 아랫줄 "해적 전리품" 카드 10장("가진 것 N". 0이면 흐리게, 누르면 "해적을 쓰러뜨리면 얻을 수 있습니다"). 창 오른쪽 위에 "흐린 것은 재료나 전리품이 없는 것".
+- 카드 아이콘: 바닥재 `icon_floor_oak`, `icon_floor_walnut`, `icon_floor_stone` / 벽판 `icon_wall_wood`, `icon_wall_plaster` / 벽 장식 `icon_shelf`, `icon_sconce`, `icon_painting` / 전리품 `icon_rug_persian`, `icon_rug_round`, `icon_rug_runner`, `icon_flag`, `icon_wheel`, `icon_map`, `icon_candelabra`, `icon_globe`, `icon_treasure`, `icon_barrel`.
+- 창은 화면 아래쪽에 두어 짓는 동안 위쪽의 방이 보이게 한다. 지하에서는 시계 아래에 "지하 1층" 표시(17.9)가 있으므로 짓기 안내 글은 그 아래(`decor.hintY`, 위에서 172px)에 둔다.
+- 할 일(꾸미기를 넣으면, 지하 생활의 할 일을 다 한 뒤 바꾼다): 나무 마루 10칸 깔기 / 벽판 4칸 대기 / 벽 장식 달기 / 해적 전리품 줍기.
+- 시험용 도구: "전리품 모두 +1", "꾸러미 떨어뜨리기"(주인공 옆 칸에 `obj_loot`).
+
+### 19.9 수치 (src/config.js에 더한다)
+
+```js
+decor: { cost: { floorOak: { wood: 1 }, floorWalnut: { wood: 2 }, floorStone: { stone: 2 },
+                 wallWood: { wood: 2 }, wallPlaster: { stone: 1, wood: 1 },
+                 shelf: { wood: 2 }, sconce: { iron: 1, wood: 1 }, painting: { wood: 2 } },
+         okTint: 0xc8f5b0, noTint: 0xff9c8c, hintY: 172,
+         light: { color: 0xffebc2, alpha: 0.9, glowAlpha: 0.45,
+                  sconce: { radius: 190, glow: 92 }, candelabra: { radius: 230, glow: 120 } } },
+loot: { chance: 0.35, firstAlways: true, sparkleEvery: 2, bounce: 24,
+        weights: { rugPersian: 3, rugRound: 3, rugRunner: 3, barrel: 3, flag: 2, wheel: 2, map: 2, candelabra: 2, globe: 1, treasure: 1 } },
+// 해적을 넣지 않았으면(Phase 6 전) 전리품은 생기지 않고, 꾸미기 탭의 전리품 줄은 모두 흐리게 보인다.
+```
+
+### 19.10 그림과 소리
+
+- 바닥재 `ug_floor_oak_1~2`, `ug_floor_walnut_1~2`, `ug_floor_stone_1~2`: `ug_floor_1~3`과 크기와 기준점(칸 가운데)이 같다. 마루 판자는 col 방향(화면 오른쪽 아래로)으로 놓여 있다. 번호 두 개는 판자 이음매 자리만 다르다.
+- 앞 가장자리 `ug_edge_l_wood`, `ug_edge_r_wood`, `ug_edge_l_stone`, `ug_edge_r_stone`: 기준점 = 칸 가운데. 단면(`ug_cut_l`, `ug_cut_r`) 위쪽에 바닥재 두께만큼 겹친다.
+- 벽판 `ug_wall_l_wood`, `ug_wall_r_wood`, `ug_wall_l_plaster`, `ug_wall_r_plaster`: 흙벽(`ug_wall_l_a` 등)과 크기와 기준점이 같다. 위에 나무 들보, 아래에 걸레받이가 있다.
+- 벽 장식 `deco_shelf`, `deco_sconce`(`off`, `on1`, `on2`, 애니메이션 `deco_sconce:burn`, 불꽃 위치 `flame`), `deco_painting`, `deco_flag`, `deco_wheel`, `deco_map`: 모두 왼쪽 위 벽에 붙은 모습(manifest의 `wall: true`와 `note`). 오른쪽 위 벽에는 `setFlipX(true)`, `flame`의 x도 반대로.
+- 서 있는 장식 `deco_candelabra`(`off`, `on1`, `on2`, 애니메이션 `deco_candelabra:burn`, `flame`), `deco_globe`, `deco_treasure`(`closed`, `open`), `deco_barrel`: 기준점 = 발.
+- 양탄자 `deco_rug_persian`, `deco_rug_round`(2×2), `deco_rug_runner`(3×1, col 방향. `setFlipX(true)`면 row 방향): 바닥에 붙는 그림(manifest의 `size`). 기준점 = 차지하는 칸들의 가운데.
+- `obj_loot`: 전리품 꾸러미(끈으로 묶은 자루). 기준점 = 바닥.
+- 탭 아이콘 `icon_decor`와 카드 아이콘(19.8).
+- 소리: `floor_place`(바닥재·벽판·벽 장식을 놓을 때), `loot_pickup`(전리품을 주울 때).

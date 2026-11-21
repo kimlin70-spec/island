@@ -335,6 +335,46 @@ def make_raid():
     save(img, 'ui', 'icon_pirate', (img.width / 2, img.height / 2), 'icon')
 
 
+def make_decor():
+    """19장: 지하 꾸미기(바닥재, 벽판, 벽 장식, 해적 전리품)"""
+    for st in A.FLOOR_STYLES:                                       # 바닥재(칸 조각, 두 가지씩)
+        for v in (1, 2):
+            tile(f'ug_floor_{st}_{v}', A.ug_floor_stone(v) if st == 'stone' else A.ug_floor_wood(st, v))
+    for side in 'lr':
+        for m in ('wood', 'stone'):
+            tile(f'ug_edge_{side}_{m}', A.ug_floor_edge(side, 'oak' if m == 'wood' else 'stone'))
+        for cover in A.WALL_COVERS:
+            tile(f'ug_wall_{side}_{cover}', A.ug_wall_cover(side, cover))
+    wall_note = '왼쪽 위 벽(wall_l)에 붙은 모습. 기준점 = 그 벽이 선 칸 가운데(그림 밖 아래). 오른쪽 위 벽에는 setFlipX(true)'
+    sheet('deco', 'deco_shelf', [A.deco_shelf()], ['shelf'], 'deco', wall=True, note=wall_note)
+    sheet('deco', 'deco_sconce', [A.deco_sconce(f) for f in ('off', 'on1', 'on2')], ['off', 'on1', 'on2'], 'deco', wall=True,
+          anims={'burn': anim([('on1', 150), ('on2', 130)], True)}, flame=px(A.iso(*A.SCONCE_FLAME)), note=wall_note + ', flame 의 x 도 반대로')
+    for k in ('painting', 'flag', 'wheel', 'map'):
+        sheet('deco', f'deco_{k}', [getattr(A, f'deco_{k}')()], [k], 'deco', wall=True, note=wall_note)
+    sheet('deco', 'deco_candelabra', [A.deco_candelabra(f) for f in ('off', 'on1', 'on2')], ['off', 'on1', 'on2'], 'deco',
+          anims={'burn': anim([('on1', 150), ('on2', 130)], True)}, flame=px(A.CANDELABRA_FLAME))
+    sheet('deco', 'deco_globe', [A.deco_globe()], ['globe'], 'deco')
+    sheet('deco', 'deco_treasure', [A.deco_treasure('closed'), A.deco_treasure('open')], ['closed', 'open'], 'deco')
+    sheet('deco', 'deco_barrel', [A.deco_barrel()], ['barrel'], 'deco')
+    sheet('deco', 'deco_rug_persian', [A.deco_rug_persian()], ['rug'], 'decal', pencil=0.4, wobble=0.5, size=[2, 2])
+    sheet('deco', 'deco_rug_round', [A.deco_rug_round()], ['rug'], 'decal', pencil=0.3, wobble=0.5, size=[2, 2])
+    sheet('deco', 'deco_rug_runner', [A.deco_rug_runner()], ['rug'], 'decal', pencil=0.4, wobble=0.5, size=[3, 1],
+          note='col 방향으로 3칸. 기준점 = 가운데 칸. setFlipX(true)면 row 방향으로 3칸')
+    one('objects', 'obj_loot', A.loot_sack(), 'object')
+    noshadow = lambda ps: [q for q in ps if q[-1].get('tag') != 'shadow']
+    icons = dict(floor_oak=A.ug_floor_wood('oak', 1), floor_walnut=A.ug_floor_wood('walnut', 1), floor_stone=A.ug_floor_stone(1),
+                 wall_wood=A.ug_wall_cover('l', 'wood')[:-1] + A.ug_wall_cover('r', 'wood')[:-1],      # 안쪽 모서리(두 면)
+                 wall_plaster=A.ug_wall_cover('l', 'plaster')[:-1] + A.ug_wall_cover('r', 'plaster')[:-1],
+                 shelf=A.deco_shelf(), sconce=A.deco_sconce('on1'), painting=A.deco_painting(), flag=A.deco_flag(), wheel=A.deco_wheel(),
+                 map=A.deco_map(), candelabra=noshadow(A.deco_candelabra('on1')), globe=noshadow(A.deco_globe()),
+                 treasure=noshadow(A.deco_treasure('open')), barrel=noshadow(A.deco_barrel()),
+                 rug_persian=A.deco_rug_persian(), rug_round=A.deco_rug_round(), rug_runner=A.deco_rug_runner(), decor=A.icon_decor())
+    box = (-64, -64, 64, 64)
+    for name, prims in icons.items():
+        img, anchor = wc.sprite(A.fit(prims, 94, enlarge=True), 'icon_' + name, box=box, keep_box=True)
+        save(img, 'ui', 'icon_' + name, (img.width / 2, img.height / 2), 'icon')
+
+
 def _wrap_draw(size, draw_one, items):
     """이어 붙여도 이음매가 없게: 가장자리를 넘는 것은 반대쪽에도 그린다."""
     for it in items:
@@ -481,6 +521,7 @@ def main():
     make_stage3()
     make_underground()
     make_raid()
+    make_decor()
     ground = json.load(open(os.path.join(ASSETS, 'ground', 'ground.json'), encoding='utf-8'))
     meta = dict(tileWidth=LY.HW * 2, tileHeight=LY.HH * 2, viewWidth=LY.VIEW_W, viewHeight=LY.VIEW_H, ground=ground, turretDirections=A.TURRET_DIRS,
                 note='originX/originY = 그림에서 발이 닿는 점. 이 점을 칸 중심의 월드 좌표에 맞춘다.')

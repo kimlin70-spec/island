@@ -52,7 +52,7 @@ def main():
             for f in v['muzzle']:
                 if f not in v.get('frames', []):
                     bad(f'{k}: muzzle 의 프레임 이름 {f} 가 없음')
-        if not (0 <= v['originX'] <= 1 and 0 <= v['originY'] <= 1) and v['kind'] != 'ug':     # 지하 덮개·기둥은 칸 가운데가 그림 밖(아래)
+        if not (0 <= v['originX'] <= 1 and 0 <= v['originY'] <= 1) and v['kind'] != 'ug' and not v.get('wall'):   # 지하 덮개·기둥, 벽 장식은 칸 가운데가 그림 밖(아래)
             bad(f'{k}: 기준점이 그림 밖')
         for name, a in v.get('anims', {}).items():               # 애니메이션: 프레임 이름, 시간, hit, swing
             names = [f for f, ms in a['frames']]
@@ -167,6 +167,17 @@ def main():
             bad(f'{k}: climb 애니메이션이나 lantern(f, b) 값이 없음')
     if A['build_burrow']['frames'][:4] != ['closed', 'open', 'damaged', 'broken']:
         bad('build_burrow 프레임 순서가 closed, open, damaged, broken 이 아님')
+    for fs in ('oak', 'walnut', 'stone'):                                 # 19장: 바닥재·벽판·가장자리
+        for v in (1, 2):
+            if f'ug_floor_{fs}_{v}' not in A:
+                bad(f'바닥재 조각이 없음: ug_floor_{fs}_{v}')
+    for side in 'lr':
+        for k in ('ug_wall_{}_wood', 'ug_wall_{}_plaster', 'ug_edge_{}_wood', 'ug_edge_{}_stone'):
+            if k.format(side) not in A:
+                bad(f'꾸민 벽·가장자리 조각이 없음: {k.format(side)}')
+    for k in ('deco_sconce', 'deco_candelabra'):
+        if 'flame' not in A.get(k, {}) or 'burn' not in A.get(k, {}).get('anims', {}):
+            bad(f'{k}: flame 값이나 burn 애니메이션이 없음')
     for side in 'lr':                                                    # 지하 벽 조각이 종류별로 다 있는지
         for kind in ('a', 'b', 'iron', 'mush'):
             if f'ug_wall_{side}_{kind}' not in A:
@@ -191,10 +202,10 @@ def main():
     names = set()
     for token in re.findall(r'`([^`\n]+)`', spec):
         for part in re.split(r'[,\s/·→]+', token):
-            m = re.fullmatch(r'((?:obj|build|char|icon|overlay|fx|light|glow|ground|turret|proj|farm|crop|decal|ug)_[a-z0-9_]*?)(\d+)~([a-z]?)(\d+)', part)
+            m = re.fullmatch(r'((?:obj|build|char|icon|overlay|fx|light|glow|ground|turret|proj|farm|crop|decal|ug|deco)_[a-z0-9_]*?)(\d+)~([a-z]?)(\d+)', part)
             if m:                                           # obj_tree_a1~a3, build_fence_0~15 같은 범위 표기
                 names.update(f'{m.group(1)}{i}' for i in range(int(m.group(2)), int(m.group(4)) + 1))
-            elif re.fullmatch(r'(obj|build|char|icon|overlay|fx|light|glow|ground|turret|proj|farm|crop|decal|ug)_[a-z0-9_]+', part):
+            elif re.fullmatch(r'(obj|build|char|icon|overlay|fx|light|glow|ground|turret|proj|farm|crop|decal|ug|deco)_[a-z0-9_]+', part):
                 names.add(part)
     for n in sorted(names):
         if n not in keys:

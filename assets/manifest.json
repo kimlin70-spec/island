@@ -4274,6 +4274,515 @@
    "originX": 0.5,
    "originY": 0.5,
    "kind": "icon"
+  },
+  "ug_floor_oak_1": {
+   "file": "underground/ug_floor_oak_1.png",
+   "w": 90,
+   "h": 47,
+   "originX": 0.5,
+   "originY": 0.5,
+   "kind": "ug"
+  },
+  "ug_floor_oak_2": {
+   "file": "underground/ug_floor_oak_2.png",
+   "w": 90,
+   "h": 47,
+   "originX": 0.5,
+   "originY": 0.5,
+   "kind": "ug"
+  },
+  "ug_floor_walnut_1": {
+   "file": "underground/ug_floor_walnut_1.png",
+   "w": 90,
+   "h": 47,
+   "originX": 0.5,
+   "originY": 0.5,
+   "kind": "ug"
+  },
+  "ug_floor_walnut_2": {
+   "file": "underground/ug_floor_walnut_2.png",
+   "w": 90,
+   "h": 47,
+   "originX": 0.5,
+   "originY": 0.5,
+   "kind": "ug"
+  },
+  "ug_floor_stone_1": {
+   "file": "underground/ug_floor_stone_1.png",
+   "w": 90,
+   "h": 48,
+   "originX": 0.5,
+   "originY": 0.5,
+   "kind": "ug"
+  },
+  "ug_floor_stone_2": {
+   "file": "underground/ug_floor_stone_2.png",
+   "w": 90,
+   "h": 48,
+   "originX": 0.5,
+   "originY": 0.5,
+   "kind": "ug"
+  },
+  "ug_edge_l_wood": {
+   "file": "underground/ug_edge_l_wood.png",
+   "w": 48,
+   "h": 31,
+   "originX": 0.9167,
+   "originY": 0.108,
+   "kind": "ug"
+  },
+  "ug_edge_l_stone": {
+   "file": "underground/ug_edge_l_stone.png",
+   "w": 48,
+   "h": 32,
+   "originX": 0.9167,
+   "originY": 0.103,
+   "kind": "ug"
+  },
+  "ug_wall_l_wood": {
+   "file": "underground/ug_wall_l_wood.png",
+   "w": 54,
+   "h": 123,
+   "originX": 0.92,
+   "originY": 0.9747,
+   "kind": "ug"
+  },
+  "ug_wall_l_plaster": {
+   "file": "underground/ug_wall_l_plaster.png",
+   "w": 54,
+   "h": 123,
+   "originX": 0.92,
+   "originY": 0.9747,
+   "kind": "ug"
+  },
+  "ug_edge_r_wood": {
+   "file": "underground/ug_edge_r_wood.png",
+   "w": 48,
+   "h": 31,
+   "originX": 0.0833,
+   "originY": 0.108,
+   "kind": "ug"
+  },
+  "ug_edge_r_stone": {
+   "file": "underground/ug_edge_r_stone.png",
+   "w": 48,
+   "h": 32,
+   "originX": 0.0833,
+   "originY": 0.103,
+   "kind": "ug"
+  },
+  "ug_wall_r_wood": {
+   "file": "underground/ug_wall_r_wood.png",
+   "w": 54,
+   "h": 123,
+   "originX": 0.08,
+   "originY": 0.9747,
+   "kind": "ug"
+  },
+  "ug_wall_r_plaster": {
+   "file": "underground/ug_wall_r_plaster.png",
+   "w": 56,
+   "h": 123,
+   "originX": 0.1108,
+   "originY": 0.9747,
+   "kind": "ug"
+  },
+  "deco_shelf": {
+   "file": "deco/deco_shelf.png",
+   "w": 80,
+   "h": 50,
+   "originX": 0.5,
+   "originY": 1.65,
+   "kind": "deco",
+   "frameWidth": 80,
+   "frameHeight": 50,
+   "frames": [
+    "shelf"
+   ],
+   "wall": true,
+   "note": "왼쪽 위 벽(wall_l)에 붙은 모습. 기준점 = 그 벽이 선 칸 가운데(그림 밖 아래). 오른쪽 위 벽에는 setFlipX(true)"
+  },
+  "deco_sconce": {
+   "file": "deco/deco_sconce.png",
+   "w": 183,
+   "h": 52,
+   "originX": 0.5,
+   "originY": 1.881,
+   "kind": "deco",
+   "frameWidth": 61,
+   "frameHeight": 52,
+   "frames": [
+    "off",
+    "on1",
+    "on2"
+   ],
+   "wall": true,
+   "anims": {
+    "burn": {
+     "frames": [
+      [
+       "on1",
+       150
+      ],
+      [
+       "on2",
+       130
+      ]
+     ],
+     "loop": true
+    }
+   },
+   "flame": [
+    -15.6,
+    -79.0
+   ],
+   "note": "왼쪽 위 벽(wall_l)에 붙은 모습. 기준점 = 그 벽이 선 칸 가운데(그림 밖 아래). 오른쪽 위 벽에는 setFlipX(true), flame 의 x 도 반대로"
+  },
+  "deco_painting": {
+   "file": "deco/deco_painting.png",
+   "w": 79,
+   "h": 95,
+   "originX": 0.5,
+   "originY": 1.0263,
+   "kind": "deco",
+   "frameWidth": 79,
+   "frameHeight": 95,
+   "frames": [
+    "painting"
+   ],
+   "wall": true,
+   "note": "왼쪽 위 벽(wall_l)에 붙은 모습. 기준점 = 그 벽이 선 칸 가운데(그림 밖 아래). 오른쪽 위 벽에는 setFlipX(true)"
+  },
+  "deco_flag": {
+   "file": "deco/deco_flag.png",
+   "w": 82,
+   "h": 64,
+   "originX": 0.5,
+   "originY": 1.5631,
+   "kind": "deco",
+   "frameWidth": 82,
+   "frameHeight": 64,
+   "frames": [
+    "flag"
+   ],
+   "wall": true,
+   "note": "왼쪽 위 벽(wall_l)에 붙은 모습. 기준점 = 그 벽이 선 칸 가운데(그림 밖 아래). 오른쪽 위 벽에는 setFlipX(true)"
+  },
+  "deco_wheel": {
+   "file": "deco/deco_wheel.png",
+   "w": 85,
+   "h": 61,
+   "originX": 0.5,
+   "originY": 1.5773,
+   "kind": "deco",
+   "frameWidth": 85,
+   "frameHeight": 61,
+   "frames": [
+    "wheel"
+   ],
+   "wall": true,
+   "note": "왼쪽 위 벽(wall_l)에 붙은 모습. 기준점 = 그 벽이 선 칸 가운데(그림 밖 아래). 오른쪽 위 벽에는 setFlipX(true)"
+  },
+  "deco_map": {
+   "file": "deco/deco_map.png",
+   "w": 76,
+   "h": 54,
+   "originX": 0.5,
+   "originY": 1.7791,
+   "kind": "deco",
+   "frameWidth": 76,
+   "frameHeight": 54,
+   "frames": [
+    "map"
+   ],
+   "wall": true,
+   "note": "왼쪽 위 벽(wall_l)에 붙은 모습. 기준점 = 그 벽이 선 칸 가운데(그림 밖 아래). 오른쪽 위 벽에는 setFlipX(true)"
+  },
+  "deco_candelabra": {
+   "file": "deco/deco_candelabra.png",
+   "w": 168,
+   "h": 110,
+   "originX": 0.5,
+   "originY": 0.7841,
+   "kind": "deco",
+   "frameWidth": 56,
+   "frameHeight": 110,
+   "frames": [
+    "off",
+    "on1",
+    "on2"
+   ],
+   "anims": {
+    "burn": {
+     "frames": [
+      [
+       "on1",
+       150
+      ],
+      [
+       "on2",
+       130
+      ]
+     ],
+     "loop": true
+    }
+   },
+   "flame": [
+    0.0,
+    -67.5
+   ]
+  },
+  "deco_globe": {
+   "file": "deco/deco_globe.png",
+   "w": 51,
+   "h": 92,
+   "originX": 0.5,
+   "originY": 0.7075,
+   "kind": "deco",
+   "frameWidth": 51,
+   "frameHeight": 92,
+   "frames": [
+    "globe"
+   ]
+  },
+  "deco_treasure": {
+   "file": "deco/deco_treasure.png",
+   "w": 150,
+   "h": 89,
+   "originX": 0.5,
+   "originY": 0.5664,
+   "kind": "deco",
+   "frameWidth": 75,
+   "frameHeight": 89,
+   "frames": [
+    "closed",
+    "open"
+   ]
+  },
+  "deco_barrel": {
+   "file": "deco/deco_barrel.png",
+   "w": 58,
+   "h": 74,
+   "originX": 0.5,
+   "originY": 0.605,
+   "kind": "deco",
+   "frameWidth": 58,
+   "frameHeight": 74,
+   "frames": [
+    "barrel"
+   ]
+  },
+  "deco_rug_persian": {
+   "file": "deco/deco_rug_persian.png",
+   "w": 139,
+   "h": 79,
+   "originX": 0.5,
+   "originY": 0.5,
+   "kind": "decal",
+   "frameWidth": 139,
+   "frameHeight": 79,
+   "frames": [
+    "rug"
+   ],
+   "size": [
+    2,
+    2
+   ]
+  },
+  "deco_rug_round": {
+   "file": "deco/deco_rug_round.png",
+   "w": 112,
+   "h": 64,
+   "originX": 0.5,
+   "originY": 0.5,
+   "kind": "decal",
+   "frameWidth": 112,
+   "frameHeight": 64,
+   "frames": [
+    "rug"
+   ],
+   "size": [
+    2,
+    2
+   ]
+  },
+  "deco_rug_runner": {
+   "file": "deco/deco_rug_runner.png",
+   "w": 160,
+   "h": 89,
+   "originX": 0.5,
+   "originY": 0.5,
+   "kind": "decal",
+   "frameWidth": 160,
+   "frameHeight": 89,
+   "frames": [
+    "rug"
+   ],
+   "size": [
+    3,
+    1
+   ],
+   "note": "col 방향으로 3칸. 기준점 = 가운데 칸. setFlipX(true)면 row 방향으로 3칸"
+  },
+  "obj_loot": {
+   "file": "objects/obj_loot.png",
+   "w": 47,
+   "h": 44,
+   "originX": 0.4359,
+   "originY": 0.6761,
+   "kind": "object"
+  },
+  "icon_floor_oak": {
+   "file": "ui/icon_floor_oak.png",
+   "w": 80,
+   "h": 80,
+   "originX": 0.5,
+   "originY": 0.5,
+   "kind": "icon"
+  },
+  "icon_floor_walnut": {
+   "file": "ui/icon_floor_walnut.png",
+   "w": 80,
+   "h": 80,
+   "originX": 0.5,
+   "originY": 0.5,
+   "kind": "icon"
+  },
+  "icon_floor_stone": {
+   "file": "ui/icon_floor_stone.png",
+   "w": 80,
+   "h": 80,
+   "originX": 0.5,
+   "originY": 0.5,
+   "kind": "icon"
+  },
+  "icon_wall_wood": {
+   "file": "ui/icon_wall_wood.png",
+   "w": 80,
+   "h": 80,
+   "originX": 0.5,
+   "originY": 0.5,
+   "kind": "icon"
+  },
+  "icon_wall_plaster": {
+   "file": "ui/icon_wall_plaster.png",
+   "w": 80,
+   "h": 80,
+   "originX": 0.5,
+   "originY": 0.5,
+   "kind": "icon"
+  },
+  "icon_shelf": {
+   "file": "ui/icon_shelf.png",
+   "w": 80,
+   "h": 80,
+   "originX": 0.5,
+   "originY": 0.5,
+   "kind": "icon"
+  },
+  "icon_sconce": {
+   "file": "ui/icon_sconce.png",
+   "w": 80,
+   "h": 80,
+   "originX": 0.5,
+   "originY": 0.5,
+   "kind": "icon"
+  },
+  "icon_painting": {
+   "file": "ui/icon_painting.png",
+   "w": 80,
+   "h": 80,
+   "originX": 0.5,
+   "originY": 0.5,
+   "kind": "icon"
+  },
+  "icon_flag": {
+   "file": "ui/icon_flag.png",
+   "w": 80,
+   "h": 80,
+   "originX": 0.5,
+   "originY": 0.5,
+   "kind": "icon"
+  },
+  "icon_wheel": {
+   "file": "ui/icon_wheel.png",
+   "w": 80,
+   "h": 80,
+   "originX": 0.5,
+   "originY": 0.5,
+   "kind": "icon"
+  },
+  "icon_map": {
+   "file": "ui/icon_map.png",
+   "w": 80,
+   "h": 80,
+   "originX": 0.5,
+   "originY": 0.5,
+   "kind": "icon"
+  },
+  "icon_candelabra": {
+   "file": "ui/icon_candelabra.png",
+   "w": 80,
+   "h": 80,
+   "originX": 0.5,
+   "originY": 0.5,
+   "kind": "icon"
+  },
+  "icon_globe": {
+   "file": "ui/icon_globe.png",
+   "w": 80,
+   "h": 80,
+   "originX": 0.5,
+   "originY": 0.5,
+   "kind": "icon"
+  },
+  "icon_treasure": {
+   "file": "ui/icon_treasure.png",
+   "w": 80,
+   "h": 80,
+   "originX": 0.5,
+   "originY": 0.5,
+   "kind": "icon"
+  },
+  "icon_barrel": {
+   "file": "ui/icon_barrel.png",
+   "w": 80,
+   "h": 80,
+   "originX": 0.5,
+   "originY": 0.5,
+   "kind": "icon"
+  },
+  "icon_rug_persian": {
+   "file": "ui/icon_rug_persian.png",
+   "w": 80,
+   "h": 80,
+   "originX": 0.5,
+   "originY": 0.5,
+   "kind": "icon"
+  },
+  "icon_rug_round": {
+   "file": "ui/icon_rug_round.png",
+   "w": 80,
+   "h": 80,
+   "originX": 0.5,
+   "originY": 0.5,
+   "kind": "icon"
+  },
+  "icon_rug_runner": {
+   "file": "ui/icon_rug_runner.png",
+   "w": 80,
+   "h": 80,
+   "originX": 0.5,
+   "originY": 0.5,
+   "kind": "icon"
+  },
+  "icon_decor": {
+   "file": "ui/icon_decor.png",
+   "w": 80,
+   "h": 80,
+   "originX": 0.5,
+   "originY": 0.5,
+   "kind": "icon"
   }
  },
  "sounds": {
@@ -4576,6 +5085,18 @@
    "duration": 1.096,
    "loop": false,
    "note": "해적이 지하로 내려와 주인공을 봤을 때의 외침"
+  },
+  "floor_place": {
+   "file": "sfx/floor_place.wav",
+   "duration": 0.551,
+   "loop": false,
+   "note": "바닥재·벽판·벽 장식을 댈 때(나무망치 톡톡)"
+  },
+  "loot_pickup": {
+   "file": "sfx/loot_pickup.wav",
+   "duration": 1.2,
+   "loop": false,
+   "note": "해적 전리품을 주울 때(짤랑 + 반짝)"
   }
  }
 }

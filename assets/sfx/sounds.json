@@ -298,5 +298,17 @@
   "duration": 1.096,
   "loop": false,
   "note": "해적이 지하로 내려와 주인공을 봤을 때의 외침"
+ },
+ "floor_place": {
+  "file": "sfx/floor_place.wav",
+  "duration": 0.551,
+  "loop": false,
+  "note": "바닥재·벽판·벽 장식을 댈 때(나무망치 톡톡)"
+ },
+ "loot_pickup": {
+  "file": "sfx/loot_pickup.wav",
+  "duration": 1.2,
+  "loop": false,
+  "note": "해적 전리품을 주울 때(짤랑 + 반짝)"
  }
 }

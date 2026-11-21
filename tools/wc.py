@@ -65,6 +65,12 @@ PAL = {
     'clay': '#b98e66', 'root': '#6e5139', 'mush': '#d75a4f', 'mush_d': '#ad4339', 'mush_l': '#f6e7d2',
     'brownmush': '#b98a62', 'rug': '#c9644f', 'rug_d': '#a64e3e', 'rug_l': '#eebd72', 'flame': '#ffc65c', 'flame_l': '#fff1b8',
     'soot': '#4a4440', 'cavetop': '#3b2d23',
+    # 19장: 지하 꾸미기
+    'oak_l': '#e6c08a', 'oak': '#cfa06a', 'oak_d': '#a9784a', 'walnut_l': '#9c6c4a', 'walnut': '#7a5136', 'walnut_d': '#573826',
+    'plaster_l': '#fbf5e8', 'plaster': '#f1e5cd', 'plaster_d': '#ddcdb0', 'mortar': '#8f8579',
+    'gold_l': '#f8df8c', 'gold_d': '#b88a2e', 'persian': '#a63a32', 'persian_d': '#792826', 'persian_l': '#dba65c',
+    'navy': '#34507a', 'navy_l': '#6f8fb9', 'teal': '#3f8a86', 'teal_l': '#86c4b6', 'cream': '#f4e7c9', 'rose': '#d88a7c',
+    'parch': '#efdcab', 'parch_d': '#c9a96c', 'sea': '#5d93bf', 'sea_l': '#9cc6e2', 'land': '#a8b86e',
 }
 PENCIL = np.array([84, 70, 64], np.float32) / 255
 SHADOW_ALPHA = 0.30

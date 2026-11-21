@@ -2929,3 +2929,530 @@ def icon_pirate():
             E(sx - 3.6, sy - 0.5, 2.6, 2.8, 'hat'), E(sx + 3.6, sy - 0.5, 2.6, 2.8, 'hat'), P([(sx, sy + 3), (sx - 1.4, sy + 5.6), (sx + 1.4, sy + 5.6)], 'hat'),
             L([(sx - 16, sy + 16), (sx + 16, sy + 22)], 3.6, 'white'), L([(sx + 16, sy + 16), (sx - 16, sy + 22)], 3.6, 'white')]
     return out
+
+
+# ================================================================== 19장: 지하 꾸미기(바닥재, 벽판, 벽 장식, 해적 전리품)
+FLOOR_STYLES = ('oak', 'walnut', 'stone')
+WALL_COVERS = ('wood', 'plaster')
+_TONES = {'oak': ('oak_l', 'oak', 'oak_d'), 'walnut': ('walnut_l', 'walnut', 'walnut_d')}
+
+
+def _band_quad(x0, x1, y0, y1, z=0.0):
+    return [iso(x0, y0, z), iso(x1, y0, z), iso(x1, y1, z), iso(x0, y1, z)]
+
+
+def ug_floor_wood(style, v):
+    """나무 마루. 판자는 col(x) 방향으로 길게 놓이고 한 칸에 네 줄. 줄의 색은 줄 번호로만 정해서 옆 칸과 그대로 이어지고,
+    판자 이음매(짧은 가로줄)는 칸 안쪽 아무 데나 있어 칸 경계가 드러나지 않는다."""
+    lo, mid, dk = _TONES[style]
+    k = 0.5 + EXT
+    out = [P(_band_quad(-k, k, -k, k), mid)]
+    shade = ((lo, 0.0), (lo, 0.55), (dk, 0.22), (lo, 0.32))          # 줄마다 살짝 다른 색(모든 칸이 같다)
+    for i in range(4):
+        y0, y1 = -0.5 + 0.25 * i, -0.5 + 0.25 * (i + 1)
+        y0, y1 = (y0 - EXT if i == 0 else y0), (y1 + EXT if i == 3 else y1)
+        key, op = shade[i]
+        if op:
+            out.append(P(_band_quad(-k, k, y0, y1), key, op=op))
+    rng = random.Random(500 + v * 17 + (0 if style == 'oak' else 7))
+    for i in range(4):                                               # 나뭇결과 옹이(칸 경계에 닿지 않게)
+        y0 = -0.5 + 0.25 * i
+        for _ in range(2):
+            x0 = rng.uniform(-0.42, 0.1)
+            y = y0 + rng.uniform(0.06, 0.19)
+            out.append(L([iso(x0, y), iso(x0 + rng.uniform(0.12, 0.3), y + rng.uniform(-0.01, 0.01))], 1.0, dk, op=0.35))
+        if rng.random() < 0.35:
+            cx, cy = iso(rng.uniform(-0.35, 0.35), y0 + 0.125)
+            out += [E(cx, cy, 3.4, 1.7, dk, op=0.7), E(cx, cy, 1.6, 0.8, mid)]
+    for y in (-0.5, -0.25, 0.0, 0.25, 0.5):                          # 판자 사이 틈(칸 경계 줄은 이웃도 같은 자리에 긋는다)
+        out.append(L([iso(-k, y), iso(k, y)], 1.5, dk, op=0.85))
+    joints = {1: ((-0.18,), (0.27,), (-0.36, 0.33), (0.04,)), 2: ((0.31,), (-0.24,), (0.08,), (-0.4, 0.22))}[v]
+    for i, xs in enumerate(joints):                                  # 판자 끝 이음매 + 못
+        y0, y1 = -0.5 + 0.25 * i, -0.5 + 0.25 * (i + 1)
+        for x in xs:
+            out.append(L([iso(x, y0), iso(x, y1)], 1.4, dk, op=0.9))
+            for yy in (y0 + 0.06, y1 - 0.06):
+                for dx in (-0.03, 0.03):
+                    out.append(E(*iso(x + dx, yy), 0.9, 0.7, 'walnut_d', op=0.8))
+    return out
+
+
+def ug_floor_stone(v):
+    """돌 바닥: 한 칸에 네모난 판석 넷. 줄눈(mortar)은 칸 경계에서 이웃 칸과 이어진다."""
+    k = 0.5 + EXT
+    out = [P(_band_quad(-k, k, -k, k), 'mortar')]
+    rng = random.Random(600 + v * 13)
+    g = 0.022
+    for qx in (0, 1):
+        for qy in (0, 1):
+            x0, x1 = -0.5 + 0.5 * qx + g, -0.5 + 0.5 * (qx + 1) - g
+            y0, y1 = -0.5 + 0.5 * qy + g, -0.5 + 0.5 * (qy + 1) - g
+            j = lambda: rng.uniform(-0.012, 0.012)
+            quad = [iso(x0 + j(), y0 + j()), iso((x0 + x1) / 2, y0 + j()), iso(x1 + j(), y0 + j()), iso(x1 + j(), (y0 + y1) / 2),
+                    iso(x1 + j(), y1 + j()), iso((x0 + x1) / 2, y1 + j()), iso(x0 + j(), y1 + j()), iso(x0 + j(), (y0 + y1) / 2)]
+            out.append(P(quad, rng.choice(('stone_l', 'stone', 'stone', 'rock_l'))))
+            out.append(P([(x, y + 1.2) for x, y in quad[4:7]] + [quad[6], quad[5], quad[4]], 'stone_d', op=0.35))
+            for _ in range(3):
+                cx, cy = iso(rng.uniform(x0 + 0.06, x1 - 0.06), rng.uniform(y0 + 0.06, y1 - 0.06))
+                out.append(E(cx, cy, rng.uniform(1.2, 3), rng.uniform(0.7, 1.6), rng.choice(('stone_d', 'rock_d')), op=0.5))
+            if rng.random() < 0.35:
+                cx, cy = iso(rng.uniform(x0 + 0.08, x1 - 0.08), rng.uniform(y0 + 0.08, y1 - 0.08))
+                out.append(L([(cx, cy), (cx + rng.uniform(-9, 9), cy + rng.uniform(-3, 3)), (cx + rng.uniform(-14, 14), cy + rng.uniform(-5, 5))], 1.0, 'stone_d', op=0.7))
+    return out
+
+
+def ug_floor_edge(side, style):
+    """꾸민 바닥의 앞쪽 가장자리(바닥재 두께). 앞쪽 단면(ug_cut) 위에 겹쳐 그린다."""
+    wood = style != 'stone'
+    th = 7 if wood else 9
+    if side == 'l':
+        a, b = iso(-0.5 - EXT, 0.5), iso(0.5 + EXT, 0.5)
+    else:
+        a, b = iso(0.5, 0.5 + EXT), iso(0.5, -0.5 - EXT)
+    face = [a, b, (b[0], b[1] + th), (a[0], a[1] + th)]
+    lo, mid, dk = ('oak_l', 'oak', 'oak_d') if wood else ('stone_l', 'stone', 'stone_d')
+    out = [P(face, mid if side == 'l' else dk), L([a, b], 1.6, lo, op=0.9), L([(a[0], a[1] + th), (b[0], b[1] + th)], 1.4, 'walnut_d' if wood else 'mortar', op=0.8)]
+    if side == 'r' and wood:                                        # 판자 끝(나뭇결 마구리)
+        for f in (0.25, 0.5, 0.75):
+            p = (a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f)
+            out.append(L([p, (p[0], p[1] + th)], 1.3, 'walnut_d', op=0.85))
+            out.append(E(p[0] + 8, p[1] + th / 2 - 4, 2.4, 1.6, 'oak_d', op=0.6))
+    elif not wood:
+        for f in ((0.5,) if side == 'l' else (0.5,)):
+            p = (a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f)
+            out.append(L([p, (p[0], p[1] + th)], 1.6, 'mortar'))
+    return out
+
+
+def _wall_frame(side):
+    """벽 면 위의 점: W(u, z) — u = 칸 안에서 0~1(겹침 EXT 포함 가능), z = 높이"""
+    a0, b0 = _wall_ends(side, 0.0)
+    return lambda u, z: (a0[0] + (b0[0] - a0[0]) * u, a0[1] + (b0[1] - a0[1]) * u - z)
+
+
+def _wall_rim(side):
+    if side == 'l':
+        return P([iso(-0.5 - UG_T, 0.5 + EXT, UG_H), iso(-0.5 - UG_T, -0.5 - EXT, UG_H), iso(-0.5, -0.5 - EXT, UG_H), iso(-0.5, 0.5 + EXT, UG_H)], 'earth_dd')
+    return P([iso(-0.5 - EXT, -0.5 - UG_T, UG_H), iso(0.5 + EXT, -0.5 - UG_T, UG_H), iso(0.5 + EXT, -0.5, UG_H), iso(-0.5 - EXT, -0.5, UG_H)], 'earth_dd')
+
+
+def _strip(W, u0, u1, z0, z1, key, op=1.0):
+    return P([W(u0, z0), W(u1, z0), W(u1, z1), W(u0, z1)], key, op=op)
+
+
+def ug_wall_cover(side, cover):
+    """꾸민 벽 한 칸(흙벽 대신). wood = 세로 나무 판자, plaster = 아래는 나무 징두리 + 위는 흰 회벽. 위아래 띠는 옆 칸과 이어진다."""
+    W = _wall_frame(side)
+    dark = side == 'l'                                              # 오른쪽 아래를 보는 면은 어둡게
+    e0, e1 = -EXT, 1 + EXT
+    out = []
+    beam_z = UG_H - 16
+    if cover == 'wood':
+        base, alt = ('oak_d', 'oak') if dark else ('oak', 'oak_l')
+        out.append(_strip(W, e0, e1, 0, UG_H, base))
+        for i, op in enumerate((0.0, 0.35, 0.0, 0.5)):              # 판자 넷, 한 장 걸러 살짝 밝게
+            if op:
+                out.append(_strip(W, i * 0.25, (i + 1) * 0.25, 10, beam_z, alt, op=op))
+        rng = random.Random(70 + dark)
+        for i in range(4):                                          # 판자 사이 줄, 못, 나뭇결 조금
+            u = i * 0.25
+            out.append(L([W(u, 10), W(u, beam_z)], 1.5, 'walnut_d', op=0.8))
+            for z in (18, beam_z - 8):
+                for du in (0.08, 0.17):
+                    out.append(E(*W(u + du, z), 1.1, 1.1, 'walnut_d', op=0.8))
+            uu, z0 = u + rng.uniform(0.07, 0.18), rng.uniform(34, 80)
+            out.append(L([W(uu, z0), W(uu + 0.004, z0 + rng.uniform(20, 30))], 1.0, 'walnut_d', op=0.22))
+            if rng.random() < 0.5:
+                cx, cy = W(u + rng.uniform(0.08, 0.17), rng.uniform(40, 100))
+                out += [E(cx, cy, 2.2, 3.4, 'walnut_d', op=0.5), E(cx, cy, 1.0, 1.6, base)]
+        out.append(L([W(1.0, 10), W(1.0, beam_z)], 1.5, 'walnut_d', op=0.8))
+    else:
+        base, alt = ('oak_d', 'oak') if dark else ('oak', 'oak_l')
+        out.append(_strip(W, e0, e1, 64, beam_z, 'plaster_d' if dark else 'plaster'))          # 회벽
+        rng = random.Random(80 + dark)
+        for _ in range(4):
+            u, z = rng.uniform(0.1, 0.9), rng.uniform(74, beam_z - 10)
+            cx, cy = W(u, z)
+            out.append(E(cx, cy, rng.uniform(8, 15), rng.uniform(4, 8), 'plaster_l' if dark else 'plaster_d', op=0.4))
+        out.append(_strip(W, e0, e1, 9, 58, base))                 # 징두리 판자
+        for i in range(6):
+            u0, u1 = i / 6, (i + 1) / 6
+            if i % 2:
+                out.append(_strip(W, u0, u1, 9, 58, alt, op=0.3))
+            out.append(L([W(u0, 9), W(u0, 58)], 1.3, 'walnut_d', op=0.7))
+        out.append(L([W(1.0, 9), W(1.0, 58)], 1.3, 'walnut_d', op=0.7))
+        out.append(_strip(W, e0, e1, 56, 64, 'walnut_l' if dark else 'oak_d'))                 # 허리 띠(몰딩)
+        out.append(L([W(e0, 64), W(e1, 64)], 1.4, 'oak_l', op=0.8))
+        out.append(_strip(W, e0, e1, 64, 68, 'walnut_d', op=0.25))                               # 몰딩 아래 그늘
+    out.append(_strip(W, e0, e1, 0, 10, 'walnut_d'))                                             # 걸레받이
+    out.append(L([W(e0, 10), W(e1, 10)], 1.3, 'oak_l' if not dark else 'oak', op=0.8))
+    out.append(_strip(W, e0, e1, beam_z, UG_H, 'walnut' if dark else 'walnut_l'))                 # 위 들보
+    out.append(_strip(W, e0, e1, beam_z - 5, beam_z, 'walnut_d', op=0.3))
+    out.append(L([W(e0, beam_z), W(e1, beam_z)], 1.4, 'walnut_d', op=0.9))
+    out.append(_wall_rim(side))
+    return out
+
+
+# ---- 벽 장식(왼쪽 위 벽 = 오른쪽 아래를 보는 면에 붙는 모습. 오른쪽 위 벽에는 좌우 뒤집기)
+def _wp(u, z, out=0.0):
+    """왼쪽 위 벽 면의 점. u = 0(화면 왼쪽 아래 끝) ~ 1(위쪽 끝), out = 벽에서 튀어나온 정도(칸 비율)"""
+    return iso(-0.5 + out, 0.5 - u, z)
+
+
+def _wquad(u0, u1, z0, z1, out=0.0):
+    return [_wp(u0, z0, out), _wp(u1, z0, out), _wp(u1, z1, out), _wp(u0, z1, out)]
+
+
+def _wmap(u0, u1, z0, z1, pts, out=0.01):
+    """(s, t) ∈ [0,1]² 그림을 벽 면의 네모 칸에 옮긴다(t 는 아래 0 -> 위 1)."""
+    return [_wp(u0 + (u1 - u0) * s, z0 + (z1 - z0) * t, out) for s, t in pts]
+
+
+def _wbox(u0, u1, z0, z1, d0, d1, top, front, side_k):
+    """벽에서 튀어나온 상자(선반 판 등): 윗면 + 앞면(오른쪽 아래를 봄) + 옆면(왼쪽 아래 끝)."""
+    return [P([_wp(u0, z0, d1), _wp(u1, z0, d1), _wp(u1, z1, d1), _wp(u0, z1, d1)], front),
+            P([_wp(u0, z0, d0), _wp(u0, z0, d1), _wp(u0, z1, d1), _wp(u0, z1, d0)], side_k),
+            P([_wp(u0, z1, d0), _wp(u1, z1, d0), _wp(u1, z1, d1), _wp(u0, z1, d1)], top)]
+
+
+def deco_shelf():
+    """나무 선반(병, 작은 화분, 책)"""
+    out = []
+    for u in (0.3, 0.7):                                            # 받침
+        out.append(P([_wp(u - 0.02, 70, 0.005), _wp(u + 0.02, 70, 0.005), _wp(u + 0.02, 70, 0.12), _wp(u - 0.02, 56, 0.005)], 'walnut'))
+    out += _wbox(0.2, 0.8, 70, 75, 0.0, 0.16, 'oak_l', 'oak_d', 'oak')
+    base = lambda u, d: _wp(u, 75, d)
+    for u, h, key, cap in ((0.3, 22, 'teal_l', 'cream'), (0.4, 16, 'rose', 'oak_d')):        # 병
+        x, y = base(u, 0.08)
+        out += [P([(x - 5, y), (x - 5, y - h + 5), (x - 3, y - h), (x + 3, y - h), (x + 5, y - h + 5), (x + 5, y)], key),
+                E(x, y, 5, 2, key), P([(x - 2.5, y - h), (x - 2.5, y - h - 4), (x + 2.5, y - h - 4), (x + 2.5, y - h)], cap),
+                L([(x - 2.5, y - h + 8), (x - 2.5, y - 4)], 1.4, 'white', op=0.6)]
+    x, y = base(0.53, 0.08)                                         # 작은 화분
+    out += [P([(x - 6, y - 10), (x + 6, y - 10), (x + 4.5, y), (x - 4.5, y)], 'rust'), E(x, y - 10, 6, 2.2, 'rust_l')]
+    for dx, dy, ang in ((-4, -16, -30), (0, -20, 0), (4, -15, 30), (-1, -13, -60), (2, -13, 60)):
+        a = math.radians(ang)
+        out.append(E(x + dx, y + dy, 3, 6, 'leafA', ang))
+    for i, (key, h) in enumerate((('navy', 20), ('persian', 22), ('oak_d', 18))):                # 책
+        u = 0.64 + i * 0.045
+        x0, y0 = base(u, 0.03)
+        x1, y1 = base(u + 0.04, 0.03)
+        out += [P([(x0, y0), (x1, y1), (x1, y1 - h), (x0, y0 - h)], key),
+                P([(x0, y0 - h), (x1, y1 - h), (x1 + 6, y1 - h + 3), (x0 + 6, y0 - h + 3)], 'cream'),
+                L([(x0 + 1, y0 - h + 4), (x1 - 1, y1 - h + 4)], 1.2, 'gold', op=0.9)]
+    return out
+
+
+def deco_sconce(frame='off'):
+    """벽 촛대(놋쇠 받침 + 초). on1, on2 는 불꽃이 일렁이는 두 장."""
+    out = [P(_wmap(0.44, 0.56, 72, 96, [(0.5, 0), (1, 0.3), (0.8, 0.62), (1, 1), (0.5, 0.86), (0, 1), (0.2, 0.62), (0, 0.3)], 0.004), 'brass')]
+    out.append(E(*_wp(0.5, 84, 0.006), 2.2, 2.2, 'gold_l'))
+    out.append(L([_wp(0.5, 80, 0.01), _wp(0.5, 76, 0.07), _wp(0.5, 82, 0.11)], 3.4, 'brass'))            # 팔
+    x, y = _wp(0.5, 84, 0.11)
+    out += [E(x, y, 10, 3.6, 'brass'), E(x, y - 1.2, 7, 2.2, 'gold_l')]                                 # 받침 접시
+    out += [P([(x - 4.5, y - 1), (x - 4.5, y - 24), (x + 4.5, y - 24), (x + 4.5, y - 1)], 'cream'), E(x, y - 24, 4.5, 1.7, 'plaster_l'),
+            L([(x - 2.4, y - 21), (x - 2.4, y - 4)], 1.3, 'white', op=0.7), L([(x + 3.5, y - 18), (x + 3.5, y - 12)], 1.6, 'cream', op=0.9),
+            L([(x, y - 25), (x, y - 29)], 1.3, 'ink')]
+    if frame != 'off':
+        k = 1.0 if frame == 'on1' else 1.2
+        out += [E(x, y - 36 * k + 6, 5 * k, 10 * k, 'fire_o'), E(x, y - 33 * k + 6, 2.6 * k, 5.6 * k, 'fire_y')]
+    return out
+
+
+SCONCE_FLAME = (-0.5 + 0.11, 0.0, 84 + 30)                         # 불꽃 자리(iso 좌표 x, y, z: 왼쪽 위 벽 기준)
+
+
+def deco_painting():
+    """섬 그림 액자(바다, 섬, 야자수, 해)"""
+    u0, u1, z0, z1 = 0.2, 0.8, 66, 116
+    M = lambda pts, o=0.012: _wmap(u0 + 0.05, u1 - 0.05, z0 + 6, z1 - 6, pts, o)
+    out = [P(_wquad(u0, u1, z0, z1, 0.008), 'gold_d'), P(_wquad(u0 + 0.02, u1 - 0.02, z0 + 2, z1 - 2, 0.01), 'gold')]
+    out.append(P(M([(0, 0), (1, 0), (1, 1), (0, 1)]), 'sea_l'))                                         # 하늘
+    out.append(P(M([(0, 0), (1, 0), (1, 0.42), (0, 0.42)]), 'sea'))                                     # 바다
+    out.append(P(M([(0.08, 0.38), (0.22, 0.6), (0.46, 0.66), (0.66, 0.52), (0.8, 0.38)]), 'land'))        # 섬
+    out.append(P(M([(0.04, 0.36), (0.84, 0.36), (0.8, 0.42), (0.08, 0.42)]), 'oak_l'))                  # 모래
+    out.append(E(*_wmap(0, 1, 0, 1, [(0.5, 0.5)])[0], 0, 0, 'sun', op=0))
+    sx, sy = M([(0.8, 0.8)])[0]
+    out.append(E(sx, sy, 5, 5, 'sun'))
+    tr = M([(0.4, 0.62), (0.42, 0.75), (0.45, 0.86)])
+    out.append(L(tr, 2.2, 'trunk'))
+    tx, ty = tr[-1]
+    for dx, dy in ((-8, 2), (8, 1), (-5, -4), (6, -4)):
+        out.append(L([(tx, ty), (tx + dx * 0.6, ty + dy - 2), (tx + dx, ty + dy + 2)], 2.2, 'palm'))
+    for s_ in (0.2, 0.55):                                          # 물결
+        out.append(L(M([(s_, 0.2), (s_ + 0.06, 0.24), (s_ + 0.12, 0.2)]), 1.0, 'white', op=0.8))
+    out.append(L([_wp(u0 + 0.5 * (u1 - u0), z1 + 10, 0.004), _wp(u0 + 0.06, z1, 0.008)], 1.2, 'rope'))   # 걸이 끈
+    out.append(L([_wp(u0 + 0.5 * (u1 - u0), z1 + 10, 0.004), _wp(u1 - 0.06, z1, 0.008)], 1.2, 'rope'))
+    out.append(E(*_wp(u0 + 0.5 * (u1 - u0), z1 + 10, 0.004), 1.6, 1.6, 'metal_d'))
+    return out
+
+
+def deco_flag():
+    """해적 깃발(해골과 엇갈린 뼈). 위 두 귀퉁이를 못으로 박아 걸었다."""
+    u0, u1, z0, z1 = 0.16, 0.84, 62, 122
+    edge = [(0, 1), (1, 1), (1, 0.06), (0.83, 0.0), (0.66, 0.06), (0.5, 0.0), (0.33, 0.06), (0.16, 0.0), (0, 0.06)]
+    out = [P(_wmap(u0, u1, z0, z1, edge, 0.012), 'ink'),
+           P(_wmap(u0, u1, z0, z1, [(0, 1), (1, 1), (1, 0.86), (0, 0.9)], 0.013), 'ink', op=0.0)]
+    out.append(L(_wmap(u0, u1, z0, z1, [(0.12, 0.8), (0.28, 0.55), (0.2, 0.3)], 0.013), 1.2, 'soot', op=0.6))    # 주름
+    out.append(L(_wmap(u0, u1, z0, z1, [(0.86, 0.78), (0.72, 0.5), (0.8, 0.24)], 0.013), 1.2, 'soot', op=0.6))
+    S = lambda pts: _wmap(u0, u1, z0, z1, pts, 0.014)
+    for a_, b_ in (((0.28, 0.22), (0.72, 0.5)), ((0.72, 0.22), (0.28, 0.5))):                         # 뼈
+        out.append(L(S([a_, b_]), 3.4, 'pwhite'))
+        for p_ in (a_, b_):
+            x, y = S([p_])[0]
+            out.append(E(x, y, 2.6, 2.6, 'pwhite'))
+    hx, hy = S([(0.5, 0.66)])[0]                                    # 해골
+    out += [E(hx, hy, 10, 9, 'pwhite'), P([(hx - 6, hy + 5), (hx + 6, hy + 3), (hx + 5, hy + 10), (hx - 5, hy + 12)], 'pwhite'),
+            E(hx - 3.8, hy, 2.6, 2.8, 'ink'), E(hx + 3.6, hy - 1.6, 2.6, 2.8, 'ink'), P([(hx, hy + 3), (hx - 1.5, hy + 6), (hx + 1.5, hy + 5)], 'ink')]
+    for s_ in (0.03, 0.97):
+        out.append(E(*_wp(u0 + (u1 - u0) * s_, z1 - 2, 0.016), 1.8, 1.8, 'metal_l'))
+    return out
+
+
+def deco_wheel():
+    """배의 키(타륜)를 벽에 걸었다"""
+    cu, cz, ru, rz = 0.5, 90, 0.27, 24
+    C = lambda a, r=1.0, o=0.05: _wp(cu + ru * r * math.cos(a), cz + rz * r * math.sin(a), o)
+    out = []
+    for i in range(8):                                              # 손잡이
+        a = 2 * math.pi * i / 8
+        out.append(L([C(a, 1.0), C(a, 1.32)], 4.2, 'walnut'))
+        x, y = C(a, 1.38)
+        out.append(E(x, y, 3.2, 3.2, 'walnut_l'))
+    ring_o = [C(2 * math.pi * i / 28, 1.08) for i in range(28)]
+    ring_i = [C(2 * math.pi * i / 28, 0.86) for i in range(28)]
+    out.append(P(ring_o, 'walnut'))
+    out.append(P(ring_i, 'earth_dd', op=0.0))
+    for i in range(8):                                              # 바퀴살
+        a = 2 * math.pi * i / 8
+        out.append(L([C(a, 0.15), C(a, 0.9)], 3.0, 'oak'))
+    out.append(L(ring_i + ring_i[:1], 3.4, 'oak_d'))
+    out.append(L(ring_o + ring_o[:1], 1.6, 'walnut_l', op=0.7))
+    x, y = C(0, 0)
+    out += [E(x, y, 7, 6, 'brass'), E(x - 1, y - 1, 3.4, 3, 'gold_l')]
+    return out
+
+
+def deco_map():
+    """보물 지도(찢어진 양피지, 점선 길과 X, 나침반)"""
+    u0, u1, z0, z1 = 0.24, 0.78, 70, 116
+    edge = [(0, 0.04), (0.2, 0.0), (0.45, 0.05), (0.7, 0.0), (1, 0.05), (0.97, 0.3), (1, 0.62), (0.96, 1), (0.6, 0.96), (0.3, 1), (0.02, 0.97), (0.04, 0.6), (0, 0.3)]
+    S = lambda pts, o=0.012: _wmap(u0, u1, z0, z1, pts, o)
+    out = [P(S(edge, 0.008), 'parch_d'), P(S([(0.04, 0.08), (0.95, 0.08), (0.93, 0.92), (0.06, 0.92)], 0.01), 'parch')]
+    out.append(P(S([(0.14, 0.2), (0.3, 0.5), (0.24, 0.78), (0.5, 0.86), (0.7, 0.66), (0.62, 0.36), (0.42, 0.22)]), 'land', op=0.55))
+    path = S([(0.2, 0.3), (0.32, 0.42), (0.36, 0.58), (0.5, 0.64), (0.6, 0.52)])
+    for p0, p1 in zip(path, path[1:]):
+        for f in (0.15, 0.55):
+            out.append(L([(p0[0] + (p1[0] - p0[0]) * f, p0[1] + (p1[1] - p0[1]) * f),
+                          (p0[0] + (p1[0] - p0[0]) * (f + 0.25), p0[1] + (p1[1] - p0[1]) * (f + 0.25))], 1.4, 'persian'))
+    x, y = S([(0.62, 0.5)])[0]
+    out += [L([(x - 4, y - 4), (x + 4, y + 4)], 2.4, 'persian_d'), L([(x + 4, y - 4), (x - 4, y + 4)], 2.4, 'persian_d')]
+    cx, cy = S([(0.8, 0.78)])[0]                                    # 나침반
+    out += [E(cx, cy, 5.5, 5.5, 'parch_d', op=0.7), P([(cx, cy - 6), (cx + 1.6, cy), (cx, cy + 6), (cx - 1.6, cy)], 'ink'), P([(cx - 6, cy), (cx, cy - 1.4), (cx + 6, cy), (cx, cy + 1.4)], 'ink', op=0.6)]
+    for s_, t_ in ((0.05, 0.92), (0.93, 0.92)):
+        out.append(E(*S([(s_, t_)], 0.016)[0], 1.7, 1.7, 'persian'))
+    return out
+
+
+# ---- 바닥 장식(해적 전리품)
+def deco_candelabra(frame='off'):
+    """서 있는 촛대(초 셋). 기준점 = 받침 가운데"""
+    out = [S(3, 4, 22, 7, 0)]
+    for t in (90, 210, 330):
+        a = math.radians(t)
+        out.append(line3([v3(0.12 * math.cos(a), 0.12 * math.sin(a), 0), v3(0.02 * math.cos(a), 0.02 * math.sin(a), 10)], 3.2, 'brass'))
+    out += [L([(0, -8), (0, -70)], 4.2, 'brass'), L([(-1.4, -10), (-1.4, -68)], 1.4, 'gold_l', op=0.8), E(0, -40, 4.5, 3, 'brass')]
+    out.append(L([(-22, -78), (-20, -70), (0, -68), (20, -70), (22, -78)], 3.4, 'brass'))
+    for x, y in ((-22, -78), (0, -86), (22, -78)):
+        out += [E(x, y, 6, 2.2, 'brass'), P([(x - 2.8, y - 1), (x - 2.8, y - 14), (x + 2.8, y - 14), (x + 2.8, y - 1)], 'cream'),
+                E(x, y - 14, 2.8, 1.1, 'plaster_l'), L([(x, y - 14), (x, y - 17)], 1.1, 'ink')]
+        if frame != 'off':
+            k = (1.0, 1.2, 0.9)[(x > 0) + (x < 0) * 2] if frame == 'on1' else (1.2, 0.95, 1.12)[(x > 0) + (x < 0) * 2]
+            out += [E(x, y - 24 * k, 4.4 * k, 9 * k, 'fire_o'), E(x, y - 21 * k, 2.3 * k, 5 * k, 'fire_y')]
+    if frame == 'off':
+        out.append(L([(0, -88 - 14), (2, -108), (-1, -114)], 1.2, 'smoke', op=0.7))
+    out.append(L([(0, -86), (0, -84)], 1.0, 'ink', op=0.0))
+    return out
+
+
+CANDELABRA_FLAME = (0, -108)                                        # 가운데 불꽃(마스터 px, 기준점에서)
+
+
+def deco_globe():
+    """지구본(나무 받침 + 놋쇠 고리)"""
+    out = [S(3, 5, 26, 9, 0)]
+    for t in (90, 210, 330):
+        a = math.radians(t)
+        out.append(line3([v3(0.16 * math.cos(a), 0.16 * math.sin(a), 0), v3(0.04 * math.cos(a), 0.04 * math.sin(a), 26)], 4.2, 'walnut'))
+    out += [L([(0, -26), (0, -36)], 4, 'walnut'), E(0, -36, 9, 3.4, 'walnut_l')]
+    gx, gy, r = 0, -62, 22
+    out += [E(gx, gy, r, r, 'sea'), E(gx - 6, gy - 7, r * 0.5, r * 0.42, 'sea_l', op=0.6)]
+    for pts in (((-14, -6), (-6, -14), (2, -10), (0, 0), (-8, 4), (-16, 2)), ((6, 2), (14, -4), (18, 6), (10, 14), (4, 10)),
+                ((-10, 10), (-4, 8), (-2, 16), (-8, 18))):
+        out.append(P([(gx + x, gy + y) for x, y in pts], 'land'))
+    out.append(L([(gx - 4, gy - r - 4), (gx + r * 0.9, gy - 8), (gx + 6, gy + r + 2)], 3.2, 'brass'))
+    out.append(P([(gx - 2, gy + r - 2), (gx + 2, gy + r - 2), (gx + 3, gy + r + 6), (gx - 3, gy + r + 6)], 'brass'))
+    out.append(E(gx - 7, gy - 8, 4, 3, 'white', op=0.5))
+    return out
+
+
+def deco_treasure(state='closed'):
+    """보물 상자. open 이면 금화와 보석이 넘친다."""
+    out = [S(4, 6, 44, 15, 26)]
+    hx, hy, H = 0.3, 0.21, 22
+    out += box3(v3(0, 0, H / 2), v3(hx, 0), v3(0, hy), (0.0, 0.0, H / 2), 'gold_d' if state == 'open' else 'walnut', ('walnut_l', 'walnut', 'walnut_d'))
+    for f in (-0.66, 0.0, 0.66):
+        out.append(line3([v3(f * hx, hy, 0.5), v3(f * hx, hy, H)], 3.4, 'gold'))
+        out.append(line3([v3(hx, f * hy, 0.5), v3(hx, f * hy, H)], 3.4, 'gold'))
+    if state == 'closed':
+        n = 8
+        arc = [(math.cos(math.pi * i / n), math.sin(math.pi * i / n)) for i in range(n + 1)]
+        front = [pr(v3(-hx, hy * c, H + 13 * s)) for c, s in arc]
+        back = [pr(v3(hx, hy * c, H + 13 * s)) for c, s in arc]
+        out.append(P(hull(front + back), 'walnut_l'))
+        out.append(P([pr(v3(hx, hy * c, H + 13 * s)) for c, s in arc], 'walnut'))
+        for f in (-0.66, 0.0, 0.66):
+            out.append(L([pr(v3(f * hx, hy * c, H + 13 * s)) for c, s in arc], 3.4, 'gold'))
+        lc = pr(v3(hx, 0, H - 4))
+        out += [P([(lc[0] - 4, lc[1] - 6), (lc[0] + 4, lc[1] - 8), (lc[0] + 4, lc[1] + 3), (lc[0] - 4, lc[1] + 5)], 'gold'), E(lc[0], lc[1] - 1.5, 1.4, 1.4, 'ink')]
+    else:
+        lid = [pr(v3(-hx, -hy, H)), pr(v3(hx, -hy, H)), pr(v3(hx, -hy - 0.07, H + 28)), pr(v3(-hx, -hy - 0.07, H + 28))]
+        out.append(P(lid, 'walnut'))
+        out.append(P([lerp(lid[0], lid[3], 0.12), lerp(lid[1], lid[2], 0.12), lerp(lid[1], lid[2], 0.88), lerp(lid[0], lid[3], 0.88)], 'persian_d', op=0.9))
+        for f in (-0.66, 0.0, 0.66):
+            out.append(L([pr(v3(f * hx, -hy, H)), pr(v3(f * hx, -hy - 0.07, H + 28))], 3.4, 'gold'))
+        heap = [pr(v3(x, y, H + z)) for x, y, z in ((-0.29, -0.2, 0), (0.29, -0.2, 0), (0.29, 0.2, 0), (-0.29, 0.2, 0))]
+        top = pr(v3(0, 0, H + 20))
+        out.append(P(heap, 'gold_d'))
+        out.append(P([heap[3], heap[0], (top[0] - 22, top[1] + 6), (top[0] - 8, top[1] - 1), top, (top[0] + 10, top[1] + 1),
+                      (top[0] + 22, top[1] + 7), heap[1], heap[2]], 'gold'))
+        out.append(P([(top[0] - 12, top[1] + 4), (top[0] - 2, top[1] - 1), (top[0] + 8, top[1] + 3), (top[0] - 2, top[1] + 8)], 'gold_l'))
+        rng = random.Random(21)
+        for _ in range(18):
+            cx, cy = pr(v3(rng.uniform(-0.25, 0.25), rng.uniform(-0.16, 0.16), H + rng.uniform(4, 18)))
+            out.append(E(cx, cy, 3.8, 2.1, rng.choice(('gold_l', 'gold', 'gold_d'))))
+        px_, py_ = pr(v3(0.2, 0.18, H + 4))                                                         # 진주 목걸이
+        out.append(L([(px_ - 10, py_ - 8), (px_ - 4, py_ + 2), (px_ + 6, py_ + 6), (px_ + 12, py_ + 14)], 2.2, 'pwhite'))
+        for (x, y, z), key in (((-0.1, 0.0, 12), 'persian'), ((0.12, -0.06, 10), 'teal_l'), ((0.02, 0.1, 9), 'navy_l')):
+            cx, cy = pr(v3(x, y, H + z))
+            out += [P([(cx, cy - 4), (cx + 3.5, cy), (cx, cy + 3), (cx - 3.5, cy)], key), E(cx - 1, cy - 1.4, 1, 0.8, 'white')]
+        for (x, y) in ((0.36, 0.12), (0.34, -0.02), (0.1, 0.3)):                                     # 떨어진 금화
+            cx, cy = pr(v3(x, y, 0))
+            out += [E(cx, cy, 4, 2, 'gold_d'), E(cx, cy - 0.8, 3.4, 1.6, 'gold_l')]
+    return out
+
+
+def deco_barrel():
+    """럼주 통(쇠테 두른 통 + 꼭지 + 잔)"""
+    out = [S(3, 5, 30, 10, 0)]
+    out += cyl(v3(0, 0, 0), v3(0, 0, 44), 22, 22, 'oak_d', cap='oak')
+    for z in (8, 36):
+        out.append(L([pr(v3(0.33 * math.cos(math.radians(a)), 0.33 * math.sin(math.radians(a)), z)) for a in range(-30, 211, 15)], 3.2, 'metal_d'))
+    for a in range(0, 360, 36):                                     # 통 널빤지 줄
+        if math.sin(math.radians(a)) > -0.2:
+            p0, p1 = pr(v3(0.33 * math.cos(math.radians(a)), 0.33 * math.sin(math.radians(a)), 1)), pr(v3(0.33 * math.cos(math.radians(a)), 0.33 * math.sin(math.radians(a)), 43))
+            out.append(L([p0, p1], 1.0, 'walnut_d', op=0.6))
+    tx, ty = pr(v3(0.3, 0.2, 16))                                   # 꼭지
+    out += [L([(tx, ty), (tx + 6, ty + 2)], 3, 'brass'), L([(tx + 6, ty + 2), (tx + 6, ty + 7)], 2.4, 'brass')]
+    mx, my = pr(v3(0.02, -0.04, 44))                                # 위의 잔
+    out += [P([(mx - 5, my), (mx - 5, my - 10), (mx + 5, my - 10), (mx + 5, my)], 'cream'), E(mx, my - 10, 5, 2, 'oak_d'),
+            L([(mx + 5, my - 8), (mx + 8, my - 6), (mx + 5, my - 3)], 1.8, 'cream')]
+    return out
+
+
+# ---- 양탄자(해적 전리품, 바닥에 깔림)
+def _rug_quad(kx, ky):
+    return [iso(-kx, -ky), iso(kx, -ky), iso(kx, ky), iso(-kx, ky)]
+
+
+def _fringe(kx, ky, n=9):
+    out = []
+    for sx in (-1, 1):
+        for i in range(n):
+            y = -ky + 2 * ky * (i + 0.5) / n
+            p0, p1 = iso(sx * kx, y), iso(sx * (kx + 0.06), y)
+            out.append(L([p0, p1], 1.6, 'cream'))
+    return out
+
+
+def deco_rug_persian():
+    """붉은 페르시아 양탄자(2x2). 기준점 = 네 칸 한가운데"""
+    kx, ky = 0.8, 0.72
+    out = _fringe(kx, ky, 11) + [P(_rug_quad(kx, ky), 'navy')]
+    out.append(P(_rug_quad(kx - 0.05, ky - 0.05), 'cream'))
+    out.append(P(_rug_quad(kx - 0.09, ky - 0.09), 'navy'))
+    out.append(P(_rug_quad(kx - 0.16, ky - 0.16), 'persian'))
+    for i in range(10):                                             # 테두리 무늬
+        f = -kx + 0.07 + (2 * kx - 0.14) * (i + 0.5) / 10
+        for y in (-(ky - 0.07), ky - 0.07):
+            cx, cy = iso(f, y)
+            out.append(P([(cx, cy - 2.6), (cx + 4, cy), (cx, cy + 2.6), (cx - 4, cy)], 'persian_l'))
+    out.append(P([iso(0, -0.42), iso(0.5, 0), iso(0, 0.42), iso(-0.5, 0)], 'persian_l'))             # 가운데 메달
+    out.append(P([iso(0, -0.32), iso(0.38, 0), iso(0, 0.32), iso(-0.38, 0)], 'navy'))
+    out.append(P([iso(0, -0.18), iso(0.22, 0), iso(0, 0.18), iso(-0.22, 0)], 'persian_d'))
+    cx, cy = iso(0, 0)
+    out += [E(cx, cy, 5, 2.6, 'cream'), E(cx, cy, 2.4, 1.2, 'persian')]
+    for sx in (-1, 1):                                              # 네 귀퉁이
+        for sy in (-1, 1):
+            x, y = sx * (kx - 0.26), sy * (ky - 0.26)
+            out.append(P([iso(x, y - sy * 0.12), iso(x - sx * 0.12, y), iso(x, y + sy * 0.0), iso(x + sx * 0.0, y)], 'persian_l', op=0.9))
+    for x in (-0.48, 0.48):
+        cx, cy = iso(x, 0)
+        out += [P([(cx, cy - 4), (cx + 6, cy), (cx, cy + 4), (cx - 6, cy)], 'teal_l'), E(cx, cy, 1.6, 1, 'cream')]
+    return out
+
+
+def deco_rug_round():
+    """둥근 땋은 양탄자(2x2, 고리 무늬)"""
+    out = []
+    rings = (('cream', 0.86), ('teal', 0.78), ('cream', 0.7), ('rose', 0.6), ('cream', 0.52), ('teal_l', 0.42), ('oak_l', 0.32), ('rose', 0.2), ('cream', 0.1))
+    for key, r in rings:
+        pts = [iso(r * math.cos(2 * math.pi * i / 40), r * math.sin(2 * math.pi * i / 40)) for i in range(40)]
+        out.append(P(pts, key))
+    rng = random.Random(33)
+    for r in (0.82, 0.65, 0.47, 0.26):                              # 땋은 자국
+        for i in range(0, 40, 2):
+            a = 2 * math.pi * (i + rng.uniform(0, 0.6)) / 40
+            p0 = iso(r * math.cos(a), r * math.sin(a))
+            p1 = iso(r * math.cos(a + 0.06), r * math.sin(a + 0.06))
+            out.append(L([p0, p1], 1.0, 'oak_d', op=0.35))
+    return out
+
+
+def deco_rug_runner():
+    """긴 양탄자(1x3, col 방향). 기준점 = 가운데 칸. 좌우 뒤집으면 row 방향."""
+    kx, ky = 1.42, 0.38
+    out = _fringe(kx, ky, 5) + [P(_rug_quad(kx, ky), 'teal')]
+    out.append(P(_rug_quad(kx - 0.05, ky - 0.05), 'cream'))
+    out.append(P(_rug_quad(kx - 0.09, ky - 0.09), 'teal'))
+    out.append(P(_rug_quad(kx - 0.14, ky - 0.14), 'persian_l'))
+    for i in range(7):                                              # 마름모 무늬가 줄지어
+        x = -1.08 + i * 0.36
+        out.append(P([iso(x, -0.15), iso(x + 0.15, 0), iso(x, 0.15), iso(x - 0.15, 0)], 'persian' if i % 2 else 'navy'))
+        out.append(P([iso(x, -0.07), iso(x + 0.07, 0), iso(x, 0.07), iso(x - 0.07, 0)], 'oak_l' if i % 2 else 'teal_l'))
+    for i in range(14):
+        x = -1.2 + i * 0.185
+        for y in (-0.27, 0.27):
+            cx, cy = iso(x, y)
+            out.append(E(cx, cy, 2.4, 1.4, 'cream'))
+    return out
+
+
+def loot_sack():
+    """해적이 떨어뜨린 전리품 꾸러미(자루 + 쏟아진 금화)"""
+    out = [S(2, 4, 26, 9, 0)]
+    bag = [(-18, 0), (-21, -14), (-15, -26), (-6, -31), (6, -31), (15, -26), (21, -14), (18, 0)]
+    out += [P(bag, 'parch_d'), P([(4, -31), (15, -26), (21, -14), (18, 0), (6, 0)], 'oak_d', soft=True, op=0.6),
+            L([(-7, -31), (7, -31)], 4, 'rope'), P([(-6, -31), (-11, -41), (0, -36), (10, -42), (6, -31)], 'parch_d')]
+    out.append(L([(-12, -12), (-3, -20), (2, -12), (8, -19)], 1.2, 'canvas_dd', op=0.5))
+    for x, y in ((20, 3), (26, -1), (12, 5), (-22, 3), (30, 4)):
+        out += [E(x, y, 5, 2.4, 'gold_d'), E(x, y - 1, 4.2, 1.9, 'gold_l')]
+    out += [P([(-4, -36), (0, -40), (4, -36), (0, -33)], 'persian'), E(-1, -37.5, 1.2, 0.9, 'white')]
+    return out
+
+
+def icon_decor():
+    """꾸미기 묶음 아이콘: 액자와 붓"""
+    out = [P([(-34, -30), (30, -30), (30, 26), (-34, 26)], 'gold_d'), P([(-28, -24), (24, -24), (24, 20), (-28, 20)], 'sea_l'),
+           P([(-28, 4), (24, 4), (24, 20), (-28, 20)], 'sea'), P([(-20, 6), (-8, -6), (6, -4), (14, 6)], 'land'), E(14, -12, 5, 5, 'sun')]
+    out += [L([(10, 42), (44, 4)], 6, 'walnut'), P([(40, 8), (48, -2), (52, 2), (44, 12)], 'metal'), P([(48, -2), (56, -12), (58, -4), (52, 2)], 'persian')]
+    return out
