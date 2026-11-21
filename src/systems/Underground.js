@@ -43,6 +43,20 @@ export class Underground {
   tall(c, r) { return !this.isDug(c, r) && (this.isDug(c + 1, r) || this.isDug(c, r + 1) || this.isDug(c + 1, r + 1)); }
   solid(c, r) { return this.isDug(c, r) || this.tall(c, r); }
 
+  // (지하 침입) 두 칸을 잇는 직선(브레젠험 선)이 지나는 칸이 모두 파낸 칸인가 (18.4, 총잡이)
+  clearLine(a, b) {
+    let x = a.col, y = a.row;
+    const dx = Math.abs(b.col - x), dy = -Math.abs(b.row - y), sx = x < b.col ? 1 : -1, sy = y < b.row ? 1 : -1;
+    let err = dx + dy;
+    for (;;) {
+      if (!this.isDug(x, y)) return false;
+      if (x === b.col && y === b.row) return true;
+      const e2 = 2 * err;
+      if (e2 >= dy) { err += dy; x += sx; }
+      if (e2 <= dx) { err += dx; y += sy; }
+    }
+  }
+
   // 지하 칸 가운데의 월드 좌표 (17.2)
   world(c, r) { const w = tileToWorld(c, r); return { x: w.x, y: w.y + CONFIG.ug.offsetY }; }
   tileAt(wx, wy) { return worldToTile(wx, wy - CONFIG.ug.offsetY); }
@@ -106,13 +120,13 @@ export class Underground {
     this.busy = true;
     this.burrow = b;
     this.surfaceSpot = { col: pl.tile.col, row: pl.tile.row };
-    b.sprite.setFrame(A.frames.indexOf('open'));
+    if (!b.broken) b.sprite.setFrame(A.frames.indexOf('open'));   // 부서진 굴 입구는 뚜껑을 여닫는 동작이 없다 (18.2)
     pl.stopAction();
     pl.body.play('crouch');
     scene.time.delayedCall(U.crouchMs, () => {
       scene.cameras.main.fadeOut(U.fadeMs, 0, 0, 0);
       scene.cameras.main.once('camerafadeoutcomplete', () => {
-        b.sprite.setFrame(A.frames.indexOf('closed'));
+        if (!b.broken) scene.raid.setHatchFrame(b);
         this.switchTo(true);
         scene.cameras.main.fadeIn(U.fadeMs, 0, 0, 0);
         this.climb(false, () => { this.busy = false; scene.todo.check('down'); this.tip(); });
@@ -225,6 +239,8 @@ export class Underground {
       if (hit && hit.furniture === pl.seat.stool) return;
       home.standUp();
     }
+    const foe = this.scene.enemies.pickAt(wx, wy);  // (지하 침입) 지하의 해적: 다가가서 친다(총이 있으면 쏜다) (3.5 의 순서)
+    if (foe && foe.under) { this.upPending = false; this.scene.pressEnemy(foe); return; }
     if (hit && hit.furniture) { this.upPending = false; home.press(hit.furniture); return; }
     if (hit === 'ladder') { this.pressLadder(); return; }
     if (hit === 'hole') {
@@ -363,7 +379,12 @@ export class Underground {
       const over = p.img.depth > ps.depth && Phaser.Geom.Intersects.RectangleToRectangle(pb, p.img.getBounds());
       p.img.setAlpha(over ? CONFIG.ug.wallFadeAlpha : 1);
     }
-    if (this.shaft) this.shaft.setAlpha(CONFIG.ug.shaft.glowAlpha * this.sun());
+    // 입구의 햇빛 기둥. (지하 침입) 굴 입구가 부서진 밤에는 달빛(18.2)
+    if (this.shaft) {
+      const M = CONFIG.raid.moon;
+      if (scene.raid.moonlit) this.shaft.setTint(M.tint).setAlpha(M.alpha);
+      else this.shaft.clearTint().setAlpha(CONFIG.ug.shaft.glowAlpha * this.sun());
+    }
   }
 
   // 햇빛 세기 (17.5): 낮 1, 저녁 동안 1 -> 0.2, 밤 0, 아침 dawnFade 동안 0 -> 1
@@ -379,11 +400,16 @@ export class Underground {
   lights() {
     const P = CONFIG.player.light, S = CONFIG.ug.shaft, sp = this.scene.player.sprite, e = this.world(this.floor.entry.col, this.floor.entry.row), sun = this.sun();
     const out = this.scene.home.bed ? [] : [{ x: sp.x, y: sp.y - P.lift, radius: P.radius, color: P.color, alpha: P.alpha }];
-    if (sun > 0) {
+    const ML = CONFIG.raid.moonLight;
+    if (this.scene.raid.moonlit) {                  // (지하 침입) 부서진 굴 입구의 달빛 (18.2)
+      out.push({ x: e.x, y: e.y, radius: ML.low.radius, color: ML.color, alpha: ML.low.alpha });
+      out.push({ x: e.x, y: e.y - ML.high.lift, radius: ML.high.radius, color: ML.color, alpha: ML.high.alpha });
+    } else if (sun > 0) {
       out.push({ x: e.x, y: e.y, radius: S.low.radius, color: S.color, alpha: S.low.alpha * sun });
       out.push({ x: e.x, y: e.y - S.high.lift, radius: S.high.radius, color: S.color, alpha: S.high.alpha * sun });
     }
     out.push(...this.scene.home.lights());
+    out.push(...this.scene.raid.lights());          // (지하 침입) 해적의 허리 등불 (18.4)
     return out;
   }
 

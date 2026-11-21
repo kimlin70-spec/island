@@ -41,6 +41,7 @@ export class UIScene extends Phaser.Scene {
     };
     listen('inventory-changed', () => { this.refreshBag(); this.refreshCards(); });
     listen('choose-seed', (f) => this.showSeedWindow(f));
+    listen('burrow-menu', (b) => this.showBurrowMenu(b));   // (지하 침입) 굴 입구 고치기 (18.2)
     listen('weather-changed', () => this.refreshWeather());
     // (지하) 만들기 창의 카드가 바뀌고(17.6), 시계 아래에 "지하 1층", 알림은 그 아래로 (17.9)
     listen('ug-changed', (down) => { this.makeCraftWindow(); this.ugTag.setVisible(down); this.placeNotice(); });
@@ -64,6 +65,7 @@ export class UIScene extends Phaser.Scene {
     this.events.on('prerender', () => {
       this.drawLightmap();
       this.refreshClock();
+      this.placeBurrowMenu();
     });
 
     // 포인터가 패널이나 버튼 위로 가면 월드에 알린다(짓기 표시를 숨기고, 거기서 손을 떼도 짓지 않게).
@@ -352,6 +354,35 @@ export class UIScene extends Phaser.Scene {
     this.seedWin = this.add.container(x, y, parts).setDepth(12);
   }
 
+  // ── (지하 침입) 굴 입구 곁의 "고치기 · 나무 2" / "내려가기" 버튼 (18.2). b 가 null 이면 닫는다 ──
+
+  showBurrowMenu(b) {
+    if (this.burrowMenu) { this.burrowMenu.destroy(); this.burrowMenu = null; }
+    if (!b) return;
+    const M = CONFIG.raid.menu, w = this.world, cost = CONFIG.raid.repairCost.wood;
+    const parts = [];
+    [[`고치기 · 나무 ${cost}`, () => w.raid.repair(b)], ['내려가기', () => w.ug.pressBurrow(b)]].forEach(([text, onPress], i) => {
+      const y = i * (M.h + M.gap);
+      const g = this.hitRect(this.add.graphics(), -M.w / 2, y, M.w, M.h);
+      this.roundRect(g, -M.w / 2, y, M.w, M.h, M.h / 2, i ? U.cardColor : U.yellow, 1, INK, U.panel.borderWidth);
+      g.on('pointerdown', () => { this.click(); w.closeBurrowMenu(); onPress(); });
+      parts.push(g, this.label(0, y + M.h / 2, text, M.font, { originX: 0.5 }));
+    });
+    this.burrowMenu = this.add.container(0, 0, parts).setDepth(12);
+    this.burrowMenu.target = b;
+    this.placeBurrowMenu();
+  }
+
+  // 굴 입구의 화면 위치 위에 둔다(카메라가 움직여도 따라간다)
+  placeBurrowMenu() {
+    const m = this.burrowMenu;
+    if (!m) return;
+    const b = m.target, cam = this.world.cameras.main, M = CONFIG.raid.menu;
+    if (!b.sprite.active) { this.world.closeBurrowMenu(); return; }
+    const h = 2 * M.h + M.gap;
+    m.setPosition((b.sprite.x - cam.midPoint.x) * cam.zoom + cam.width / 2, (b.sprite.y - M.lift - cam.midPoint.y) * cam.zoom + cam.height / 2 - h);
+  }
+
   closeSeedWindow() {
     if (!this.seedWin) return;
     this.seedWin.destroy();
@@ -532,7 +563,8 @@ export class UIScene extends Phaser.Scene {
       ['날씨 바꾸기', () => this.world.debugWeather()],   // 14.4
       ...(this.world.hunger.enabled ? [['배부름 가득', () => this.world.debugHungerFull()], ['배부름 0', () => this.world.debugHungerZero()]] : []),   // 16.4
       ...(this.world.stage >= 2 && this.world.ug.exists ? [['지하로 / 땅 위로', () => this.world.debugUnderground()], ['둘레 5×5 파기', () => this.world.debugDigAround()],
-        ['포자 +' + CONFIG.ug.debugSpores, () => this.world.debugSpores()], ['버섯 다 자라게', () => this.world.debugMushrooms()]] : []),   // 17.10
+        ['포자 +' + CONFIG.ug.debugSpores, () => this.world.debugSpores()], ['버섯 다 자라게', () => this.world.debugMushrooms()],
+        ...(this.world.raid.enabled ? [['해적 습격(지하)', () => this.world.debugRaid()]] : [])] : []),   // 17.10, 18.5
       ['닫기', () => this.debugWin.setVisible(false)],
     ];
     // 단추가 많아 만들기 버튼까지 내려오면 단추 높이를 줄여 그 위에 맞춘다

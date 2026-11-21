@@ -138,6 +138,18 @@ export const CONFIG = {
         attackHold: 5,                          // 땅 위의 시설이 마지막으로 맞은 뒤 이만큼(초) 동안은 침대의 빨리 감기를 멈춘다
         attackNotice: 5,                        // "땅 위: 캠프가 공격받고 있습니다"는 이만큼(초)에 한 번 이하
         debugSpores: 5 },                       // 시험용 도구 "포자 +5"
+  // 해적의 지하 침입 (18.6). enabled 가 false 면 18장 전체가 없다(해적은 17.2 대로 굴 입구 둘레를 돈다).
+  // 아래 두 줄은 18장의 글에 있는 숫자와 화면에 쓰는 숫자
+  raid: { enabled: true, hatchHp: 20, knockSoundEvery: 0.8, descendInterval: 1.5, enterMs: 500,
+          repairCost: { wood: 2 }, moon: { tint: 0x9fb4ff, alpha: 0.3 },
+          lantern: { radius: 140, color: 0xffdba0, alpha: 0.85, swing: 6 },
+          enterDrop: 40, holeLift: 150,                     // 굴 입구로 들어갈 때 내려가는 높이(px), 사다리 구멍: 사다리 칸 가운데에서 위로(px)
+          knockShake: { duration: 120, intensity: 0.003 }, breakShake: { duration: 200, intensity: 0.006 },
+          debris: { knock: 3, break: 12, time: [0.4, 0.65], spread: 22 },   // 사다리 구멍에서 떨어지는 부스러기: 수, 떨어지는 시간(초), 좌우로 퍼지는 폭(px)
+          alertAfter: 3, alertHold: 1.2,                    // alert: 부서진 뒤 이만큼(초), 마지막으로 친 뒤 이만큼(초) 보여 준다
+          moonLight: { color: 0x9fb4ff, low: { radius: 120, alpha: 0.4 }, high: { radius: 90, alpha: 0.3, lift: 120 } },
+          lanternLight: { drop: 12, glowSize: 70, glowAlpha: 0.3 }, lanternFade: 0.3, swingRate: 9,   // 등불 빛은 등불에서 12px 아래. 흔들림 빠르기(라디안/초)
+          menu: { w: 250, h: 60, gap: 10, lift: 140, font: 24 } },   // 굴 입구를 고치는 버튼: 굴 입구 기준점에서 위로 lift(px)
   // 배고픔 (16.5). enabled: false 면 배부름이 없고 먹을 것은 하트를 채운다
   hunger: { enabled: true, max: 5, start: 5, drainEvery: 90, starveEvery: 30, warnAt: 1,
             food: { berry: 1, carrot: 1, corn: 2, pumpkin: 3, mushroom: 1 } },
@@ -306,3 +318,5 @@ CONFIG.tools.hoe.cost = CONFIG.farm.hoeCost;
 CONFIG.tools.watering_can.cost = CONFIG.farm.canCost;
 // 굴 입구와 지하 가구의 재료는 ug.cost 의 값을 쓴다(17.11)
 for (const [k, cost] of Object.entries(CONFIG.ug.cost)) CONFIG.build[k].cost = cost;
+// 굴 입구(뚜껑)의 체력은 raid.hatchHp (18.6)
+CONFIG.build.burrow.hp = CONFIG.raid.hatchHp;

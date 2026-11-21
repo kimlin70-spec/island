@@ -122,7 +122,7 @@ export class Walker {
     const d = this.heading;
     if (!d) return;
     const h = this.here();
-    const snowy = this.scene.weather.snowy;         // 눈이 쌓였으면 모래가 아닌 곳에도 발자국, 발소리는 step_snow (14.3)
+    const snowy = this.scene.weather.snowy && !this.yOff;   // (지하) 지하에는 눈이 없다         // 눈이 쌓였으면 모래가 아닌 곳에도 발자국, 발소리는 step_snow (14.3)
     this.scene.effects.step(this.sprite.x, this.sprite.y, (d.dc - d.dr) * 2, d.dc + d.dr, snowy || this.map.isSand(h.col, h.row));
     this.scene.sfx.play(snowy ? 'step_snow' : 'step', { at: this.sprite, volume: CONFIG.sound.step });   // 발소리 (15.3)
   }

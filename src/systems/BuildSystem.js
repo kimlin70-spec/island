@@ -246,6 +246,7 @@ export class BuildSystem {
   // 아침: 남아 있는 시설의 체력이 가득 찬다 (5.10)
   repairAll() {
     for (const s of this.map.structures) {
+      if (s.type === 'burrow') continue;             // (지하 침입) 굴 입구 뚜껑은 고치기로만 (18.2)
       s.hp = s.maxHp;
       this.scene.effects.removeBar(s);
     }

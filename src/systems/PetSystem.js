@@ -187,7 +187,7 @@ export class PetSystem {
   occupied(col, row, map = this.map) {
     const p = this.scene.player.tile;
     if (p.col === col && p.row === row) return true;
-    return map === this.map && this.scene.enemies.list.some((e) => e.tile.col === col && e.tile.row === row);
+    return this.scene.enemies.list.some((e) => e.map === map && e.tile.col === col && e.tile.row === row);   // 그 층의 적만
   }
 
   // 칸 t 의 둘레(8칸) 중 걸을 수 있고 비어 있는 칸들(map: 땅 위 또는 지하)
@@ -364,9 +364,9 @@ export class PetSystem {
   // 하던 일을 했으면 true(따라오기는 하지 않는다)
   dogGuard(p, dt) {
     const scene = this.scene, D = p.cfg, pl = scene.player;
-    if (!scene.clock.isNight || p.map !== this.map) return false;   // 지하에는 적이 없다
+    if (!scene.clock.isNight) return false;          // (지하 침입) 지하에서도 그 층의 적에게 짖고 문다 (18.4)
     const home = scene.rest.resting ? this.centre(scene.rest.tent.tiles) : { col: pl.col, row: pl.row };
-    const foes = scene.enemies.list.filter((e) => e.alive && !e.rising);
+    const foes = scene.enemies.list.filter((e) => e.alive && !e.rising && !e.transit && e.map === p.map);
     const near = foes.filter((e) => Math.hypot(e.col - home.col, e.row - home.row) <= D.barkRange);
     if (!near.length) return false;
     const dist = (e) => Math.hypot(e.col - p.col, e.row - p.row);
@@ -399,7 +399,7 @@ export class PetSystem {
       p.repathLeft -= dt;
       if (!p.moving || p.repathLeft <= 0) {
         p.repathLeft = CONFIG.pets.repathInterval;
-        const goals = this.freeAround(e.here()).filter(reach);
+        const goals = this.freeAround(e.here(), p.map).filter(reach);
         if (goals.length) p.goTo(goals);
       }
       return true;

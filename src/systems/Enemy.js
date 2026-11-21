@@ -44,6 +44,7 @@ export class Enemy extends Walker {
     this.wireLeft = null;    // (2단계) 철조망 위에서 다음 피해까지 남은 시간(초). 철조망 위가 아니면 null
     this.gun = null;         // (2단계, 총잡이) 쏘는 중 { t: 이번 한 번의 겨누기 시작부터 흐른 시간, shot: 이번에 쐈는가, fresh }
     this.gunCool = 0;        // (2단계, 총잡이) 쏘다가 그만뒀을 때, 다시 겨누기를 시작할 수 있을 때까지 남은 시간(초)
+    this.transit = null;     // (해적의 지하 침입) 사다리를 오르내리는 중 { dir, phase, t }. 그동안은 공격하지도 공격받지도 않는다 (18.3)
 
     this.sprite = this.scene.add.sprite(0, 0, this.key).setOrigin(this.asset.originX, this.asset.originY);
     this.body = new Body(this.scene, this.sprite, this.key);
@@ -55,8 +56,17 @@ export class Enemy extends Walker {
   get rising() { return this.body.final === 'rise'; }
   rise() { this.body.setFinal('rise', this.body.ms('rise')); }
 
-  // 발 위치(월드). 맞아서 밀린 그림이 아니라 규칙의 위치.
-  foot() { return tileToWorld(this.col, this.row); }
+  // 발 위치(월드). 맞아서 밀린 그림이 아니라 규칙의 위치. (지하) 지하에 있으면 yOff 를 더한다
+  foot() { const w = tileToWorld(this.col, this.row); return { x: w.x, y: w.y + this.yOff }; }
+
+  // (해적의 지하 침입) 지하에 있는가. 지하의 해적은 걷는 지도(map)가 지하 격자다 (18.4)
+  get under() { return this.yOff > 0; }
+
+  // 이 적을 막는 시설(그 칸의 시설. 부서진 굴 입구는 해적이 지나간다, 18.2)
+  wallAt(col, row) {
+    const s = this.map.structureAt(col, row);
+    return s && !(s.type === 'burrow' && s.broken && this.kind !== 'zombie') ? s : null;
+  }
 
   // 주인공이 이 적을 칠 때 붙어야 하는 칸(Player.act 가 읽는다). 걷는 중이면 몸의 한가운데가 있는 칸.
   get tiles() { return [this.here()]; }
@@ -66,7 +76,7 @@ export class Enemy extends Walker {
   costAt(col, row) {
     if (!this.map.isOpen(col, row)) return 0;
     const s = this.map.structureAt(col, row);
-    if (s && s.type === 'burrow') return 0;          // (지하) 적은 굴 입구를 공격하지 않는다(지나가지도 않는다) (17.2)
+    if (s && s.type === 'burrow') return s.broken && this.kind !== 'zombie' ? 1 : 0;   // (지하) 굴 입구는 지나가지 않는다(17.2). 부서지면 해적은 지나간다(18.2)
     if (s) return this.cfg.breakCost;
     return this.map.wireAt(col, row) ? CONFIG.build.wire.pathCost : 1;
   }
@@ -74,17 +84,17 @@ export class Enemy extends Walker {
   // 길을 찾을 때: 목표 칸(주인공의 칸)에서 시설 칸으로 바로 들어가는 걸음은 넣지 않는다.
   // 주인공의 칸을 밟고 지나가는 것은 되지만(문 같은 좁은 틈), 거기 멈춰 서서 시설을 부수게 되는 길은 고르지 않는다.
   stepOk(fc, fr, tc, tr) {
-    return !(this.targetKeys && this.targetKeys.has(fc + ',' + fr) && this.map.structureAt(tc, tr));
+    return !(this.targetKeys && this.targetKeys.has(fc + ',' + fr) && this.wallAt(tc, tr));
   }
 
   // 비스듬히 갈 때 양옆 칸은 비어 있어야 한다. 시설 두 개 사이를 비스듬히 빠져나가지 않는다.
   sideOk(col, row) { return this.map.isPassable(col, row); }
 
   // 다음 칸이 시설이면 그 앞에서 멈춘다(부순 다음에 간다)
-  mayEnter(t) { return !this.map.structureAt(t.col, t.row); }
+  mayEnter(t) { return !this.wallAt(t.col, t.row); }
 
   // 목표 옆의 제자리에 오면 멈춘다. 목표 칸 위나 다른 적의 자리면 멈추지 않고 가던 길을 간다.
-  onArrive() { if (this.inPlace(this.system.target())) this.path.length = 0; }
+  onArrive() { if (this.inPlace(this.system.target(this))) this.path.length = 0; }
 
   // 서 있는 칸이 목표 칸 중 하나와 붙어 있는가(8방향, 같은 칸 포함). 붙어 있으면 때린다.
   nextTo(target) {
@@ -98,13 +108,16 @@ export class Enemy extends Walker {
   inRange(target, t = this.tile) {
     const n = target.tiles.length;
     const c = target.tiles.reduce((a, g) => a + g.col, 0) / n, r = target.tiles.reduce((a, g) => a + g.row, 0) / n;
-    return Math.hypot(c - t.col, r - t.row) <= this.cfg.range;
+    if (Math.hypot(c - t.col, r - t.row) > this.cfg.range) return false;
+    // (지하) 사이가 막히지 않았을 때만: 두 칸을 잇는 직선이 지나는 칸이 모두 파낸 칸 (18.4)
+    return !this.under || this.scene.ug.clearLine(t, { col: Math.round(c), row: Math.round(r) });
   }
 
   // 여기 서서 목표를 치면 되는가: 목표에 붙은 칸이고(총잡이는 사거리 안), 목표 칸 위가 아니고(주인공과 한 칸에 겹쳐 서지 않게),
   // 다른 적이 서 있거나 가고 있는 칸이 아니다(두 마리가 한 칸에 겹쳐 서서 한 마리처럼 보이지 않게).
   inPlace(target) {
     const t = this.tile;
+    if (target.climb) return this.onTarget(target);   // (지하 침입) 굴 입구 칸·사다리 칸에 올라선다
     if (!(this.ranged ? this.inRange(target) : this.nextTo(target)) || this.onTarget(target)) return false;
     return !this.system.takenTiles(this).has(t.col + ',' + t.row);
   }
@@ -123,7 +136,7 @@ export class Enemy extends Walker {
     }
     const taken = this.system.takenTiles(this);
     const free = all.filter((t) => !taken.has(t.col + ',' + t.row));
-    const plain = (t) => !this.map.structureAt(t.col, t.row);
+    const plain = (t) => !this.wallAt(t.col, t.row);
     return { all, free, plain: all.filter(plain), freePlain: free.filter(plain) };
   }
 
@@ -145,6 +158,10 @@ export class Enemy extends Walker {
     this.goalKey = key;
     this.goalKind = target.structure ? 'tent' : 'player';
     if (!this.moving && this.inPlace(target)) return;
+    if (target.climb) {                              // (지하 침입) 그 칸 위로 간다
+      if (!this.routeOn(target.tiles)) this.wantPath = true;
+      return;
+    }
     const g = this.goalsAround(target.tiles);
     const midStep = this.path[0] && (this.col !== this.tile.col || this.row !== this.tile.row);
     const from = midStep ? this.path[0] : this.tile;          // 길을 찾기 시작하는 칸
@@ -215,14 +232,15 @@ export class Enemy extends Walker {
     const t = this.tile;
     if (this.col !== t.col || this.row !== t.row) return null;
     const next = this.path.find((p) => p.col !== t.col || p.row !== t.row);
-    const blocker = next ? this.map.structureAt(next.col, next.row) : null;
+    const blocker = next ? this.wallAt(next.col, next.row) : null;
     if (next && !blocker) return null;
-    if (this.nextTo(target) && !this.onTarget(target)) return target.structure || 'player';
+    if (!target.climb && this.nextTo(target) && !this.onTarget(target)) return target.structure || 'player';
     return blocker;
   }
 
   update(dt) {
     this.body.tick(dt);
+    if (this.transit) { this.scene.raid.step(this, dt); return; }   // (지하 침입) 사다리를 오르내리는 중 (18.3)
     if (this.rising) {                               // 땅에서 올라오는 중
       this.syncSprite(true);
       return;
@@ -232,14 +250,14 @@ export class Enemy extends Walker {
 
     // 길을 다시 찾을 때: 목표의 칸이 바뀌었다(주인공이 움직였다, 텐트에 들어가거나 나왔다), 시설이 생기거나 없어졌다,
     // 서 있는데 목표 옆의 제자리가 아니다. 다만 시설을 부수는 중이면 주인공이 움직였다는 것만으로는 바꾸지 않는다(하던 것을 마저 부순다).
-    const target = this.system.target();
+    const target = this.system.target(this);
     const key = target.tiles.map((t) => t.col + ',' + t.row).join(' ');
     const kind = target.structure ? 'tent' : 'player';
     if (key !== this.goalKey && !(this.smashing && kind === this.goalKind)) this.wantPath = true;
     // 서 있는데(목표 옆에서 시설에 막혀 서 있는 것도) 목표 옆의 제자리가 아니면 다시 찾는다(빈 칸이 생기면 옮긴다)
     const nx = this.path[0];
     const held = nx && this.col === this.tile.col && this.row === this.tile.row
-      && (nx.col !== this.tile.col || nx.row !== this.tile.row) && !!this.map.structureAt(nx.col, nx.row);
+      && (nx.col !== this.tile.col || nx.row !== this.tile.row) && !!this.wallAt(nx.col, nx.row);
     if ((!this.moving || (held && this.nextTo(target))) && !this.inPlace(target)) this.wantPath = true;
     if (this.wantPath && this.repathLeft <= 0 && this.system.mayRepath()) this.repath(target, key);
 
@@ -255,9 +273,15 @@ export class Enemy extends Walker {
     const atCentre = this.col === this.tile.col && this.row === this.tile.row;
     const next = this.path[0];
     const blocker = atCentre && next && (next.col !== this.tile.col || next.row !== this.tile.row)
-      ? this.map.structureAt(next.col, next.row) : null;
+      ? this.wallAt(next.col, next.row) : null;
     const standing = atCentre && (!this.moving || blocker || swinging);
-    if (this.ranged) {                               // 총잡이: 사거리 안에 서 있으면 쏜다. 시설에 막혔으면 부순다.
+    if (target.climb) {                              // (지하 침입) 굴 입구 칸·사다리 칸에 서면 한 명씩 들어간다. 막혔으면 부순다
+      this.gunStop();
+      this.hitLeft = null;
+      if (blocker) this.smash(blocker, dt);
+      else this.smashing = null;
+      if (standing && this.onTarget(target)) this.scene.raid.tryClimb(this, target.climb);
+    } else if (this.ranged) {                               // 총잡이: 사거리 안에 서 있으면 쏜다. 시설에 막혔으면 부순다.
       if (standing && this.inRange(target) && !this.onTarget(target)) {
         this.hitLeft = null;
         this.smashing = null;
@@ -349,7 +373,7 @@ export class Enemy extends Walker {
       });
       return;
     }
-    const pl = scene.player, at = { col: pl.col, row: pl.row }, w = tileToWorld(at.col, at.row);
+    const pl = scene.player, at = { col: pl.col, row: pl.row }, w = pl.foot();
     shots.straight(from, { x: w.x, y: w.y - H }, G.bulletSpeed, () => {
       const hit = !scene.rest.resting && Math.hypot(pl.col - at.col, pl.row - at.row) <= G.dodgeRadius;
       if (!hit || !scene.hurtPlayer(G.damage, this)) shots.dust(w);
@@ -398,6 +422,7 @@ export class Enemy extends Walker {
   // 주인공(from)에게 맞았다 (12.4): 맞은 곳, 하얗게 번쩍임, 조각(goo), 때린 쪽 반대로 밀림, hurt, 멈칫.
   // 체력이 0이 되면 hurt 와 멈칫 없이 쓰러진다(EnemySystem.kill).
   hurt(n, from = this.scene.player) {
+    if (this.transit) return;                        // 사다리를 오르내리는 해적은 맞지 않는다 (18.3)
     const F = CONFIG.fx, fx = this.scene.effects, me = this.foot(), at = from.foot();
     this.hp -= n;
     this.scene.sfx.play('hit_enemy', { at: me });
@@ -415,6 +440,7 @@ export class Enemy extends Walker {
 
   // 때린 쪽 없이 다쳤다(철조망): 번쩍임, 조각, hurt. 체력이 0이 되면 쓰러진다(밀리지 않는다).
   harm(n) {
+    if (this.transit) return;
     const F = CONFIG.fx, fx = this.scene.effects, me = this.foot();
     this.hp -= n;
     this.scene.sfx.play('hit_enemy', { at: me });
@@ -431,7 +457,7 @@ export class Enemy extends Walker {
   // standing: 서 있는가(시설에 막혀 길은 있지만 서 있는 것도).
   syncSprite(standing = !this.moving) {
     const F = CONFIG.fx, sp = this.sprite;
-    const w = tileToWorld(this.col, this.row), o = this.body.offset();
+    const w = this.foot(), o = this.body.offset();
     sp.setPosition(w.x + o.x, w.y + o.y);
     sp.setDepth(CONFIG.depth.objectBase + w.y + CONFIG.depth.charBias);
     this.body.show(!standing);

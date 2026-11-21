@@ -59,7 +59,7 @@ export class UgHome {
   // 지하에 있는 캐릭터(주인공과 따라온 동물)가 몸을 걸친 칸
   characterTiles() {
     const pets = this.scene.pets.list.filter((q) => q.map === this.ug.grid);
-    return [...this.scene.player.occupiedTiles(), ...pets.flatMap((q) => q.occupiedTiles())];
+    return [...this.scene.player.occupiedTiles(), ...pets.flatMap((q) => q.occupiedTiles()), ...this.scene.enemies.occupiedTiles(this.ug.grid)];   // (지하 침입) 지하의 해적도
   }
 
   // 벽난로는 뒷벽에 붙인다: (c-1, r)이 흙 덩어리면 그대로(왼쪽 위 벽), 아니고 (c, r-1)이면 뒤집는다(오른쪽 위 벽). 둘 다 아니면 null

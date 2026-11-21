@@ -54,7 +54,7 @@ export class TowerSystem {
   }
 
   inRange(s, e) {
-    return e.alive && !e.rising && Math.hypot(e.col - s.col, e.row - s.row) <= s.cfg.range;
+    return e.alive && !e.rising && !e.under && !e.transit && Math.hypot(e.col - s.col, e.row - s.row) <= s.cfg.range;
   }
 
   // 사거리 안에서 가장 가까운 적. 지금 목표가 살아 있고 사거리 안이면 그대로.

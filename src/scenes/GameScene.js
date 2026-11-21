@@ -21,6 +21,7 @@ import { WeatherSystem } from '../systems/WeatherSystem.js';
 import { HungerSystem } from '../systems/HungerSystem.js';
 import { Underground } from '../systems/Underground.js';
 import { UgHome } from '../systems/UgHome.js';
+import { Raid } from '../systems/Raid.js';
 import { bestTool, cardCost, cardName, objectParticle, subjectParticle } from '../systems/Crafting.js';
 import { TODO_ITEMS2, TODO_ITEMS3 } from '../systems/Todo.js';
 
@@ -70,6 +71,7 @@ export class GameScene extends Phaser.Scene {
     this.pets = new PetSystem(this);                  // (3단계) 강아지와 고양이 (13.4)
     this.ug = new Underground(this);                  // (지하) 굴 입구, 오르내리기, 파기 (17장)
     this.home = new UgHome(this);                     // (지하) 지하 가구, 침대, 의자, 버섯 화분 (17.6~17.8)
+    this.raid = new Raid(this);                       // (지하 침입) 해적이 굴 입구를 부수고 내려온다 (18장)
     this.resultPending = false;                       // 첫 아침: 화면이 다 밝아지면 결과 창을 띄운다
 
     // 카메라: 주인공을 부드럽게 따라가고, 바닥 그림 밖으로 나가지 않는다
@@ -128,6 +130,7 @@ export class GameScene extends Phaser.Scene {
   onPress(p) {
     if (!p.wasTouch && p.button !== 0) return;        // 마우스는 왼쪽 버튼만
     if (this.player.downed) return;                   // 쓰러진 뒤 창이 뜨기까지는 누를 수 없다
+    if (this.burrowMenu) { this.closeBurrowMenu(); return; }   // (지하 침입) 굴 입구의 고치기 버튼 밖을 눌렀다: 버튼만 사라진다 (18.2)
     // 짓기·치우기 상태: 걷지 않는다. 손을 뗄 때 짓는다. (지하) 지하 가구도 같다(17.6). 오르내리는 중과 침대에서 자는 중은 빼고
     if (this.build.mode && !(this.ug.active && (this.ug.busy || this.home.bed))) {
       this.pressing = true;
@@ -148,7 +151,7 @@ export class GameScene extends Phaser.Scene {
     if (e) this.pressEnemy(e);                        // 적: 다가가서 단검으로 친다 (5.9). 총이 있으면 멀리서 쏜다 (11.6)
     else if (pet) this.pets.press(pet);               // (3단계) 동물: 다가가서 쓰다듬는다 (13.4)
     else if (o && o.kind === 'iron' && this.stage < 2) this.error('아직 캘 수 없습니다');   // 철광석은 2단계부터 캔다 (4장, 11.2)
-    else if (o && o.type === 'burrow') this.ug.pressBurrow(o);   // (지하) 굴 입구: 내려간다 (17.2)
+    else if (o && o.type === 'burrow') this.pressBurrow(o);   // (지하) 굴 입구: 내려간다 (17.2). 금 갔거나 부서졌으면 고치기 버튼 (18.2)
     else if (o && o.kind === 'bush') this.hunger.pressBush(o);   // 덤불: 열매를 딴다 (16.3)
     else if (o && o.kind === 'crate') this.farm.pressCrate(o);   // (3단계) 씨앗 상자 (13.3)
     else if (o && o.node) this.pressNode(o);               // 나무, 돌, 철광석, 그루터기, 돌 부스러기
@@ -190,7 +193,7 @@ export class GameScene extends Phaser.Scene {
   // 주인공이 텐트 안에 있는 동안에는 들어갔던 칸이다.
   // (지하) 지하에 있는 주인공과 동물은 땅 위의 칸을 차지하지 않는다
   characterTiles() {
-    const out = [...this.enemies.occupiedTiles(), ...this.pets.list.filter((p) => p.map === this.map).flatMap((p) => p.occupiedTiles())];
+    const out = [...this.enemies.occupiedTiles(this.map), ...this.pets.list.filter((p) => p.map === this.map).flatMap((p) => p.occupiedTiles())];
     return this.ug.active ? out : [...this.player.occupiedTiles(), ...out];
   }
 
@@ -240,7 +243,9 @@ export class GameScene extends Phaser.Scene {
   // 적(from)에게 맞았다: 하트가 줄고 타격감(12.4). 0이 되면 쓰러진다(down 을 보여 주고 downDelay 초 뒤에 창).
   // 들어갔으면 true.
   hurtPlayer(n, from) {
-    if (this.rest.resting || this.ug.active) return false;   // 텐트 안·지하에서는 공격받지 않는다
+    if (this.rest.resting) return false;              // 텐트 안에서는 공격받지 않는다
+    if (this.ug.active && !(from && from.under)) return false;   // 지하에서는 지하로 내려온 해적에게만 (18.4)
+    this.home.standUp();                              // 의자에 앉아 있었으면 일어난다
     if (this.player.downed) return false;             // 이미 쓰러졌다(같은 프레임에 여러 마리가 때린 경우도)
     this.hearts.damage(n);
     const down = this.hearts.value <= 0;
@@ -357,7 +362,7 @@ export class GameScene extends Phaser.Scene {
     this.cursorLeft = CONFIG.input.cursorTime;
   }
 
-  notice(text) { this.events.emit('notice', text); }
+  notice(text, icon = null) { this.events.emit('notice', text, icon); }   // icon: 알림 앞의 아이콘(해적 알림 icon_pirate, 18.5)
   // (지하) 땅 위 소식 (17.9): icon_surface 와 "땅 위: ..."
   surfaceNews(text) { this.events.emit('notice', '땅 위: ' + text, 'icon_surface'); }
   newsOrNotice(text) { if (this.ug.active) this.surfaceNews(text); else this.notice(text); }
@@ -370,6 +375,13 @@ export class GameScene extends Phaser.Scene {
     const name = CONFIG.farm.crops[type].name;
     this.surfaceNews(`${name}${subjectParticle(name)} 다 자랐습니다`);
   }
+  // (지하 침입) 굴 입구를 눌렀다: 금 갔거나 부서졌으면 그 곁에 "고치기 · 나무 2" / "내려가기" 버튼, 아니면 내려간다 (18.2)
+  pressBurrow(b) {
+    if (this.raid.enabled && b.hp < b.maxHp) { this.burrowMenu = b; this.events.emit('burrow-menu', b); return; }
+    this.ug.pressBurrow(b);
+  }
+  closeBurrowMenu() { this.burrowMenu = null; this.events.emit('burrow-menu', null); }
+
   // 자는 중 버튼: 텐트에서 나오거나 침대에서 일어난다
   wakeUp() { if (this.home.bed) this.home.wake(); else this.rest.exit(); }
   // 할 수 없는 일을 눌렀다: 알림과 ui_error (15.3)
@@ -534,6 +546,8 @@ export class GameScene extends Phaser.Scene {
   // (지하) 포자 +5, 버섯 다 자라게 (17.10)
   debugSpores() { this.inventory.add('spore', CONFIG.ug.debugSpores); }
   debugMushrooms() { this.home.ripenAll(); }
+  // (지하 침입) 해적 습격(지하): 밤으로 바꾸고 해적 2명을 굴 입구 둘레에 (18.5)
+  debugRaid() { this.raid.debugRaid(); }
   // (2단계) 해적 부르기: 밤에만. 해적선과 해적이 바로 나온다 (11.8)
   debugPirates() { if (this.clock.isNight && !this.player.downed) this.pirates.callNow(); }
 
@@ -550,6 +564,7 @@ export class GameScene extends Phaser.Scene {
     this.rest.update(dt);
     this.player.update(dt);
     this.enemies.update(dt);
+    this.raid.update();
     this.pets.update(dt);
     this.pirates.update(dt);
     this.towers.update(dt);
@@ -564,8 +579,9 @@ export class GameScene extends Phaser.Scene {
     // 쓰러진 뒤 downDelay 초가 지나면 "쓰러졌습니다" 창 (12.3)
     if (pl.downed && pl.downLeft <= 0 && this.scene.isActive()) this.stopGame('down');
     // 가만히 서 있을 때 붙은 칸에 적이 오면 자동으로 공격한다 (5.9). 총이 있으면 사거리 안에서 가장 가까운 적을 쏜다 (11.6)
-    if (!this.rest.resting && !this.ug.active && !pl.downed && !pl.moving && !pl.action && !pl.swing) {
-      const e = this.hasGun ? this.enemies.nearestTo(pl.tile, CONFIG.tools.gun.range) : this.enemies.nextTo(pl.tile);
+    // (지하 침입) 지하에서도 그 층의 적(내려온 해적)에게
+    if (!this.rest.resting && !this.home.bed && !pl.seat && !pl.downed && !pl.moving && !pl.action && !pl.swing) {
+      const e = this.hasGun ? this.enemies.nearestTo(pl.tile, CONFIG.tools.gun.range, pl.map) : this.enemies.nextTo(pl.tile, pl.map);
       if (e) this.pressEnemy(e, true);
     }
     this.effects.update(dt);

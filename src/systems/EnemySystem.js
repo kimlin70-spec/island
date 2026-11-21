@@ -24,9 +24,21 @@ export class EnemySystem {
     this.schedule = Array.from({ length: n }, (_, i) => i * span / n);
   }
 
-  // 지금 적이 노리는 것: 주인공. 주인공이 텐트 안에 있으면 텐트.
-  target() {
-    const s = this.scene;
+  // 지금 적(e)이 노리는 것: 주인공. 주인공이 텐트 안에 있으면 텐트.
+  // (해적의 지하 침입, 18장) 해적: 주인공이 지하에 있으면 굴 입구(뚜껑을 부수고, 부서졌으면 그 칸으로 가서 내려간다).
+  // 지하의 해적은 주인공이 지하면 주인공, 땅 위면 사다리 칸으로 가서 올라간다. climb: 그 칸에 올라서서 오르내린다('down' | 'up')
+  target(e) {
+    const s = this.scene, R = s.raid;
+    if (e && R.isRaider(e)) {
+      if (e.under) {
+        if (s.ug.active) return { tiles: [s.player.here()], structure: null };
+        const t = s.ug.floor.entry;
+        return { tiles: [{ col: t.col, row: t.row }], structure: null, climb: 'up' };
+      }
+      const b = s.ug.active ? R.burrow : null;
+      if (b && b.broken) return { tiles: [{ col: b.col, row: b.row }], structure: null, climb: 'down' };
+      if (b) return { tiles: b.tiles, structure: b };
+    }
     // (지하) 주인공이 지하에 있으면 없는 것으로 친다: 가까운 시설을 노리고(굴 입구는 빼고), 없으면 굴 입구 둘레를 돌아다닌다 (17.2)
     if (s.ug.active) {
       const b = s.ug.burrow, at = b || s.player;
@@ -81,7 +93,7 @@ export class EnemySystem {
   // 다른 좀비들이 서 있거나 가고 있는 칸(Enemy.claims)
   takenTiles(me) {
     const out = new Set();
-    for (const e of this.list) if (e !== me) for (const t of e.claims()) out.add(t.col + ',' + t.row);
+    for (const e of this.list) if (e !== me && e.map === me.map && !e.transit) for (const t of e.claims()) out.add(t.col + ',' + t.row);   // 같은 층의 적만
     return out;
   }
 
@@ -112,6 +124,8 @@ export class EnemySystem {
   // 시설에 피해 n. 텐트가 공격받기 시작하면 알린다(총잡이의 총알도 이것을 쓴다)
   damageStructure(e, s, n) {
     const scene = this.scene;
+    this.structureHitAt = scene.elapsed;
+    if (s.type === 'burrow') { scene.raid.hitHatch(e, s); return; }   // (지하 침입) 굴 입구 뚜껑 (18.2)
     if (scene.ug.active) {                           // (지하) 땅 위 소식: attackNotice 초에 한 번 이하 (17.9)
       if (scene.elapsed - this.newsAt >= CONFIG.ug.attackNotice) { scene.surfaceNews('캠프가 공격받고 있습니다'); this.newsAt = scene.elapsed; }
     } else if (s.type === 'tent') {
@@ -129,6 +143,7 @@ export class EnemySystem {
     if (i < 0) return;
     this.list.splice(i, 1);
     this.defeated += 1;
+    this.scene.raid.dropLantern(e, true);            // (지하 침입) 등불은 0.3초 동안 흐려지며 사라진다
     if (e.kind === 'zombie') this.scene.sfx.play('zombie_die', { at: e.foot() });
     e.die(dx, dy);
   }
@@ -138,6 +153,7 @@ export class EnemySystem {
     if (!this.list.includes(e)) return;
     const sp = e.sprite;
     this.scene.effects.poof(sp.x, sp.y - sp.displayHeight * sp.originY * 0.5);
+    this.scene.raid.dropLantern(e, false);
     e.destroy();
     this.list.splice(this.list.indexOf(e), 1);
   }
@@ -153,6 +169,7 @@ export class EnemySystem {
     const pad = CONFIG.input.enemyPad;
     let best = null;
     for (const e of this.list) {
+      if (e.transit) continue;                       // 사다리를 오르내리는 해적은 누를 수 없다
       const s = e.sprite, left = s.x - s.displayWidth * s.originX, top = s.y - s.displayHeight * s.originY;
       if (x < left - pad || x > left + s.displayWidth + pad || y < top - pad || y > top + s.displayHeight + pad) continue;
       if (!best || s.depth > best.sprite.depth) best = e;
@@ -161,10 +178,11 @@ export class EnemySystem {
   }
 
   // tile 과 붙은 칸(8방향, 같은 칸 포함)에 있는 적 중 가장 가까운 것. 땅에서 올라오는 중인 좀비는 빼고.
-  nextTo(tile) {
+  // (지하 침입) map: 주인공이 있는 층(지도). 그 층의 적만
+  nextTo(tile, map = this.map) {
     let best = null, bestD = Infinity;
     for (const e of this.list) {
-      if (e.rising) continue;
+      if (e.rising || e.transit || e.map !== map) continue;
       const h = e.here();
       if (Math.max(Math.abs(h.col - tile.col), Math.abs(h.row - tile.row)) > 1) continue;
       const d = Math.hypot(e.col - tile.col, e.row - tile.row);
@@ -174,10 +192,10 @@ export class EnemySystem {
   }
 
   // (2단계) tile 에서 range 칸(직선거리) 안의 적 중 가장 가까운 것. 땅에서 올라오는 중인 좀비는 빼고. (11.6)
-  nearestTo(tile, range) {
+  nearestTo(tile, range, map = this.map) {
     let best = null, bestD = Infinity;
     for (const e of this.list) {
-      if (e.rising) continue;
+      if (e.rising || e.transit || e.map !== map) continue;
       const d = Math.hypot(e.col - tile.col, e.row - tile.row);
       if (d <= range && d < bestD) { best = e; bestD = d; }
     }
@@ -187,11 +205,12 @@ export class EnemySystem {
   // 텐트에서 range 칸(직선거리) 안에 적이 있는가. 텐트는 2×2칸이라 네 칸의 한가운데에서 잰다.
   near(s, range) {
     const c = s.tiles.reduce((a, t) => a + t.col, 0) / s.tiles.length, r = s.tiles.reduce((a, t) => a + t.row, 0) / s.tiles.length;
-    return this.list.some((e) => Math.hypot(e.col - c, e.row - r) <= range);
+    return this.list.some((e) => !e.under && Math.hypot(e.col - c, e.row - r) <= range);
   }
 
   // 적의 몸이 걸쳐 있는 칸들. 여기에는 시설을 지을 수 없다.
-  occupiedTiles() { return this.list.flatMap((e) => e.occupiedTiles()); }
+  // map: 그 층(기본: 땅 위)의 적만
+  occupiedTiles(map = this.map) { return this.list.filter((e) => e.map === map).flatMap((e) => e.occupiedTiles()); }
 
   onMapChanged() { for (const e of this.list) e.onMapChanged(); }
 
