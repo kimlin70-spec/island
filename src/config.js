@@ -34,6 +34,7 @@ export const CONFIG = {
   },
   build: {
     reach: 7, refundRate: 0.5,
+    walkMargin: 1.5,   // (사용자 요청) 멀어서 걸어가 지을 때 reach 보다 이만큼(칸) 안쪽까지 간다
     reachCircle: { tint: 0x7fd858, alpha: 0.9 },   // 초록: 탑의 사거리 원(색 없음)과 구별되게   // (사용자 요청) 짓는 동안 주인공 둘레에 지을 수 있는 거리(reach)를 원으로 보여 준다. 그림은 overlay_range
     fence:    { name: '울타리', cost: { wood: 1 }, hp: 6 },
     // (지하) 굴 입구 (17.2, 17.11): 하나만. 적은 공격하지 않는다

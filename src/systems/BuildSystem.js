@@ -39,6 +39,7 @@ export class BuildSystem {
   setMode(mode) {
     if (this.mode === mode) return;
     this.mode = mode;
+    this.pending = null;                             // 걸어가서 지으려던 것은 그만둔다
     this.rangeLeft = 0;                              // 눌러서 띄운 사거리 원도 짓기 상태가 바뀌면 숨긴다
     this.hideMarks();
     this.scene.events.emit('build-changed');
@@ -76,7 +77,13 @@ export class BuildSystem {
     if (this.furnishing) return this.scene.home.canPlaceAt(this.mode, col, row);   // (지하) 지하 가구 (17.6)
     if (!m.isOpen(col, row) || m.anyStructureAt(col, row) || this.scene.farm.fieldAt(col, row)) return false;   // 밭 위에는 짓지 않는다
     if (this.scene.characterTiles().some((t) => t.col === col && t.row === row)) return false;
-    return Math.hypot(col - p.col, row - p.row) <= CONFIG.build.reach;
+    return this.inReach(col, row);
+  }
+
+  // 주인공에게서 reach 칸 안인가. (사용자 요청) 멀어도 놓을 수 있는지 볼 때(ignoreReach)는 늘 참
+  inReach(col, row, reach = CONFIG.build.reach) {
+    const p = this.scene.player;
+    return this.ignoreReach || Math.hypot(col - p.col, row - p.row) <= reach;
   }
 
   // 포인터가 있는 칸에 overlay_ok / overlay_no 를 보여 준다
@@ -129,6 +136,8 @@ export class BuildSystem {
     }
     if (!this.building) return;
     this.point(wx, wy);
+    this.pending = null;
+    if (!this.spot.ok && this.walkToBuild(wx, wy)) return;   // (사용자 요청) 멀기만 하면 걸어가서 짓는다
     if (this.decorating) {                           // (지하 꾸미기) 누를 때마다 그 칸·벽에 바로. 재료(전리품)가 떨어지면 풀린다
       const type = this.mode;
       this.scene.decor.commit(type, this.spot);
@@ -297,7 +306,44 @@ export class BuildSystem {
   }
 
   // 밤에는 모닥불마다 불꽃에서 불티가 emberEvery 초마다 하나씩 오른다 (12.6). 지은 탑을 눌러 띄운 사거리 원을 시간이 되면 숨긴다.
+  // (사용자 요청) 멀어서 못 짓는 곳을 눌렀다: 거리만 빼면 지을 수 있으면, 그곳에서 reach 안의 칸으로 걸어가 도착하면 짓는다. 걸어가면 true
+  walkToBuild(wx, wy) {
+    const scene = this.scene, pl = scene.player;
+    this.ignoreReach = true;
+    this.point(wx, wy);
+    const spot = this.spot;
+    this.ignoreReach = false;
+    this.point(wx, wy);                              // 표시는 원래대로(빨강)
+    if (!spot || !spot.ok) return false;
+    const tiles = spot.tiles || (spot.tile ? [spot.tile] : spot.wall ? [{ col: spot.wall.fc, row: spot.wall.fr }] : []);
+    if (!tiles.length) return false;
+    if (this.mode === TILL) { scene.farm.till(tiles[0]); return true; }   // 밭 갈기는 그 칸으로 걸어가서 간다
+    const c = tiles.reduce((a, t) => a + t.col, 0) / tiles.length, r = tiles.reduce((a, t) => a + t.row, 0) / tiles.length;
+    const R = CONFIG.build.reach - CONFIG.build.walkMargin, m = pl.map, goals = [];
+    for (let dr = -Math.ceil(R); dr <= R; dr++) for (let dc = -Math.ceil(R); dc <= R; dc++) {
+      const col = Math.round(c) + dc, row = Math.round(r) + dr;
+      if (Math.hypot(col - c, row - r) > R || !m.isWalkable(col, row) || tiles.some((t) => t.col === col && t.row === row)) continue;
+      goals.push({ col, row });
+    }
+    pl.stopAction();
+    if (!goals.length || !pl.routeTo(goals)) return false;
+    this.pending = { mode: this.mode, wx, wy };
+    scene.showCursor(Math.round(c), Math.round(r));
+    return true;
+  }
+
   update(dt) {
+    // (사용자 요청) 걸어가서 지으려던 곳에 닿았으면 짓는다
+    const pend = this.pending, pl = this.scene.player;
+    if (pend && !pl.moving) {
+      this.pending = null;
+      if (this.mode === pend.mode) {
+        this.point(pend.wx, pend.wy);
+        if (this.spot && this.spot.ok) this.commit(pend.wx, pend.wy);
+        else this.scene.sfx.play('ui_error');
+        if (!this.scene.hovering) this.hideMarks();
+      }
+    }
     this.syncReach();
     this.updateGates();
     if (this.rangeLeft > 0 && (this.rangeLeft -= dt) <= 0 && !isTower(this.mode)) this.range.setVisible(false);

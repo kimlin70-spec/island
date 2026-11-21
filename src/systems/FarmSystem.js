@@ -94,7 +94,7 @@ export class FarmSystem {
     const m = this.map, F = CONFIG.farm, p = this.scene.player;
     if (!m.isLand(col, row) || !F.tillTerrain.includes(m.map.terrain[row][col])) return false;
     if (m.objectAt(col, row) || m.anyStructureAt(col, row) || this.fieldAt(col, row)) return false;
-    return Math.hypot(col - p.col, row - p.row) <= F.reach;
+    return this.scene.build.inReach(col, row, F.reach);   // (사용자 요청) 멀면 걸어가서 간다(BuildSystem.walkToBuild)
   }
 
   // 그 칸으로 가서 괭이질(hoe), hit 프레임에 밭이 된다. 걸어가는 동안 다른 칸을 누르면 그쪽으로 바꾼다(새 행동이 된다).

@@ -386,6 +386,14 @@ export class GameScene extends Phaser.Scene {
     const name = CONFIG.farm.crops[type].name;
     this.surfaceNews(`${name}${subjectParticle(name)} 다 자랐습니다`);
   }
+  // (지하 꾸미기) 긴 양탄자의 방향: col <-> row (19.5). 카드를 한 번 더 누르거나 "방향 바꾸기" 버튼(사용자 요청)
+  rotateRunner() {
+    this.decor.runnerRow = !this.decor.runnerRow;
+    this.sfx.play('ui_click');
+    this.events.emit('build-changed');
+    if (this.hovering && this.build.building) { const p = this.input.activePointer; p.updateWorldPoint(this.cameras.main); this.build.point(p.worldX, p.worldY); }
+  }
+
   // (지하 침입) 굴 입구를 눌렀다: 금 갔거나 부서졌으면 그 곁에 "고치기 · 나무 2" / "내려가기" 버튼, 아니면 내려간다 (18.2)
   pressBurrow(b) {
     if (this.raid.enabled && b.hp < b.maxHp) { this.burrowMenu = b; this.events.emit('burrow-menu', b); return; }
@@ -465,12 +473,7 @@ export class GameScene extends Phaser.Scene {
       return;
     }
     // (지하 꾸미기) 긴 양탄자를 고른 채로 한 번 더 누르면 row 방향으로 바뀐다 (19.5)
-    if (card.id === 'rugRunner' && this.build.mode === 'rugRunner') {
-      this.decor.runnerRow = !this.decor.runnerRow;
-      this.sfx.play('ui_click');
-      this.events.emit('build-changed');
-      return;
-    }
+    if (card.id === 'rugRunner' && this.build.mode === 'rugRunner') { this.rotateRunner(); return; }
     this.sfx.play('ui_click');
     if (state === 'owned') return;
     if (card.type === 'tool') this.craftTool(card);

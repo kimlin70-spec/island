@@ -65,7 +65,7 @@ export class UgHome {
       if (side && D.wallDecos.has(D.key(col, row, side))) return false;
     }
     if (this.characterTiles().some((t) => t.col === col && t.row === row)) return false;
-    return Math.hypot(col - p.col, row - p.row) <= CONFIG.build.reach;
+    return this.scene.build.inReach(col, row);
   }
 
   // 지하에 있는 캐릭터(주인공과 따라온 동물)가 몸을 걸친 칸

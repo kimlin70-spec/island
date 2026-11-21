@@ -543,8 +543,8 @@ export class UIScene extends Phaser.Scene {
     const bg = this.hitRect(this.add.graphics(), 0, 0, K.cardW, K.cardH);
     bg.on('pointerdown', () => {
       this.world.pressCard(card);
-      // (사용자 요청) 짓기·치우기·밭 갈기를 고르면 창을 접는다. 긴 양탄자는 카드를 한 번 더 눌러 방향을 바꾸므로 접지 않는다(19.5)
-      if (this.world.build.mode === card.id && card.id !== 'rugRunner') this.minimizeCraft();
+      // (사용자 요청) 짓기·치우기·밭 갈기를 고르면 창을 접는다. 긴 양탄자의 방향은 아래 가운데의 "방향 바꾸기" 버튼으로도 바꾼다
+      if (this.world.build.mode === card.id) this.minimizeCraft();
     });
     const icon = this.add.image(K.cardW / 2, K.iconY, card.icon).setDisplaySize(K.icon, K.icon);
     const name = this.label(K.cardW / 2, K.nameY, cardName(card), K.nameFont, { originX: 0.5 });
@@ -682,12 +682,33 @@ export class UIScene extends Phaser.Scene {
     icon.setPosition(x + R.padX + R.icon / 2, y + R.h / 2);
     text.setPosition(x + R.padX + R.icon + R.gap, y + R.h / 2);
     this.upBox = this.add.container(0, 0, [bg, icon, text]);
+    this.makeRotateButton();
     this.refreshUpButton();
   }
 
+  // (사용자 요청) 긴 양탄자를 놓는 동안 아래 가운데에 "방향 바꾸기"(만들기 창이 접혀 있어도 돌릴 수 있게. 그동안 "올라가기"는 감춘다)
+  makeRotateButton() {
+    const R = U.rest;
+    if (this.rotBox) this.rotBox.destroy();
+    const bg = this.add.graphics();
+    const icon = this.add.image(0, 0, 'icon_rug_runner').setDisplaySize(R.icon, R.icon);
+    const text = this.label(0, 0, '방향 바꾸기', R.font);
+    const w = R.padX * 2 + R.icon + R.gap + text.width;
+    const { x, y } = this.bottomLayout().button(w);
+    this.panel(bg, x, y, w, R.h);
+    bg.on('pointerdown', () => { this.world.rotateRunner(); });
+    icon.setPosition(x + R.padX + R.icon / 2, y + R.h / 2);
+    text.setPosition(x + R.padX + R.icon + R.gap, y + R.h / 2);
+    this.rotBox = this.add.container(0, 0, [bg, icon, text]).setVisible(false);
+    this.rotIcon = icon;
+  }
+
   refreshUpButton() {
-    const w = this.world, on = w.ug.active && !w.ug.busy && !w.home.bed && !w.player.downed;
+    const w = this.world, rot = w.ug.active && w.build.mode === 'rugRunner';
+    const on = w.ug.active && !w.ug.busy && !w.home.bed && !w.player.downed && !rot;
     if (this.upBox.visible !== on) this.upBox.setVisible(on);
+    if (this.rotBox.visible !== rot) this.rotBox.setVisible(rot);
+    if (rot) this.rotIcon.setFlipX(w.decor.runnerRow);
   }
 
   // ── 화면 가운데: "쓰러졌습니다" 창, 첫 아침의 결과 창 (5.9, 5.10) ──

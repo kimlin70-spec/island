@@ -81,13 +81,13 @@ export class Decor {
   // 깔 수 있는 칸: 파낸 칸, reach 안, 같은 바닥재가 아님(가구·사다리·캐릭터는 상관없다)
   canFloor(mode, t) {
     const p = this.scene.player;
-    return this.ug.isDug(t.col, t.row) && Math.hypot(t.col - p.col, t.row - p.row) <= CONFIG.build.reach && this.floors.get(this.key(t.col, t.row)) !== FLOOR[mode];
+    return this.ug.isDug(t.col, t.row) && this.scene.build.inReach(t.col, t.row) && this.floors.get(this.key(t.col, t.row)) !== FLOOR[mode];
   }
 
   // 댈·달 수 있는 벽: 그 벽이 선 칸이 파낸 칸(방 안), reach 안. 벽판은 같은 벽판이 아님. 벽 장식은 장식이 없고 벽난로가 등진 벽이 아님
   canWall(mode, w) {
     const p = this.scene.player, k = this.key(w.fc, w.fr, w.side);
-    if (!this.ug.isDug(w.fc, w.fr) || Math.hypot(w.fc - p.col, w.fr - p.row) > CONFIG.build.reach) return false;
+    if (!this.ug.isDug(w.fc, w.fr) || !this.scene.build.inReach(w.fc, w.fr)) return false;
     if (this.kind(mode) === 'cover') return this.covers.get(k) !== COVER[mode];
     return !this.wallDecos.has(k) && !this.fireplaceWalls().has(k);
   }
