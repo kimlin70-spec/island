@@ -46,14 +46,14 @@ export class UIScene extends Phaser.Scene {
     listen('loot-changed', () => this.refreshCards());      // (지하 꾸미기) 전리품의 가진 수 (19.6)
     listen('weather-changed', () => this.refreshWeather());
     // (지하) 만들기 창의 카드가 바뀌고(17.6), 시계 아래에 "지하 1층", 알림은 그 아래로 (17.9)
-    listen('ug-changed', (down) => { this.makeCraftWindow(); this.ugTag.setVisible(down); this.placeNotice(); });
+    listen('ug-changed', (down) => { this.closeSeedWindow(); this.makeCraftWindow(); this.ugTag.setVisible(down); this.placeNotice(); });
     listen('tools-changed', () => { this.refreshEquipment(); if (this.world.stage >= 2) this.makeCraftWindow(); else this.refreshCards(); this.makeRest(); });
     listen('todo-changed', () => this.refreshTodo());
     listen('build-changed', () => { this.refreshCards(); this.refreshHint(); this.drawCraftButton(); });
     listen('structures-changed', () => this.refreshCards());
     listen('hearts-changed', () => this.refreshHearts());
     listen('hunger-changed', () => this.refreshHunger());
-    listen('rest-changed', () => { this.makeRest(); this.restBox.setVisible(this.world.rest.resting || !!this.world.home.bed); });
+    listen('rest-changed', () => { this.closeSeedWindow(); this.makeRest(); this.restBox.setVisible(this.world.rest.resting || !!this.world.home.bed); });
     listen('speed-changed', () => this.refreshDebug());
     listen('stage-changed', () => this.onStage());
     listen('notice', (text, icon) => this.notice(text, false, icon));
@@ -623,7 +623,8 @@ export class UIScene extends Phaser.Scene {
       ['닫기', () => this.debugWin.setVisible(false)],
     ];
     // 단추가 많아 만들기 버튼까지 내려오면 단추 높이를 줄여 그 위에 맞춘다
-    const { cy, r } = this.craftPos, room = cy - r - D.gap - this.debugAt.y, n = items.length;   // 만들기 버튼 위까지
+    // 만들기 버튼 위까지. (검사) 1단계는 두 창을 같이 열 수 있으므로 만들기 창 위까지
+    const { cy, r } = this.craftPos, bottom = this.world.stage >= 2 ? cy - r : this.craftWin.y, room = bottom - D.gap - this.debugAt.y, n = items.length;
     const itemH = Math.min(D.itemH, Math.floor((room - D.pad * 2 - (n - 1) * D.itemGap) / n));
     const font = Math.min(D.itemFont, Math.round(D.itemFont * itemH / D.itemH));
     const h = D.pad * 2 + n * itemH + (n - 1) * D.itemGap;
@@ -704,7 +705,7 @@ export class UIScene extends Phaser.Scene {
   }
 
   refreshUpButton() {
-    const w = this.world, rot = w.ug.active && w.build.mode === 'rugRunner';
+    const w = this.world, rot = w.ug.active && w.build.mode === 'rugRunner' && !w.home.bed;   // (검사) 자는 동안은 "자는 중" 버튼이 그 자리
     const on = w.ug.active && !w.ug.busy && !w.home.bed && !w.player.downed && !rot;
     if (this.upBox.visible !== on) this.upBox.setVisible(on);
     if (this.rotBox.visible !== rot) this.rotBox.setVisible(rot);

@@ -165,7 +165,7 @@ export class FarmSystem {
     this.scene.player.act({
       target: f, stepOff: true,
       tool: () => 'crouch',
-      isValid: () => this.fields.get(this.key(f.col, f.row)) === f && !f.crop && this.scene.inventory.count(seedItem(crop)) > 0,
+      isValid: () => this.fields.get(this.key(f.col, f.row)) === f && !f.crop && this.scene.inventory.count(seedItem(crop)) > 0 && !this.scene.ug.active && !this.scene.rest.resting,
       strike: () => {
         const scene = this.scene;
         scene.inventory.add(seedItem(crop), -1);

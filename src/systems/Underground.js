@@ -467,7 +467,13 @@ export class Underground {
     const t = this.scene.player.tile, F = this.floor;
     for (let dr = -2; dr <= 2; dr++) for (let dc = -2; dc <= 2; dc++) {
       const c = t.col + dc, r = t.row + dr;
-      if (c > 0 && r > 0 && c < F.cols - 1 && r < F.rows - 1 && !this.scene.decor.decorated(c, r)) this.dug.add(this.key(c, r));   // 꾸민 벽은 파지 않는다
+      if (c > 0 && r > 0 && c < F.cols - 1 && r < F.rows - 1 && !this.scene.decor.decorated(c, r)) {   // 꾸민 벽은 파지 않는다
+        const k = this.key(c, r);
+        this.dug.add(k);
+        this.hp.delete(k);                           // (검사) 금과 깎인 수도 치운다
+        const img = this.cracks.get(k);
+        if (img) { img.destroy(); this.cracks.delete(k); }
+      }
     }
     this.build();
   }

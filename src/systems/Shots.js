@@ -74,7 +74,7 @@ export class Shots {
 
   // 따라가는 것의 도착점: 목표가 살아 있으면 지금 맞는 곳. 목표를 방금 잃었으면 지금 자리에서 그 발밑으로 같은 빠르기로 곧게 떨어진다.
   follow(p) {
-    if (p.target.alive) {
+    if (p.target.alive && !p.target.transit) {      // (검사) 사다리를 오르내리는 해적은 놓친 것으로(떨어진 자리에 먼지)
       p.last = this.aimPoint(p.target);
       p.lastFoot = p.target.foot();
       return p.last;

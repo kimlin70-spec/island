@@ -43,7 +43,7 @@ export class HungerSystem {
       } else if (this.value === 0) scene.notice('배가 너무 고픕니다');
     }
     if (this.value > 0) return;
-    this.drainLeft = Math.max(this.drainLeft, 0);
+    this.drainLeft = H.drainEvery;                   // (검사) 굶는 동안은 가득으로 둔다(먹으면 거기서부터 다시 센다)
     this.starveLeft -= dt;
     if (this.starveLeft > 0) return;
     this.starveLeft += H.starveEvery;
@@ -60,7 +60,7 @@ export class HungerSystem {
       if (down) scene.wakeUp();
       else return;
     }
-    pl.struck(null, down);
+    if (!pl.held) pl.struck(null, down);              // (검사) 사다리를 오르내리는 그림은 바꾸지 않는다
     if (down) pl.goDown();
   }
 
@@ -82,7 +82,7 @@ export class HungerSystem {
       scene.heartsUp();
     }
     scene.sfx.play('eat');
-    if (!scene.rest.resting && !scene.home.bed) scene.player.body.play('eat');
+    if (!scene.rest.resting && !scene.home.bed && !scene.player.held) scene.player.body.play('eat');
   }
 
   // ── 덤불 열매 (16.3) ──

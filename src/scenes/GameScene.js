@@ -133,6 +133,7 @@ export class GameScene extends Phaser.Scene {
   onPress(p) {
     if (!p.wasTouch && p.button !== 0) return;        // 마우스는 왼쪽 버튼만
     if (this.player.downed) return;                   // 쓰러진 뒤 창이 뜨기까지는 누를 수 없다
+    if (this.ug.busy) return;                         // (검사) 굴 입구로 내려가거나 올라오는 동안(쪼그려 앉기, 어두워짐)은 누르지 않는다
     if (this.burrowMenu) { this.closeBurrowMenu(); return; }   // (지하 침입) 굴 입구의 고치기 버튼 밖을 눌렀다: 버튼만 사라진다 (18.2)
     // 짓기·치우기 상태: 걷지 않는다. 손을 뗄 때 짓는다. (지하) 지하 가구도 같다(17.6). 오르내리는 중과 침대에서 자는 중은 빼고
     if (this.build.mode && !(this.ug.active && (this.ug.busy || this.home.bed))) {
@@ -251,6 +252,7 @@ export class GameScene extends Phaser.Scene {
   // 들어갔으면 true.
   hurtPlayer(n, from) {
     if (this.rest.resting) return false;              // 텐트 안에서는 공격받지 않는다
+    if (this.ug.busy || this.player.held) return false;   // (검사) 사다리를 오르내리는 동안은 맞지 않는다(해적과 같다, 18.3)
     if (from && !!from.under !== this.ug.active) return false;   // 다른 층의 적에게는 맞지 않는다(지하에서는 내려온 해적에게만, 18.4)
     if (this.ug.active && !from) return false;
     this.home.standUp();                              // 의자에 앉아 있었으면 일어난다
@@ -326,6 +328,7 @@ export class GameScene extends Phaser.Scene {
       this.stage = 4;
       this.events.emit('stage-changed');
       if (this.build.count('burrow') > 0) this.todo.check('burrow');
+      this.checkStage3();                             // (검사) 지하 생활의 할 일을 이미 다 했으면 바로 다음 목록으로
     } else if (this.stage === 4 && TODO_ITEMS4.every((t) => this.todo.isDone(t.id))) {   // (지하 꾸미기) 지하 생활의 할 일을 다 하면 꾸미기 할 일 (19.8)
       this.stage = 5;
       this.events.emit('stage-changed');
@@ -405,6 +408,7 @@ export class GameScene extends Phaser.Scene {
   climbUp() {
     if (!this.ug.active || this.ug.busy || this.home.bed || this.player.downed) return;
     this.home.standUp();
+    this.build.pending = null;
     this.ug.pressLadder();
   }
 

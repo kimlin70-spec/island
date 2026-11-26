@@ -31,7 +31,7 @@ export function hitLevel(scene, img, x, y, minAlpha = CONFIG.input.pickAlpha, ne
 // 눌린 것을 잠깐 통통 튀게 한다(눌렸다는 표시)
 export function tapPop(scene, sprite) {
   const T = CONFIG.input.tapPop;
-  if (!sprite || !sprite.active || sprite.tapPopping) return;
+  if (!sprite || !sprite.active || sprite.tapPopping || sprite.buildPopping) return;
   const s0 = sprite.scaleX, s1 = sprite.scaleY;
   sprite.tapPopping = true;
   scene.effects.run(T.time, (k) => { const u = 1 + T.scale * Math.sin(k * Math.PI); if (sprite.active) sprite.setScale(s0 * u, s1 * u); },

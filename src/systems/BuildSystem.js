@@ -150,6 +150,7 @@ export class BuildSystem {
       return;
     }
     if (this.mode === TILL) {                        // 밭 갈기: 그 칸으로 걸어가서 간다. 상태는 그대로(여러 칸을 연달아)
+      if (this.scene.rest.resting) this.scene.rest.exit();   // (검사) 텐트 안이면 나와서 간다
       this.scene.farm.till(this.spot.tiles[0]);
       return;
     }
@@ -317,6 +318,8 @@ export class BuildSystem {
     if (!spot || !spot.ok) return false;
     const tiles = spot.tiles || (spot.tile ? [spot.tile] : spot.wall ? [{ col: spot.wall.fc, row: spot.wall.fr }] : []);
     if (!tiles.length) return false;
+    if (scene.rest.resting) scene.rest.exit();       // (검사) 텐트 안이면 나와서 간다
+    scene.home.standUp();                            // (검사) 의자에 앉아 있었으면 일어나서 간다
     if (this.mode === TILL) { scene.farm.till(tiles[0]); return true; }   // 밭 갈기는 그 칸으로 걸어가서 간다
     const c = tiles.reduce((a, t) => a + t.col, 0) / tiles.length, r = tiles.reduce((a, t) => a + t.row, 0) / tiles.length;
     const R = CONFIG.build.reach - CONFIG.build.walkMargin, m = pl.map, goals = [];
@@ -335,7 +338,7 @@ export class BuildSystem {
   update(dt) {
     // (사용자 요청) 걸어가서 지으려던 곳에 닿았으면 짓는다
     const pend = this.pending, pl = this.scene.player;
-    if (pend && !pl.moving) {
+    if (pend && !pl.moving && !pl.held && !this.scene.ug.busy) {   // (검사) 사다리를 오르내리는 중에는 짓지 않는다
       this.pending = null;
       if (this.mode === pend.mode) {
         this.point(pend.wx, pend.wy);

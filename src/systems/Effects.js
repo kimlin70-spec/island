@@ -178,10 +178,11 @@ export class Effects {
   // 시설을 지을 때 (12.7): 크기 0.8 -> 1.06 -> 1.0 으로 튀어나온다
   pop(sprite) {
     const B = CONFIG.fx.buildPop, peak = CONFIG.fx.buildPopPeak;
+    sprite.buildPopping = true;                      // (검사) 이 동안은 눌림 표시(tapPop)를 하지 않는다
     this.run(B.time, (k) => {
       if (!sprite.active) return;
       sprite.setScale(k < peak ? B.from + (B.over - B.from) * k / peak : B.over + (1 - B.over) * (k - peak) / (1 - peak));
-    }, () => { if (sprite.active) sprite.setScale(1); });
+    }, () => { sprite.buildPopping = false; if (sprite.active) sprite.setScale(1); });
   }
 
   // 쓰러진 적 (12.3): die 를 틀고(마지막 장에서 머문다) 흐려지며, 좀비는 fx_vanish, 해적은 fx_dust. 그 뒤 없앤다.

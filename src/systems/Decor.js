@@ -191,10 +191,9 @@ export class Decor {
 
   removeAt(wx, wy) {
     const home = this.scene.home, t = this.ug.tileAt(wx, wy);
-    const f = home.pick(wx, wy);
-    if (f) { home.remove(f); return; }
-    const d = this.pickWallDeco(wx, wy);
-    if (d) { this.removeDeco(d); return; }
+    const hit = this.ug.pick(wx, wy);                // (검사) 누르기와 같은 규칙으로 고른다(빗나간 탭이 옆 가구를 치우지 않게)
+    if (hit && hit.furniture) { home.remove(hit.furniture); return; }
+    if (hit && hit.wallDeco) { this.removeDeco(hit.wallDeco); return; }
     const piece = this.ug.pickWall(wx, wy);
     if (piece) {
       const k = this.key(piece.wall.fc, piece.wall.fr, piece.wall.side);

@@ -73,7 +73,8 @@ export class WeatherSystem {
   // ── 웅덩이 (14.2): 카메라 둘레 ±10칸 안의 빈 땅 10곳에 6초에 걸쳐 나타나고, 비가 그치면 20초에 걸쳐 사라진다 ──
   makePuddles() {
     const R = CONFIG.weather.rain, scene = this.scene, m = scene.map, cam = scene.cameras.main;
-    const c = worldToTile(cam.midPoint.x, cam.midPoint.y), cands = [];
+    const ug = scene.ug, at = ug.active ? (ug.burrow || ug.surfaceSpot) : null;   // (검사) 지하면 땅 위의 굴 입구 둘레에
+    const c = at ? { col: at.col, row: at.row } : worldToTile(cam.midPoint.x, cam.midPoint.y), cands = [];
     for (let r = c.row - R.puddleRange; r <= c.row + R.puddleRange; r++) for (let col = c.col - R.puddleRange; col <= c.col + R.puddleRange; col++) {
       if (!m.isLand(col, r) || !PUDDLE_TERRAIN.includes(m.map.terrain[r][col])) continue;
       if (m.objectAt(col, r) || m.anyStructureAt(col, r) || scene.farm.fieldAt(col, r)) continue;
