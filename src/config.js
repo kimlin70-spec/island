@@ -1,7 +1,7 @@
 // 바꿀 수 있는 숫자는 전부 여기에 둔다.
 // 위쪽은 DEMO_SPEC.md 6장의 값 그대로이고, 아래쪽은 화면과 조작에 쓰는 숫자다.
 export const CONFIG = {
-  view: { width: 1920, height: 1200, zoom: 1.0, cameraLerp: 0.12 },
+  view: { width: 1920, height: 1200, zoom: 1.2, cameraLerp: 0.12 },   // zoom: (사용자 요청) 게임 화면을 살짝 크게. 1.0 -> 1.2 (화면 UI 크기는 그대로)
   time: { dayLength: 240, duskLength: 40, nightLength: 150, dawnFade: 3 },
   colors: { day: 0xffffff, dusk: 0xffd2a6, night: 0x6670b8 },
   player: {
