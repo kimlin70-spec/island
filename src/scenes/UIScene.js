@@ -623,8 +623,7 @@ export class UIScene extends Phaser.Scene {
       ['닫기', () => this.debugWin.setVisible(false)],
     ];
     // 단추가 많아 만들기 버튼까지 내려오면 단추 높이를 줄여 그 위에 맞춘다
-    // 만들기 버튼 위까지. (검사) 1단계는 두 창을 같이 열 수 있으므로 만들기 창 위까지
-    const { cy, r } = this.craftPos, bottom = this.world.stage >= 2 ? cy - r : this.craftWin.y, room = bottom - D.gap - this.debugAt.y, n = items.length;
+    const { cy, r } = this.craftPos, room = cy - r - D.gap - this.debugAt.y, n = items.length;   // 만들기 버튼 위까지
     const itemH = Math.min(D.itemH, Math.floor((room - D.pad * 2 - (n - 1) * D.itemGap) / n));
     const font = Math.min(D.itemFont, Math.round(D.itemFont * itemH / D.itemH));
     const h = D.pad * 2 + n * itemH + (n - 1) * D.itemGap;
